@@ -1,2 +1,2 @@
-# Vigilink-project
+# Vigilink
 A Neighborhood Safety Watch System for Enhanced Community Security
