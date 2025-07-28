@@ -1,0 +1,6 @@
+# Ignore all .env files (common for sensitive data)
+*.env
+
+# Ignore other common sensitive or unnecessary files (like temporary files, logs, etc.)
+*.log
+*.tmp
