@@ -5,9 +5,9 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: #f8fafc;
-            color: #1e293b;
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
             line-height: 1.6;
         }
 
@@ -31,7 +31,6 @@
         }
 
         .logo::before {
-            content: "🛡️";
             font-size: 1.5rem;
         }
 
@@ -174,87 +173,6 @@
         .feature-description {
             color: #64748b;
             line-height: 1.6;
-        }
-
-        /* Footer */
-        .footer {
-            background-color: #1e293b;
-            color: #94a3b8;
-            padding: 3rem 0 2rem;
-        }
-
-        .footer-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 2rem;
-        }
-
-        .footer-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 2rem;
-            margin-bottom: 2rem;
-        }
-
-        .footer-logo {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: white;
-            margin-bottom: 1rem;
-        }
-
-        .footer-logo::before {
-            content: "🛡️";
-            font-size: 1.5rem;
-        }
-
-        .footer-section h3 {
-            color: white;
-            font-weight: 600;
-            margin-bottom: 1rem;
-        }
-
-        .footer-section ul {
-            list-style: none;
-        }
-
-        .footer-section ul li {
-            margin-bottom: 0.5rem;
-        }
-
-        .footer-section ul li a {
-            color: #94a3b8;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .footer-section ul li a:hover {
-            color: white;
-        }
-
-        .social-links {
-            display: flex;
-            gap: 1rem;
-        }
-
-        .social-links a {
-            color: #94a3b8;
-            font-size: 1.25rem;
-            transition: color 0.2s;
-        }
-
-        .social-links a:hover {
-            color: white;
-        }
-
-        .footer-bottom {
-            border-top: 1px solid #374151;
-            padding-top: 2rem;
-            text-align: center;
-            color: #9ca3af;
         }
 
         /* Responsive Design */

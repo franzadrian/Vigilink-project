@@ -1,19 +1,21 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VigiLink - Keep Your Neighborhood Safe Together</title>
-    <link rel="stylesheet" href="accounts/css/index_styles.css">
+    <link rel="stylesheet" href="{% static 'accounts/css/index_styles.css' %}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
 </head>
 <body>
     <!-- Header -->
     <header class="header">
         <div class="container">
             <div class="logo">
-                <div class="logo-icon"></div>
-                <span class="logo-text">VigiLink</span>
+                <img src="{% static 'accounts/images/vigilink_logo.png' %}" alt="VigiLink Logo" class="logo-img" style="height:40px;">
+                <span class="logo-text" style="vertical-align:middle;">VigiLink</span>
             </div>
             <div class="mobile-menu-toggle" onclick="toggleMobileMenu()">
                 <span></span>
@@ -21,10 +23,9 @@
                 <span></span>
             </div>
             <nav class="nav" id="mobileNav">
-                <a href="#" class="nav-link">Home</a>
                 <a href="#" class="nav-link">Contact</a>
-                <a href="#" class="nav-link">Sign In</a>
-                <button class="btn-primary">Get Started</button>
+                <a href="{% url 'login' %}" class="nav-link">Sign In</a>
+                <a href="{% url 'register' %}"><button class="btn-primary">Get Started</button></a>
             </nav>
         </div>
     </header>
@@ -35,16 +36,22 @@
             <div class="hero-content">
                 <div class="hero-text">
                     <h1>Keep Your Neighborhood Safe Together</h1>
-                    <p>Connecting neighbors through innovative systems and mobile technology accessible to everyone.</p>
+                    <p>We're on a mission to simplify complex systems and make technology accessible to everyone.</p>
                     <div class="user-avatars">
-                        <div class="avatar avatar-1"></div>
-                        <div class="avatar avatar-2"></div>
-                        <div class="avatar avatar-3"></div>
+                        <div class="avatar avatar-1">
+                            <img src="{% static 'accounts/images/index_avatar1.png' %}" alt="img"/>
+                        </div>
+                        <div class="avatar avatar-2">
+                            <img src="{% static 'accounts/images/index_avatar2.png' %}" alt="img"/>
+                        </div>
+                        <div class="avatar avatar-3">
+                            <img src="{% static 'accounts/images/index_avatar3.png' %}" alt="img"/>
+                        </div>
                         <span class="user-count">Join our growing team</span>
                     </div>
                 </div>
                 <div class="hero-image">
-                    <img src="/lovable-uploads/f0c1c8a2-d0ce-4cb1-aced-0e122e8f7cb6.png" alt="Modern neighborhood houses" />
+                    <img src="{% static 'accounts/images/index_picture.png' %}" alt="Modern neighborhood houses" />
                 </div>
             </div>
         </div>
@@ -55,48 +62,19 @@
         <div class="container">
             <div class="features-grid">
                 <div class="feature-card">
-                    <div class="feature-icon mission"></div>
+                    <div class="feature-icon mission"><i class="fa-solid fa-bullseye"></i></div>
                     <h3>Our Mission</h3>
-                    <p>To create a responsive community where neighbors actively support each other through innovative communication systems.</p>
+                    <p>To create a proactive, community-driven Neighborhood Safety Watch system that enchances residential security through collaboration, vigilance, and technology.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon vision"></div>
+                    <div class="feature-icon vision"><i class="fa-solid fa-eye"></i></div>
                     <h3>Our Vision</h3>
-                    <p>To build safer communities where neighbors connect more efficiently and have better access to local security resources.</p>
+                    <p>To build safer, more connected neighborhoods where residents actively contribute to the well being and security of their community.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon values"></div>
+                    <div class="feature-icon values"><i class="fa-solid fa-heart"></i></div>
                     <h3>Our Values</h3>
-                    <p>Trust, collaboration, innovation, and transparency drive everything we do to create stronger neighborhood networks.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Leadership Team Section -->
-    <section class="leadership">
-        <div class="container">
-            <h2>Meet Our Leadership Team</h2>
-            <div class="team-grid">
-                <div class="team-member">
-                    <div class="member-photo photo-1"></div>
-                    <h4>Zhane Fate Minoza</h4>
-                    <p>CEO & Founder</p>
-                </div>
-                <div class="team-member">
-                    <div class="member-photo photo-2"></div>
-                    <h4>Lorena Camingao</h4>
-                    <p>CTO</p>
-                </div>
-                <div class="team-member">
-                    <div class="member-photo photo-3"></div>
-                    <h4>Bonch Reuben Eturma</h4>
-                    <p>CMO</p>
-                </div>
-                <div class="team-member">
-                    <div class="member-photo photo-4"></div>
-                    <h4>Franz Adrian Nacar</h4>
-                    <p>COO</p>
+                    <p>Trust, collaboration, vigilance, empowerment, and innovation in ensuring the safety and peace of mind for all residents.</p>
                 </div>
             </div>
         </div>
@@ -106,7 +84,7 @@
     <section class="cta">
         <div class="container">
             <h2>Is your neighborhood ready to take proactive steps towards enhanced security and community safety?</h2>
-            <p>Join our Neighborhood Safety Mobile solution and help organize a safer, more connected community for all.</p>
+            <p>Join our Neighborhood Safety Watch today and help create a safer, more connected community for everyone!</p>
         </div>
     </section>
 
@@ -116,28 +94,27 @@
             <div class="footer-content">
                 <div class="footer-section">
                     <h4>VigiLink</h4>
-                    <p>Your Neighborhood Safety Mobile Solution Platform</p>
+                    <p>Revolutionizing system management for businesses worldwide.</p>
                 </div>
                 <div class="footer-section">
                     <h4>Quick Links</h4>
                     <ul>
                         <li><a href="#">About</a></li>
-                        <li><a href="#">Mission</a></li>
                         <li><a href="#">Pricing</a></li>
                         <li><a href="#">Contact</a></li>
                     </ul>
                 </div>
                 <div class="footer-section">
                     <h4>Contact</h4>
-                    <p>📞 +1(555) 123-GUARD</p>
-                    <p>📧 info@vigilink.com</p>
+                    <p><i class="fa-solid fa-envelope"></i> info@vigilink.com</p>
+                    <p><i class="fa-solid fa-phone"></i> +1(555) 123-4567</p>
                 </div>
                 <div class="footer-section">
                     <h4>Follow Us</h4>
                     <div class="social-links">
-                        <a href="#" class="social-link">📘</a>
-                        <a href="#" class="social-link">🐦</a>
-                        <a href="#" class="social-link">📷</a>
+                        <a href="https://facebook.com" class="social-link" target="_blank" rel="noopener"><i class="fab fa-facebook-f"></i></a>
+                        <a href="https://twitter.com" class="social-link" target="_blank" rel="noopener"><i class="fab fa-twitter"></i></a>
+                        <a href="https://instagram.com" class="social-link" target="_blank" rel="noopener"><i class="fab fa-instagram"></i></a>
                     </div>
                 </div>
             </div>

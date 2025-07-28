@@ -1,10 +1,11 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign In - VigiLink</title>
-    <link rel="stylesheet" href="login_styles.css">
+    <link rel="stylesheet" href="{% static 'accounts/css/index_styles.css' %}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="login-body">
@@ -18,7 +19,6 @@
             <nav class="login-nav">
                 <a href="#" class="nav-link">About</a>
                 <a href="#" class="nav-link">Contact</a>
-                <span class="nav-link">Sign In</span>
             </nav>
         </div>
     </header>
@@ -32,7 +32,6 @@
                     <h1>Keep Your Neighborhood Safe Together</h1>
                     <p>Join your community's safety network. Report incidents, share alerts, and stay connected with your neighbors.</p>
                     <div class="login-cta-buttons">
-                        <button class="btn-secondary">Sign In</button>
                         <button class="btn-outline">Create Account</button>
                     </div>
                 </div>
