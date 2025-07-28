@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VigiLink - Keep Your Neighborhood Safe Together</title>
+    <link rel="stylesheet" href="accounts/css/index_styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <span class="logo-text">VigiLink</span>
+            </div>
+            <div class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <nav class="nav" id="mobileNav">
+                <a href="#" class="nav-link">Home</a>
+                <a href="#" class="nav-link">Contact</a>
+                <a href="#" class="nav-link">Sign In</a>
+                <button class="btn-primary">Get Started</button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-text">
+                    <h1>Keep Your Neighborhood Safe Together</h1>
+                    <p>Connecting neighbors through innovative systems and mobile technology accessible to everyone.</p>
+                    <div class="user-avatars">
+                        <div class="avatar avatar-1"></div>
+                        <div class="avatar avatar-2"></div>
+                        <div class="avatar avatar-3"></div>
+                        <span class="user-count">Join our growing team</span>
+                    </div>
+                </div>
+                <div class="hero-image">
+                    <img src="/lovable-uploads/f0c1c8a2-d0ce-4cb1-aced-0e122e8f7cb6.png" alt="Modern neighborhood houses" />
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features">
+        <div class="container">
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon mission"></div>
+                    <h3>Our Mission</h3>
+                    <p>To create a responsive community where neighbors actively support each other through innovative communication systems.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon vision"></div>
+                    <h3>Our Vision</h3>
+                    <p>To build safer communities where neighbors connect more efficiently and have better access to local security resources.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon values"></div>
+                    <h3>Our Values</h3>
+                    <p>Trust, collaboration, innovation, and transparency drive everything we do to create stronger neighborhood networks.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Leadership Team Section -->
+    <section class="leadership">
+        <div class="container">
+            <h2>Meet Our Leadership Team</h2>
+            <div class="team-grid">
+                <div class="team-member">
+                    <div class="member-photo photo-1"></div>
+                    <h4>Zhane Fate Minoza</h4>
+                    <p>CEO & Founder</p>
+                </div>
+                <div class="team-member">
+                    <div class="member-photo photo-2"></div>
+                    <h4>Lorena Camingao</h4>
+                    <p>CTO</p>
+                </div>
+                <div class="team-member">
+                    <div class="member-photo photo-3"></div>
+                    <h4>Bonch Reuben Eturma</h4>
+                    <p>CMO</p>
+                </div>
+                <div class="team-member">
+                    <div class="member-photo photo-4"></div>
+                    <h4>Franz Adrian Nacar</h4>
+                    <p>COO</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+        <div class="container">
+            <h2>Is your neighborhood ready to take proactive steps towards enhanced security and community safety?</h2>
+            <p>Join our Neighborhood Safety Mobile solution and help organize a safer, more connected community for all.</p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>VigiLink</h4>
+                    <p>Your Neighborhood Safety Mobile Solution Platform</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="#">About</a></li>
+                        <li><a href="#">Mission</a></li>
+                        <li><a href="#">Pricing</a></li>
+                        <li><a href="#">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Contact</h4>
+                    <p>📞 +1(555) 123-GUARD</p>
+                    <p>📧 info@vigilink.com</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Follow Us</h4>
+                    <div class="social-links">
+                        <a href="#" class="social-link">📘</a>
+                        <a href="#" class="social-link">🐦</a>
+                        <a href="#" class="social-link">📷</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>© 2025 VigiLink. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        function toggleMobileMenu() {
+            const nav = document.getElementById('mobileNav');
+            nav.classList.toggle('active');
+        }
+    </script>
+</body>
+</html>
