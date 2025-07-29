@@ -24,8 +24,13 @@
             </div>
             <nav class="nav" id="mobileNav">
                 <a href="#" class="nav-link">Contact</a>
+                {% if user.is_authenticated %}
+                <span class="nav-link">Welcome, {{ user.username }}</span>
+                <a href="{% url 'logout' %}" class="nav-link">Logout</a>
+                {% else %}
                 <a href="{% url 'login' %}" class="nav-link">Sign In</a>
                 <a href="{% url 'register' %}"><button class="btn-primary">Get Started</button></a>
+                {% endif %}
             </nav>
         </div>
     </header>
