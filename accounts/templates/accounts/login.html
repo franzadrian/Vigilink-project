@@ -8,6 +8,12 @@
     {% load static %}
     <link rel="stylesheet" href="{% static 'accounts/css/login_styles.css' %}">
     <link rel="stylesheet" href="{% static 'accounts/css/messages.css' %}">
+    <link rel="icon" type="image/x-icon" href="{% static 'favicon/favicon.ico' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'favicon/apple-touch-icon.svg' %}">
+    <link rel="icon" type="image/svg+xml" sizes="32x32" href="{% static 'favicon/shield.svg' %}">
+    <link rel="icon" type="image/svg+xml" sizes="16x16" href="{% static 'favicon/favicon-16x16.svg' %}">
+    <link rel="manifest" href="{% static 'favicon/site.webmanifest' %}">
+    <script src="{% static 'accounts/js/validation_rules.js' %}" defer></script>
 </head>
 <body>
     <!-- Header -->
@@ -74,7 +80,7 @@
                         <input type="checkbox" id="remember" name="remember">
                         <label for="remember">Remember me</label>
                     </div>
-                    <a href="#forgot" class="forgot-password">Forgot Password?</a>
+                    <a href="/accounts/forgot-password/" class="forgot-password">Forgot Password?</a>
                 </div>
                 <button type="submit" class="btn-signin">Sign In</button>
 

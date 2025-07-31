@@ -250,7 +250,7 @@
 
         .btn-signin {
             width: 100%;
-            background: #2563EB;
+            background: #4285f4;
             color: white;
             padding: 12px;
             border: none;
@@ -262,7 +262,7 @@
         }
 
         .btn-signin:hover {
-            background: #4338ca;
+            background: #3367d6;
         }
 
         /* Features Section */

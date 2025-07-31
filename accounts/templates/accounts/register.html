@@ -4,13 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create Account - VigiLink</title>
+    <title>Register - VigiLink</title>
     <link rel="stylesheet" href="{% static 'accounts/css/register_styles.css' %}">
     <link rel="stylesheet" href="{% static 'accounts/css/messages.css' %}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+    <link rel="icon" type="image/x-icon" href="{% static 'favicon/favicon.ico' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'favicon/apple-touch-icon.svg' %}">
+    <link rel="icon" type="image/svg+xml" sizes="32x32" href="{% static 'favicon/shield.svg' %}">
+    <link rel="icon" type="image/svg+xml" sizes="16x16" href="{% static 'favicon/favicon-16x16.svg' %}">
+    <link rel="manifest" href="{% static 'favicon/site.webmanifest' %}">
     <script src="{% static 'accounts/js/location.js' %}" defer></script>
     <script src="{% static 'accounts/js/form_validation.js' %}" defer></script>
+    <script src="{% static 'accounts/js/validation_rules.js' %}" defer></script>
+    <script src="{% static 'accounts/js/password_validation.js' %}" defer></script>
 </head>
 <body>
     <!-- Header -->
@@ -45,29 +52,29 @@
                 {% csrf_token %}
                 <div class="form-grid">
                     <div class="form-group">
-                        <label class="form-label" for="firstName">First Name</label>
-                        <input class="form-input" type="text" id="firstName" name="firstName" placeholder="Enter your first name" required>
+                        <label class="form-label" for="fullName">Full Name</label>
+                        <input class="form-input" type="text" id="fullName" name="fullName" placeholder="Enter your full name" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="email">Email</label>
+                        <input class="form-input" type="email" id="email" name="email" placeholder="your@email.com" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="password">Password</label>
                         <input class="form-input" type="password" id="password" name="password" placeholder="Enter your password" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="middleName">Middle Name (Full name, not initials)</label>
-                        <input class="form-input" type="text" id="middleName" name="middleName" placeholder="Enter your full middle name">
-                    </div>
-                    <div class="form-group">
                         <label class="form-label" for="confirmPassword">Confirm Password</label>
                         <input class="form-input" type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm your password" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="lastName">Last Name</label>
-                        <input class="form-input" type="text" id="lastName" name="lastName" placeholder="Enter your last name" required>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label" for="username">Username</label>
                         <input class="form-input" type="text" id="username" name="username" placeholder="Choose a username" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="emergencyContact">Emergency Contact Information (Optional)</label>
+                        <input class="form-input" type="text" id="emergencyContact" name="emergencyContact" placeholder="Enter emergency contact">
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="city">City</label>
@@ -85,14 +92,6 @@
                         </select>
                     </div>
 
-                    <div class="form-group">
-                        <label class="form-label" for="email">Email</label>
-                        <input class="form-input" type="email" id="email" name="email" placeholder="your@email.com" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="emergencyContact">Emergency Contact Information (Optional)</label>
-                        <input class="form-input" type="text" id="emergencyContact" name="emergencyContact" placeholder="Enter emergency contact">
-                    </div>
                 </div>
                 <button type="submit" class="submit-btn">Submit</button>
             </form>
@@ -126,5 +125,9 @@
         </div>
     </section>
 
+    <!-- Include JavaScript files -->
+    <script src="{% static 'accounts/js/validation_rules.js' %}"></script>
+    <script src="{% static 'accounts/js/form_validation.js' %}"></script>
+    <script src="{% static 'accounts/js/password_validation.js' %}"></script>
 </body>
 </html>
