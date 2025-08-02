@@ -8,6 +8,7 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('get_districts/<int:city_id>/', views.get_districts, name='get_districts'),
     path('check-username/', views.check_username, name='check_username'),
+    path('check-email/', views.check_email, name='check_email'),
     path('verify-email/', views.verify_email, name='verify_email'),
     path('resend-verification-code/', views.resend_verification_code, name='resend_verification_code'),
     path('forgot-password/', views.forgot_password, name='forgot_password'),

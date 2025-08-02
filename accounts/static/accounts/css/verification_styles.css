@@ -13,11 +13,20 @@
 
         .header {
             background: white;
-            padding: 1rem 2rem;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-bottom: 1px solid #e2e8f0;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            height: 64px;
         }
 
         .logo {
@@ -33,6 +42,53 @@
             height: 30px;
             width: auto;
             margin-right: 5px;
+        }
+        
+        /* Mobile menu toggle */
+        .menu-toggle {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+            gap: 4px;
+        }
+
+        .menu-toggle span {
+            width: 24px;
+            height: 3px;
+            background: #4285f4;
+            transition: 0.3s;
+        }
+
+        .mobile-nav {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .mobile-nav.active {
+            display: block;
+        }
+
+        .mobile-nav a {
+            display: block;
+            padding: 16px 20px;
+            text-decoration: none;
+            color: #64748b;
+            border-bottom: 1px solid #f1f5f9;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .mobile-nav a:hover {
+            background: #f8fafc;
+            color: #4285f4;
+            padding-left: 25px;
         }
 
         .nav {
@@ -214,14 +270,12 @@
 
         /* Mobile styles */
         @media (max-width: 768px) {
-            .header {
-                flex-direction: column;
-                gap: 1rem;
-                padding: 1rem;
+            .nav {
+                display: none;
             }
 
-            .nav {
-                gap: 1rem;
+            .menu-toggle {
+                display: flex;
             }
 
             .main-container {

@@ -61,7 +61,32 @@ document.addEventListener('DOMContentLoaded', function() {
             input.classList.add('input-success-field');
         }
         
-        // Check if username is already taken
+        // Function to validate username length (6-15 characters) and no special characters
+        function validateUsername(username) {
+            // Check if username is between 6 and 15 characters
+            if (username.length < 6 || username.length > 15) {
+                return {
+                    valid: false,
+                    message: `Username must be between 6 and 15 characters. ${username.length < 6 ? (6 - username.length) + ' more character(s) needed.' : 'Please use ' + (username.length - 15) + ' fewer character(s).'}`
+                };
+            }
+            
+            // Check if username contains special characters
+            const specialCharsRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
+            if (specialCharsRegex.test(username)) {
+                return {
+                    valid: false,
+                    message: 'Username cannot contain special characters like @, #, or !'
+                };
+            }
+            
+            return {
+                valid: true,
+                message: 'Username format is valid'
+            };
+        }
+        
+        // Check if username is already taken and validate format
         let usernameTimer;
         
         usernameInput.addEventListener('input', function() {
@@ -83,6 +108,13 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Don't check empty usernames
             if (username === '') {
+                return;
+            }
+            
+            // First validate username format
+            const usernameValidation = validateUsername(username);
+            if (!usernameValidation.valid) {
+                showError(this, usernameValidation.message);
                 return;
             }
             
@@ -119,10 +151,21 @@ document.addEventListener('DOMContentLoaded', function() {
         usernameInput.addEventListener('blur', function() {
             const username = this.value.trim();
             
-            if (username !== '' && this.classList.contains('input-success-field')) {
+            if (username === '') {
+                return;
+            }
+            
+            // First validate username format
+            const usernameValidation = validateUsername(username);
+            if (!usernameValidation.valid) {
+                showError(this, usernameValidation.message);
+                return;
+            }
+            
+            if (this.classList.contains('input-success-field')) {
                 // Remove any existing error messages first
                 removeError(this);
-                showSuccess(this, 'Username is available');
+                showSuccess(this, 'Username is valid and available');
             }
         });
         
@@ -231,6 +274,16 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Add form submission event listener
         form.addEventListener('submit', function(event) {
+            // Validate username
+            const username = usernameInput.value.trim();
+            const usernameValidation = validateUsername(username);
+            if (!usernameValidation.valid) {
+                event.preventDefault();
+                showError(usernameInput, usernameValidation.message);
+                usernameInput.focus();
+                return;
+            }
+            
             // Validate password length
             if (!validatePassword()) {
                 event.preventDefault();

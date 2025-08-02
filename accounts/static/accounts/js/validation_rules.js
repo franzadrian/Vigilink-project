@@ -162,8 +162,16 @@ document.addEventListener('DOMContentLoaded', function() {
         // Middle name and last name fields have been removed
         
         if (emailInput) {
+            // Timer for email validation
+            let emailTimer;
+            
             emailInput.addEventListener('input', function() {
-                if (this.value.trim() === '') {
+                const email = this.value.trim();
+                
+                // Clear any existing timer
+                clearTimeout(emailTimer);
+                
+                if (email === '') {
                     removeError(this);
                     // Also remove success message when field is cleared
                     const parent = this.parentNode;
@@ -172,11 +180,36 @@ document.addEventListener('DOMContentLoaded', function() {
                         parent.removeChild(successDiv);
                     }
                     this.classList.remove('input-success-field');
-                } else if (this.value.includes('@') && !validateEmailDomain(this.value.trim())) {
+                } else if (email.includes('@') && !validateEmailDomain(email)) {
                     showError(this, 'Please use a valid email domain (e.g., gmail.com, yahoo.com, outlook.com).');
-                } else if (this.value.includes('@')) {
-                    // Only show success message on blur (when user finishes typing)
-                    this.classList.add('input-success-field');
+                } else if (email.includes('@')) {
+                    // Set a timer to check email after user stops typing
+                    emailTimer = setTimeout(function() {
+                        // Make AJAX request to check if email exists
+                        fetch(`/check-email/?email=${encodeURIComponent(email)}`)
+                            .then(response => response.json())
+                            .then(data => {
+                                // Remove any existing messages first
+                                removeError(emailInput);
+                                const parent = emailInput.parentNode;
+                                const successDiv = parent.querySelector('.input-success');
+                                if (successDiv) {
+                                    parent.removeChild(successDiv);
+                                }
+                                
+                                if (data.available) {
+                                    // Email is available
+                                    emailInput.classList.add('input-success-field');
+                                } else {
+                                    // Email is already registered
+                                    emailInput.classList.remove('input-success-field');
+                                    showError(emailInput, 'This email is already registered. Please use a different email or login.');
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error checking email:', error);
+                            });
+                    }, 500); // Wait 500ms after user stops typing
                 } else {
                     removeError(this);
                 }
@@ -184,9 +217,111 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Show success message only when field loses focus
             emailInput.addEventListener('blur', function() {
-                if (this.value.trim() !== '' && this.value.includes('@') && validateEmailDomain(this.value.trim())) {
+                const email = this.value.trim();
+                
+                if (email !== '' && email.includes('@') && validateEmailDomain(email) && this.classList.contains('input-success-field')) {
                     showSuccess(this, 'Valid email');
                 }
+            });
+        }
+        
+        // Function to check if all fields are valid
+        function areAllFieldsValid() {
+            // Check if there are any error messages displayed
+            const errorMessages = document.querySelectorAll('.input-error');
+            if (errorMessages.length > 0) {
+                return false;
+            }
+            
+            // For registration form, check all required fields
+            if (isRegistrationForm) {
+                // Check full name
+                if (fullNameInput) {
+                    const fullName = fullNameInput.value.trim();
+                    if (!validateName(fullName) || !validateFullNameLength(fullName)) {
+                        return false;
+                    }
+                }
+                
+                // Check email
+                if (emailInput) {
+                    const email = emailInput.value.trim();
+                    if (!email.includes('@') || !validateEmailDomain(email) || !emailInput.classList.contains('input-success-field')) {
+                        return false;
+                    }
+                }
+                
+                // Check password and confirm password
+                const passwordInput = document.getElementById('password');
+                const confirmPasswordInput = document.getElementById('confirmPassword');
+                if (passwordInput && confirmPasswordInput) {
+                    if (!passwordInput.classList.contains('input-success-field') || !confirmPasswordInput.classList.contains('input-success-field')) {
+                        return false;
+                    }
+                }
+                
+                // Check username
+                const usernameInput = document.getElementById('username');
+                if (usernameInput) {
+                    const username = usernameInput.value.trim();
+                    // Import validateUsername function from password_validation.js
+                    if (typeof validateUsername === 'function') {
+                        const usernameValidation = validateUsername(username);
+                        if (!usernameValidation.valid || !usernameInput.classList.contains('input-success-field')) {
+                            return false;
+                        }
+                    } else if (!usernameInput.classList.contains('input-success-field')) {
+                        return false;
+                    }
+                }
+                
+                // Check if city and district are selected
+                const citySelect = document.getElementById('city');
+                const districtSelect = document.getElementById('district');
+                if (citySelect && districtSelect) {
+                    if (!citySelect.value || !districtSelect.value) {
+                        return false;
+                    }
+                }
+                
+                // Check contact
+                const contactInput = document.getElementById('contact');
+                if (contactInput && !contactInput.value.trim()) {
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+        
+        // Function to update submit button state
+        function updateSubmitButtonState() {
+            if (isRegistrationForm) {
+                const submitButton = form.querySelector('button[type="submit"]');
+                if (submitButton) {
+                    if (areAllFieldsValid()) {
+                        submitButton.disabled = false;
+                        submitButton.classList.remove('disabled-btn');
+                    } else {
+                        submitButton.disabled = true;
+                        submitButton.classList.add('disabled-btn');
+                    }
+                }
+            }
+        }
+        
+        // Add event listeners to all form inputs to update submit button state
+        if (isRegistrationForm) {
+            const formInputs = form.querySelectorAll('input, select');
+            formInputs.forEach(input => {
+                input.addEventListener('input', updateSubmitButtonState);
+                input.addEventListener('change', updateSubmitButtonState);
+                input.addEventListener('blur', updateSubmitButtonState);
+            });
+            
+            // Initial state
+            document.addEventListener('DOMContentLoaded', function() {
+                updateSubmitButtonState();
             });
         }
         
@@ -215,6 +350,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         fullNameInput.focus();
                         hasError = true;
                     }
+                }
+                
+                // Check if all fields are valid
+                if (!areAllFieldsValid()) {
+                    event.preventDefault();
+                    hasError = true;
                 }
             }
             

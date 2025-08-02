@@ -84,6 +84,11 @@ def register_view(request):
             messages.error(request, 'Full name can only contain letters and spaces')
             return render(request, 'accounts/register.html', {'cities': cities})
         
+        # Check if email already exists
+        if User.objects.filter(email=email).exists():
+            messages.error(request, 'This email is already registered. Please use a different email address.')
+            return render(request, 'accounts/register.html', {'cities': cities})
+        
         # Validate email domain
         valid_domains = [
             'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'aol.com',
@@ -278,6 +283,20 @@ def check_username(request):
         return JsonResponse({'available': False, 'message': 'This username is already taken'})
     else:
         return JsonResponse({'available': True, 'message': 'Username is available'})
+
+@require_GET
+def check_email(request):
+    email = request.GET.get('email', '')
+    if not email:
+        return JsonResponse({'available': False, 'message': 'Email is required'})
+    
+    # Check if email exists
+    exists = User.objects.filter(email=email).exists()
+    
+    if exists:
+        return JsonResponse({'available': False, 'message': 'This email is already registered'})
+    else:
+        return JsonResponse({'available': True, 'message': 'Email is available'})
 
 
 def resend_verification_code(request):

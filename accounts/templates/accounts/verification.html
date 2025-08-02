@@ -14,14 +14,29 @@
 </head>
 <body>
     <header class="header">
-        <div class="logo">
-            <img src="{% static 'accounts/images/vigilink_logo.png' %}" alt="VigiLink Logo" class="logo-image">
-            VigiLink
+        <div class="header-container">
+            <div class="logo">
+                <a href="/" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                    <img src="{% static 'accounts/images/vigilink_logo.png' %}" alt="VigiLink Logo" class="logo-image">
+                    <span>VigiLink</span>
+                </a>
+            </div>
+            <nav class="nav">
+                <a href="#about">About</a>
+                <a href="#contact">Contact</a>
+            </nav>
+            
+            <div class="menu-toggle" onclick="toggleMobileMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+
+            <div class="mobile-nav" id="mobileNav">
+                <a href="#about">About</a>
+                <a href="#contact">Contact</a>
+            </div>
         </div>
-        <nav class="nav">
-            <a href="#about">About</a>
-            <a href="#contact">Contact</a>
-        </nav>
     </header>
 
     <main class="main-container">
@@ -105,6 +120,87 @@
                 setTimeout(() => e.target.select(), 0);
             });
         });
+
+        // Mobile menu toggle
+        function toggleMobileMenu() {
+            const mobileNav = document.getElementById('mobileNav');
+            mobileNav.classList.toggle('active');
+        }
+
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const mobileNav = document.getElementById('mobileNav');
+            const menuToggle = document.querySelector('.menu-toggle');
+            
+            if (!menuToggle.contains(event.target) && !mobileNav.contains(event.target)) {
+                mobileNav.classList.remove('active');
+            }
+        });
+
+        // Auto-hide verification messages after 4 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            const messages = document.querySelectorAll('.message');
+            if (messages.length > 0) {
+                setTimeout(function() {
+                    messages.forEach(message => {
+                        message.style.display = 'none';
+                    });
+                }, 4000);
+            }
+        });
+
+        // 60-second cooldown for resend button
+        const resendBtn = document.querySelector('.resend-btn');
+        const resendForm = document.querySelector('.resend-form');
+        if (resendBtn && resendForm) {
+            let cooldownActive = false;
+            let cooldownTime = 60; // seconds
+            let cooldownInterval;
+            
+            // Check if we have a stored timestamp and it's less than 60 seconds ago
+            const lastResendTime = localStorage.getItem('lastResendTime');
+            if (lastResendTime) {
+                const elapsedSeconds = Math.floor((Date.now() - parseInt(lastResendTime)) / 1000);
+                if (elapsedSeconds < cooldownTime) {
+                    startCooldown(cooldownTime - elapsedSeconds);
+                }
+            }
+            
+            resendBtn.addEventListener('click', function(e) {
+                if (cooldownActive) {
+                    e.preventDefault();
+                    return;
+                }
+                
+                // Store the current timestamp
+                localStorage.setItem('lastResendTime', Date.now().toString());
+                startCooldown(cooldownTime);
+                
+                // Submit the form
+                resendForm.submit();
+            });
+            
+            function startCooldown(remainingSeconds) {
+                cooldownActive = true;
+                resendBtn.disabled = true;
+                const originalText = resendBtn.textContent;
+                
+                function updateCooldownText() {
+                    resendBtn.textContent = `Wait ${remainingSeconds}s`;
+                    remainingSeconds--;
+                    
+                    if (remainingSeconds < 0) {
+                        clearInterval(cooldownInterval);
+                        resendBtn.textContent = originalText;
+                        resendBtn.disabled = false;
+                        cooldownActive = false;
+                    }
+                }
+                
+                updateCooldownText();
+                cooldownInterval = setInterval(updateCooldownText, 1000);
+            }
+        }
     </script>
 </body>
 </html>

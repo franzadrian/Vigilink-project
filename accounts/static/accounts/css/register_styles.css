@@ -13,30 +13,50 @@
 
         /* Header */
         .header {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 1.5rem 2rem;
-            background-color: #fff;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            height: 64px;
         }
 
         .logo {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #3b82f6;
+            gap: 8px;
         }
 
-        .logo::before {
-            font-size: 1.5rem;
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: #3b82f6;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .logo-text {
+            font-size: 24px;
+            font-weight: 600;
+            color: #2563EB;
         }
 
         .nav {
             display: flex;
-            gap: 2rem;
+            gap: 32px;
         }
 
         .nav a {
@@ -47,7 +67,7 @@
         }
 
         .nav a:hover {
-            color: #1e293b;
+            color: #0f172a;
         }
 
         /* Main Container */
@@ -120,11 +140,23 @@
             border-radius: 0.5rem;
             font-size: 1rem;
             cursor: pointer;
-            transition: background-color 0.2s;
+            transition: background-color 0.2s, opacity 0.2s;
         }
 
         .submit-btn:hover {
             background-color: #2563eb;
+        }
+        
+        .submit-btn:disabled,
+        .disabled-btn {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background-color: #94a3b8;
+        }
+        
+        .submit-btn:disabled:hover,
+        .disabled-btn:hover {
+            background-color: #94a3b8;
         }
 
         /* Features Section */
@@ -175,14 +207,57 @@
             line-height: 1.6;
         }
 
+        /* Mobile menu toggle */
+        .menu-toggle {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+            gap: 4px;
+        }
+
+        .menu-toggle span {
+            width: 24px;
+            height: 3px;
+            background: #2563EB;
+            transition: 0.3s;
+        }
+
+        .mobile-nav {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .mobile-nav.active {
+            display: block;
+        }
+
+        .mobile-nav a {
+            display: block;
+            padding: 16px 20px;
+            text-decoration: none;
+            color: #64748b;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .mobile-nav a:hover {
+            background: #f8fafc;
+            color: #0f172a;
+        }
+        
         /* Responsive Design */
         @media (max-width: 768px) {
-            .header {
-                padding: 1rem;
+            .nav {
+                display: none;
             }
 
-            .nav {
-                gap: 1rem;
+            .menu-toggle {
+                display: flex;
             }
 
             .form-grid {
@@ -211,6 +286,10 @@
             .features-title {
                 font-size: 2rem;
             }
+            
+            .container {
+                margin: 2rem auto;
+            }
         }
 
         @media (max-width: 480px) {
@@ -222,8 +301,7 @@
                 grid-template-columns: 1fr;
             }
 
-            .header {
-                flex-direction: column;
-                gap: 1rem;
+            .header-container {
+                padding: 0 1rem;
             }
         }
