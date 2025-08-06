@@ -105,6 +105,7 @@ class User(AbstractUser):
     is_verified = models.BooleanField(default=False)
     verification_code = models.CharField(max_length=6, blank=True, null=True)
     verification_code_created = models.DateTimeField(null=True, blank=True)
+    profile_picture = models.ImageField(upload_to='profile_pictures/', default='accounts/static/accounts/images/profile.png')
     
     objects = CustomUserManager()
     

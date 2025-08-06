@@ -1,0 +1,308 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}View Post{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'dashboard/js/post_interactions.js' %}"></script>
+
+{% endblock %}
+
+{% block content %}
+<div class="view-post-container">
+    {% csrf_token %}
+    <div class="post-navigation">
+        <a href="{% url 'dashboard' %}" class="back-link">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Back to Dashboard
+        </a>
+    </div>
+    
+    <div class="post-detail-card" data-post-id="{{ post.post_id }}">
+        <div class="post-header">
+            <img src="{{ post.user.profile_picture|default:'https://via.placeholder.com/48' }}" alt="{{ post.user.username }}" class="post-avatar">
+            <div class="post-info">
+                <div class="post-header-info">
+                    <div class="post-author">{{ post.user.username }}</div>
+                    <div class="post-date">{{ post.uploaded_at|date:"F j, Y, g:i a" }}</div>
+                </div>
+                {% if post.user == request.user %}
+                <div class="post-actions-dropdown">
+                    <button class="post-actions-toggle">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
+                        </svg>
+                    </button>
+                    <div class="post-actions-menu">
+                        <button class="edit-post-btn" data-post-id="{{ post.post_id }}" data-post-message="{{ post.message }}">Edit</button>
+                        <button class="delete-post-btn" data-post-id="{{ post.post_id }}">Delete</button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="post-content">{{ post.message }}</div>
+        
+        <div class="post-actions">
+            <div class="action-buttons">
+                <form method="post" action="{% url 'react_to_post' post.post_id %}" class="reaction-form">
+                    {% csrf_token %}
+                    <button type="submit" class="reaction-btn {% if user_reacted %}reacted{% endif %}">
+                        <svg width="16" height="16" fill="{% if user_reacted %}currentColor{% else %}none{% endif %}" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                        </svg>
+                        <span>{{ reaction_count }} {% if reaction_count == 1 %}Like{% else %}Likes{% endif %}</span>
+                    </button>
+                </form>
+                
+                <button class="reply-btn" onclick="toggleReplyForm()">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                    </svg>
+                    <span>Reply</span>
+                </button>
+                
+                <form method="post" action="{% url 'share_post' post.post_id %}" class="share-form">
+                    {% csrf_token %}
+                    <button type="submit" class="share-btn">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+                        </svg>
+                        <span>Share</span>
+                    </button>
+                </form>
+            </div>
+            
+            <div class="share-count">{{ share_count }} {% if share_count == 1 %}Share{% else %}Shares{% endif %}</div>
+        </div>
+    </div>
+    
+    <div id="reply-form-container" class="reply-form-container" style="display: none;">
+        <form id="reply-form" class="reply-form">
+            {% csrf_token %}
+            <textarea name="reply_message" id="reply-message" placeholder="Write your reply..." required></textarea>
+            <div class="reply-form-actions">
+                <button type="button" onclick="toggleReplyForm()" class="cancel-reply-btn">Cancel</button>
+                <button type="button" id="submit-reply-btn" class="submit-reply-btn">Reply</button>
+            </div>
+        </form>
+    </div>
+    
+    <div class="replies-container">
+        <h3>Replies ({{ replies|length }})</h3>
+        
+        {% if replies %}
+            {% for reply in replies %}
+                <div class="reply-card" data-reply-id="{{ reply.reply_id }}">
+                    <div class="reply-header">
+                        <img src="{{ reply.user.profile_picture|default:'https://via.placeholder.com/32' }}" alt="{{ reply.user.username }}" class="reply-avatar">
+                        <div class="reply-info">
+                            <div class="reply-author">{{ reply.user.username }}</div>
+                            <div class="reply-date">{{ reply.created_at|date:"F j, Y, g:i a" }}</div>
+                        </div>
+                        {% if reply.user == request.user %}
+                        <div class="reply-actions-dropdown">
+                            <button class="reply-actions-toggle">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
+                                </svg>
+                            </button>
+                            <div class="reply-actions-menu">
+                                <button class="edit-reply-btn" data-reply-id="{{ reply.reply_id }}" data-reply-message="{{ reply.message }}">Edit</button>
+                                <button class="delete-reply-btn" data-reply-id="{{ reply.reply_id }}">Delete</button>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="reply-content">{{ reply.message }}</div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="no-replies">No replies yet. Be the first to reply!</div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function toggleReplyForm() {
+        const replyForm = document.getElementById('reply-form-container');
+        if (replyForm.style.display === 'none') {
+            replyForm.style.display = 'block';
+        } else {
+            replyForm.style.display = 'none';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Setup post actions (edit/delete)
+        setupPostActions();
+        
+        // Setup reply actions (edit/delete)
+        setupReplyActions();
+        
+        // Setup dropdown toggles
+        setupDropdownToggles();
+        
+        // Setup reply form submission
+        setupReplyForm();
+    });
+    
+    function setupReplyForm() {
+        const submitReplyBtn = document.getElementById('submit-reply-btn');
+        if (submitReplyBtn) {
+            submitReplyBtn.addEventListener('click', function() {
+                const replyMessage = document.getElementById('reply-message').value;
+                if (replyMessage.trim() === '') return;
+                
+                // Send AJAX request to submit reply
+                fetch(`/user/post/{{ post.post_id }}/reply/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ reply_message: replyMessage })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Create new reply element
+                        const replyCard = document.createElement('div');
+                        replyCard.className = 'reply-card';
+                        replyCard.setAttribute('data-reply-id', data.reply_id);
+                        
+                        // Add reply content
+                        replyCard.innerHTML = `
+                            <div class="reply-header">
+                                <img src="${data.user_profile_picture || 'https://via.placeholder.com/32'}" alt="${data.user_name}" class="reply-avatar">
+                                <div class="reply-info">
+                                    <div class="reply-author">${data.user_name}</div>
+                                    <div class="reply-date">${data.created_at}</div>
+                                </div>
+                                ${data.is_author ? `
+                                <div class="reply-actions-dropdown">
+                                    <button class="reply-actions-toggle">
+                                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
+                                        </svg>
+                                    </button>
+                                    <div class="reply-actions-menu">
+                                        <button class="edit-reply-btn" data-reply-id="${data.reply_id}" data-reply-message="${replyMessage}">Edit</button>
+                                        <button class="delete-reply-btn" data-reply-id="${data.reply_id}">Delete</button>
+                                    </div>
+                                </div>
+                                ` : ''}
+                            </div>
+                            <div class="reply-content">${replyMessage}</div>
+                        `;
+                        
+                        // Add to replies container
+                        const repliesContainer = document.querySelector('.replies-container');
+                        const noRepliesMsg = repliesContainer.querySelector('.no-replies');
+                        if (noRepliesMsg) {
+                            noRepliesMsg.remove();
+                        }
+                        
+                        // Add after the heading
+                        const repliesHeading = repliesContainer.querySelector('h3');
+                        repliesHeading.insertAdjacentElement('afterend', replyCard);
+                        
+                        // Update reply count
+                        const currentCount = parseInt(repliesHeading.textContent.match(/\d+/)[0]) + 1;
+                        repliesHeading.textContent = `Replies (${currentCount})`;
+                        
+                        // Clear form and hide it
+                        document.getElementById('reply-message').value = '';
+                        toggleReplyForm();
+                        
+                        // Setup actions for the new reply
+                        setupReplyActions();
+                        setupDropdownToggles();
+                    } else {
+                        alert('Failed to submit reply: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while submitting the reply.');
+                });
+            });
+        }
+    }
+    
+    // Call the setupDropdownToggles function from post_interactions.js
+    function setupDropdownToggles() {
+        console.log('Calling setupDropdownToggles from post_interactions.js');
+        
+        // Call the function from the imported script
+        if (typeof window.setupDropdownToggles === 'function') {
+            window.setupDropdownToggles();
+        } else {
+            console.error('setupDropdownToggles function not found in post_interactions.js');
+            
+            // Fallback implementation if the function is not available
+            console.log('Using fallback dropdown toggle implementation');
+            
+            // Setup post actions dropdown toggle
+            const postToggle = document.querySelector('.post-actions-toggle');
+            if (postToggle) {
+                postToggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const menu = this.nextElementSibling;
+                    menu.classList.toggle('show');
+                });
+            }
+            
+            // Setup reply actions dropdown toggles
+            document.querySelectorAll('.reply-actions-toggle').forEach(toggle => {
+                toggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const menu = this.nextElementSibling;
+                    menu.classList.toggle('show');
+                });
+            });
+            
+            // Close all menus when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.post-actions-toggle') && 
+                    !e.target.closest('.reply-actions-toggle')) {
+                    document.querySelectorAll('.post-actions-menu.show, .reply-actions-menu.show').forEach(menu => {
+                        menu.classList.remove('show');
+                    });
+                }
+            });
+        }
+    }
+    
+    // Call the functions from post_interactions.js
+    function setupPostActions() {
+        // This is now handled by post_interactions.js
+        // We're just calling the function from the imported script
+        if (typeof window.setupPostActions === 'function') {
+            window.setupPostActions();
+        } else {
+            console.error('setupPostActions function not found in post_interactions.js');
+        }
+    }
+    
+    // Call the functions from post_interactions.js
+    function setupReplyActions() {
+        // This is now handled by post_interactions.js
+        // We're just calling the function from the imported script
+        if (typeof window.setupReplyActions === 'function') {
+            window.setupReplyActions();
+        } else {
+            console.error('setupReplyActions function not found in post_interactions.js');
+        }
+    }
+    
+    function getCsrfToken() {
+        return document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+    }
+</script>
+{% endblock %}

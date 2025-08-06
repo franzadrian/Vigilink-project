@@ -1,4 +1,4 @@
-        * {
+* {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
@@ -216,7 +216,7 @@
 
         .form-row {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-end; /* Changed from space-between to flex-end to align to the right */
             align-items: center;
             margin-bottom: 24px;
         }
@@ -379,8 +379,9 @@
             }
 
             .form-row {
-                flex-direction: column;
+                flex-direction: row; /* Keep as row instead of column */
+                justify-content: flex-end; /* Ensure alignment to the right */
                 gap: 12px;
-                align-items: flex-start;
+                align-items: center; /* Keep centered vertically */
             }
         }

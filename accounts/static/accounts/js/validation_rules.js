@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Determine if this is a registration form or login form
     const isRegistrationForm = !!document.getElementById('fullName');
+    const isLoginForm = document.querySelector('form').action.includes('login');
     
     // Function to create or update error message
     function showError(input, message) {
@@ -182,7 +183,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.classList.remove('input-success-field');
                 } else if (email.includes('@') && !validateEmailDomain(email)) {
                     showError(this, 'Please use a valid email domain (e.g., gmail.com, yahoo.com, outlook.com).');
-                } else if (email.includes('@')) {
+                } else if (email.includes('@') && isRegistrationForm) {
+                    // Only check for existing emails on registration form, not login form
                     // Set a timer to check email after user stops typing
                     emailTimer = setTimeout(function() {
                         // Make AJAX request to check if email exists
@@ -210,6 +212,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                 console.error('Error checking email:', error);
                             });
                     }, 500); // Wait 500ms after user stops typing
+                } else if (email.includes('@')) {
+                    // For login form, just validate the email format
+                    removeError(this);
+                    emailInput.classList.add('input-success-field');
                 } else {
                     removeError(this);
                 }
@@ -219,8 +225,14 @@ document.addEventListener('DOMContentLoaded', function() {
             emailInput.addEventListener('blur', function() {
                 const email = this.value.trim();
                 
-                if (email !== '' && email.includes('@') && validateEmailDomain(email) && this.classList.contains('input-success-field')) {
+                // For registration form, show success message if email is valid and available
+                if (isRegistrationForm && email !== '' && email.includes('@') && validateEmailDomain(email) && this.classList.contains('input-success-field')) {
                     showSuccess(this, 'Valid email');
+                }
+                
+                // For login form, just show success message if email format is valid
+                if (isLoginForm && email !== '' && email.includes('@') && validateEmailDomain(email)) {
+                    this.classList.add('input-success-field');
                 }
             });
         }
@@ -231,6 +243,25 @@ document.addEventListener('DOMContentLoaded', function() {
             const errorMessages = document.querySelectorAll('.input-error');
             if (errorMessages.length > 0) {
                 return false;
+            }
+            
+            // For login form, just check basic requirements
+            if (isLoginForm) {
+                // Check email format
+                if (emailInput) {
+                    const email = emailInput.value.trim();
+                    if (!email.includes('@') || !validateEmailDomain(email)) {
+                        return false;
+                    }
+                }
+                
+                // Check password is not empty
+                const passwordInput = document.getElementById('password');
+                if (passwordInput && !passwordInput.value.trim()) {
+                    return false;
+                }
+                
+                return true;
             }
             
             // For registration form, check all required fields

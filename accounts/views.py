@@ -188,6 +188,12 @@ The VigiLink Team
         # Continue execution even if email fails
 
 def login_view(request):
+    # Clear any existing messages when loading the login page
+    storage = messages.get_messages(request)
+    for message in storage:
+        pass  # This consumes the messages
+    storage.used = True  # Mark the storage as used to clear all messages
+    
     if request.method == 'POST':
         email_or_username = request.POST.get('email')
         password = request.POST.get('password')
@@ -214,7 +220,7 @@ def login_view(request):
             
             email_domain = email_or_username.split('@')[-1].lower()
             if email_domain not in valid_domains:
-                messages.error(request, f'Please use a valid email domain. Accepted domains include: {", ".join(valid_domains)}')
+                messages.error(request, f'Invalid email format. Please use a valid email domain.')
                 return render(request, 'accounts/login.html')
         
         # Try to authenticate with username
@@ -240,7 +246,7 @@ def login_view(request):
             ip_attempt.save()
             
             login(request, user)
-            return redirect('index')
+            return redirect('/user/dashboard/')
         else:
             # Increment login attempts for this IP
             ip_attempt.login_attempts += 1
@@ -482,6 +488,7 @@ def verify_email(request):
                     district=district,
                     contact=registration_data.get('contact'),
                     is_verified=True
+                    # profile_picture will use the default value from the model
                 )
                 
                 # Clear session data

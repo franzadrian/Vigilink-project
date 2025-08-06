@@ -61,9 +61,11 @@
                 {% if messages %}
                 <div class="messages">
                     {% for message in messages %}
+                    {% if 'Post created successfully!' != message|stringformat:"s" %}
                     <div class="message {{ message.tags }}">
                         {{ message }}
                     </div>
+                    {% endif %}
                     {% endfor %}
                 </div>
                 {% endif %}
@@ -76,10 +78,6 @@
                     <input type="password" id="password" name="password" class="form-input" placeholder="Enter your password" required>
                 </div>
                 <div class="form-row">
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="remember" name="remember">
-                        <label for="remember">Remember me</label>
-                    </div>
                     <a href="/accounts/forgot-password/" class="forgot-password">Forgot Password?</a>
                 </div>
                 <button type="submit" class="btn-signin">Sign In</button>
