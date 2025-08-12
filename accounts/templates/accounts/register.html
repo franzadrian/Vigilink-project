@@ -31,8 +31,9 @@
             </div>
             
             <nav class="nav">
-                <a href="#about">About</a>
-                <a href="#contact">Contact</a>
+                <a href="{% url 'about' %}">About</a>
+                <a href="{% url 'contact' %}">Contact</a>
+                <a href="{% url 'pricing' %}">Pricing</a>
             </nav>
 
             <div class="menu-toggle" onclick="toggleMobileMenu()">
@@ -42,8 +43,9 @@
             </div>
 
             <div class="mobile-nav" id="mobileNav">
-                <a href="#about">About</a>
-                <a href="#contact">Contact</a>
+                <a href="{% url 'about' %}">About</a>
+                <a href="{% url 'contact' %}">Contact</a>
+                <a href="{% url 'pricing' %}">Pricing</a>
             </div>
         </div>
     </header>
@@ -75,11 +77,15 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="password">Password</label>
-                        <input class="form-input" type="password" id="password" name="password" placeholder="Enter your password" required>
+                        <div>
+                            <input class="form-input" type="password" id="password" name="password" placeholder="Enter your password" required style="width: 100%;">
+                        </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="confirmPassword">Confirm Password</label>
-                        <input class="form-input" type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm your password" required>
+                        <div>
+                            <input class="form-input" type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm your password" required style="width: 100%;">
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -106,6 +112,9 @@
                         </select>
                     </div>
 
+                </div>
+                <div class="form-group" style="grid-column: span 2; margin-top: 10px; margin-bottom: 20px; text-align: center;">
+                    <p style="font-size: 0.9rem; color: #64748b;">By continuing, you are agreeing to VigiLink's <a href="{% url 'terms' %}" style="color: #4a6cf7; text-decoration: none; font-weight: 600;">Terms of Service</a> and <a href="{% url 'privacy' %}" style="color: #4a6cf7; text-decoration: none; font-weight: 600;">Privacy Policy</a>.</p>
                 </div>
                 <button type="submit" class="submit-btn">Submit</button>
             </form>
@@ -159,6 +168,8 @@
                 mobileNav.classList.remove('active');
             }
         });
+        
+        // Password functionality removed as requested
     </script>
 </body>
 </html>

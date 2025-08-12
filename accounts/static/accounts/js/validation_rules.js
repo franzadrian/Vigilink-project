@@ -103,11 +103,13 @@ document.addEventListener('DOMContentLoaded', function() {
             return validDomains.includes(domain);
         }
         
-        // Function to validate full name length (at least 12 characters total)
-        function validateFullNameLength(fullName) {
-            const fullNameLength = (fullName || '').trim().length;
-            return fullNameLength >= 12;
-        }
+        // Function to validate full name length (between 7 and 15 characters total)
+function validateFullNameLength(fullName) {
+    const minLength = 7;
+    const maxLength = 15;
+    const fullNameLength = (fullName || '').trim().length;
+    return fullNameLength >= minLength && fullNameLength <= maxLength;
+}
         
         // Add input event listeners for real-time validation
         if (isRegistrationForm && fullNameInput) {
@@ -137,8 +139,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 // Show character count message
-                if (charsNeeded > 0) {
+                if (fullNameLength < 7) {
+                    const charsNeeded = 7 - fullNameLength;
                     showError(fullNameInput, `${charsNeeded} more character${charsNeeded !== 1 ? 's' : ''} needed in full name.`);
+                } else if (fullNameLength > 15) {
+                    const charsExcess = fullNameLength - 15;
+                    showError(fullNameInput, `Full name too long. Please remove ${charsExcess} character${charsExcess !== 1 ? 's' : ''}.`);
                 } else {
                     // Only add success class during typing
                     removeError(fullNameInput);
@@ -153,7 +159,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const fullName = fullNameInput ? fullNameInput.value.trim() : '';
                 
                 if (fullName !== '' && validateName(fullName)) {
-                    if (fullName.length >= 12) {
+                    if (fullName.length >= 7 && fullName.length <= 15) {
                         showSuccess(this, 'Valid full name');
                     }
                 }
@@ -373,11 +379,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         fullNameInput.focus();
                         hasError = true;
                     }
-                    // Check if full name meets minimum length requirement
+                    // Check if full name meets length requirement (7-15 characters)
                     else if (!validateFullNameLength(fullName)) {
                         event.preventDefault();
-                        const charsNeeded = 12 - fullName.length;
-                        showError(fullNameInput, `Full name must be at least 12 characters. ${charsNeeded} more character${charsNeeded !== 1 ? 's' : ''} needed.`);
+                        if (fullName.length < 7) {
+                            const charsNeeded = 7 - fullName.length;
+                            showError(fullNameInput, `Full name must be at least 7 characters. ${charsNeeded} more character${charsNeeded !== 1 ? 's' : ''} needed.`);
+                        } else if (fullName.length > 15) {
+                            const charsExcess = fullName.length - 15;
+                            showError(fullNameInput, `Full name must be at most 15 characters. Please remove ${charsExcess} character${charsExcess !== 1 ? 's' : ''}.`);
+                        }
                         fullNameInput.focus();
                         hasError = true;
                     }

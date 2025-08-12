@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block title %}VigiLink - Neighborhood Safety Watch Dashboard{% endblock %}
+{% block title %}Dashboard - VigiLink{% endblock %}
 
 {% load static %}
 
@@ -8,6 +8,103 @@
 {{ block.super }}
 <script src="{% static 'dashboard/js/post_interactions.js' %}"></script>
 <script src="{% static 'dashboard/js/image_gallery.js' %}"></script>
+<script>
+    // Global initialization functions that can be called after content updates
+    function initPostInteractions() {
+        console.log('Reinitializing post interactions');
+        setupReactionForms();
+        setupReplyButtons();
+        setupDropdownToggles();
+        setupPostActions();
+        setupReplyActions();
+        initializeReplyCount();
+    }
+    
+    // Initialize image gallery functionality
+    function initImageGallery() {
+        console.log('Reinitializing image gallery');
+        // Add any image gallery initialization code here if needed
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle search form submission
+        const searchInput = document.querySelector('.search-input');
+        const searchForm = document.getElementById('search-form');
+        let searchTimeout = null;
+        
+        // Function to update URL without page refresh
+        function updateSearchParams() {
+            const searchValue = searchInput.value;
+            const locationValue = document.getElementById('location-filter-hidden').value;
+            
+            // Show loading indicator
+            const postsContainer = document.querySelector('.posts-container');
+            if (postsContainer) {
+                postsContainer.innerHTML = '<div class="loading-indicator" style="text-align: center; padding: 20px;"><p>Loading results...</p></div>';
+            }
+            
+            // Create URL with parameters
+            let url = new URL(window.location.href);
+            url.searchParams.set('search', searchValue);
+            url.searchParams.set('location', locationValue);
+            
+            // Update browser history without refreshing
+            window.history.pushState({}, '', url);
+            
+            // Fetch results using AJAX
+            fetch(url.toString(), {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(response => response.text())
+                .then(html => {
+                    console.log('AJAX response received:', html);
+                    // Directly update the posts container with the HTML response
+                    // Since the server is already sending just the posts_container.html content
+                    document.querySelector('.posts-container').innerHTML = html;
+                    
+                    // Reinitialize any event listeners for the new content
+                    initPostInteractions();
+                    initImageGallery();
+                })
+                .catch(error => {
+                    console.error('Error fetching search results:', error);
+                    // Show error message if fetch fails
+                    const postsContainer = document.querySelector('.posts-container');
+                    if (postsContainer) {
+                        postsContainer.innerHTML = '<div class="error-message" style="text-align: center; padding: 20px; color: red;"><p>Error loading results. Please try again.</p></div>';
+                    }
+                });
+        }
+        
+        // Auto-search as user types with a small delay
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(function() {
+                updateSearchParams();
+            }, 500); // 500ms delay to avoid too many requests
+        });
+        
+        // Still allow Enter key for immediate search
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                clearTimeout(searchTimeout);
+                updateSearchParams();
+            }
+        });
+        
+        // Handle location filter changes
+        const locationFilter = document.getElementById('location-filter');
+        const locationFilterHidden = document.getElementById('location-filter-hidden');
+        
+        locationFilter.addEventListener('change', function() {
+            locationFilterHidden.value = this.value;
+            updateSearchParams();
+        });
+    });
+</script>
 {% endblock %}
 
 {% block content %}
@@ -24,9 +121,9 @@
                     </svg>
                     Create Post
                 </a>
-                <div class="user-avatar">
+                <a href="{% url 'view_profile' %}" class="user-avatar">
                     <img src="{{ request.user.profile_picture.url|default:'/static/accounts/images/profile.png' }}" alt="{{ request.user.full_name }}" class="avatar-img" onerror="this.src='/static/accounts/images/profile.png'">
-                </div>
+                </a>
             </div>
         </div>
 
@@ -36,14 +133,16 @@
                 <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
-                <input type="text" class="search-input" placeholder="Search residents...">
+                <form id="search-form" method="get" action="{% url 'dashboard' %}">
+                    <input type="text" name="search" class="search-input" placeholder="Search by username or name..." value="{{ request.GET.search|default:'' }}">
+                    <input type="hidden" name="location" id="location-filter-hidden" value="{{ request.GET.location|default:'everyone' }}">
+                </form>
             </div>
             <div class="filter-controls">
                 <div class="filter-group">
-                    <select class="select-dropdown">
-                        <option>All Units</option>
-                        <option>Unit A</option>
-                        <option>Unit B</option>
+                    <select class="select-dropdown" id="location-filter">
+                        <option value="everyone" {% if request.GET.location == 'everyone' or not request.GET.location %}selected{% endif %}>Everyone</option>
+                        <option value="local" {% if request.GET.location == 'local' %}selected{% endif %}>Local</option>
                     </select>
                     <div class="mobile-actions">
                         <a href="{% url 'create_post' %}" class="create-post-btn" style="margin-right: 5px; text-decoration: none;">
@@ -52,9 +151,9 @@
                             </svg>
                             Create Post
                         </a>
-                        <div class="user-avatar">
+                        <a href="{% url 'view_profile' %}" class="user-avatar">
                             <img src="{{ request.user.profile_picture.url|default:'/static/accounts/images/profile.png' }}" alt="{{ request.user.full_name }}" class="avatar-img" onerror="this.src='/static/accounts/images/profile.png'">
-                        </div>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -62,100 +161,7 @@
 
         <!-- Posts -->
         <div class="posts-container">
-            {% if posts %}
-                {% for post in posts %}
-                <div class="post-card">
-                    <div class="post-header">
-                        <img src="{% if post.user.profile_picture %}{{ post.user.profile_picture.url }}{% else %}/static/accounts/images/profile.png{% endif %}" alt="{{ post.user.full_name }}" class="post-avatar" onerror="this.src='/static/accounts/images/profile.png'">
-                        <div class="post-info">
-                            <div class="post-header-info">
-                                <div class="post-author">{{ post.user.full_name }}</div>
-                                <div class="post-date">{{ post.uploaded_at|date:"F j, Y, g:i a" }}</div>
-                            </div>
-                            {% if post.user == request.user %}
-                            <div class="post-actions-dropdown">
-                                <button class="post-actions-toggle">
-                                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
-                                    </svg>
-                                </button>
-                                <div class="post-actions-menu">
-                                    <button class="edit-post-btn" data-post-id="{{ post.post_id }}" data-post-message="{{ post.message }}">Edit</button>
-                                    <button class="delete-post-btn" data-post-id="{{ post.post_id }}">Delete</button>
-                                </div>
-                            </div>
-                            {% endif %}
-                            <div class="post-content">{{ post.message }}</div>
-                            
-                            {% if post.get_images %}
-                                <div class="post-images-gallery" data-post-id="{{ post.post_id }}">
-                                    {% with images=post.get_images %}
-                                        {% with image_count=post.image_count %}
-                                            {% for image in images|slice:":3" %}
-                                                <div class="post-image-container {% if image_count == 1 %}single-image{% endif %}" data-index="{{ forloop.counter0 }}">
-                                                    <img src="{{ image.image.url }}" alt="Post image" class="post-image">
-                                                </div>
-                                            {% endfor %}
-                                            
-                                            {% if image_count > 3 %}
-                                                <div class="post-image-container stacked" data-index="3">
-                                                    {% with fourth_image=images.3 %}
-                                                        <img src="{{ fourth_image.image.url }}" alt="Post image" class="post-image">
-                                                        <div class="post-image-overlay">+{{ image_count|add:"-3" }}</div>
-                                                    {% endwith %}
-                                                </div>
-                                            {% endif %}
-                                        {% endwith %}
-                                    {% endwith %}
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="post-actions">
-                        <div class="action-buttons">
-                            <form method="post" action="{% url 'react_to_post' post.post_id %}" class="reaction-form" style="display: inline;" onsubmit="return false;">
-                                {% csrf_token %}
-                                <button type="button" class="reaction-btn {% if post.user_reacted %}reacted{% endif %}">
-                                    <svg width="20" height="20" fill="{% if post.user_reacted %}#ef4444{% else %}none{% endif %}" stroke="{% if post.user_reacted %}#ef4444{% else %}currentColor{% endif %}" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
-                                    </svg>
-                                    <span>{{ post.reaction_count }} {% if post.reaction_count == 1 %}Like{% else %}Likes{% endif %}</span>
-                                </button>
-                            </form>
-                            
-                            <button class="reply-btn" data-post-id="{{ post.post_id }}">
-                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
-                                </svg>
-                                <span>{{ post.reply_count|default:0 }} {% if post.reply_count == 1 %}Reply{% else %}Replies{% endif %}</span>
-                            </button>
-                            
-                            <!-- Reply section (initially hidden) -->
-                            <div class="replies-section" id="replies-section-{{ post.post_id }}" style="display: none;">
-                                <div class="replies-list" id="replies-list-{{ post.post_id }}">
-                                    <!-- Replies will be loaded here -->
-                                </div>
-                                <form class="reply-form" data-post-id="{{ post.post_id }}">
-                                    {% csrf_token %}
-                                    <textarea name="message" class="reply-input" placeholder="Write your reply..." required></textarea>
-                                    <div class="reply-form-actions">
-                                        <button type="submit" class="submit-reply-btn">Reply</button>
-                                    </div>
-                                    <div class="reply-error" style="display: none; color: red;"></div>
-                                </form>
-                            </div>
-                            
-                            <!-- Share button removed as requested -->
-                        </div>
-                        <!-- Share count removed -->
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="no-posts">
-                    <p>No posts yet. Be the first to create a post!</p>
-                </div>
-            {% endif %}
+            {% include 'dashboard/posts_container.html' %}
         </div>
         
         <!-- Lightbox for image gallery (legacy) -->

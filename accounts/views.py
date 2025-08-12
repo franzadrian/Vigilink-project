@@ -74,8 +74,8 @@ def register_view(request):
             return render(request, 'accounts/register.html', {'cities': cities})
         
         # Validate full name length
-        if len(full_name) < 12:
-            messages.error(request, 'Full name must be at least 12 characters')
+        if len(full_name) < 7 or len(full_name) > 15:
+            messages.error(request, 'Full name must be between 7 and 15 characters')
             return render(request, 'accounts/register.html', {'cities': cities})
         
         # Validate full name (only letters and spaces allowed)
@@ -157,9 +157,6 @@ def register_view(request):
 
 def send_verification_email(email, verification_code):
     """Send verification code to user's email"""
-    # For testing purposes, we'll use the actual email provided during registration
-    # but you can uncomment the line below to send to a specific test email if needed
-    # test_email = 'achives1@gmail.com'
     
     subject = 'VigiLink - Email Verification Code'
     message = f"""Thank you for registering with VigiLink!

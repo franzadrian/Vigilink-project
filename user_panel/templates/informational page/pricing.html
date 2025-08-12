@@ -1,0 +1,803 @@
+{% extends 'informational page/base_no_footer.html' %}
+
+{% block title %}Pricing - VigiLink{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const monthlyToggle = document.getElementById('monthlyToggle');
+        const yearlyToggle = document.getElementById('yearlyToggle');
+        const pricingToggle = document.getElementById('pricingToggle');
+        const monthlyPricing = document.getElementById('monthlyPricing');
+        const yearlyPricing = document.getElementById('yearlyPricing');
+        
+        // Initialize with monthly pricing
+        monthlyPricing.style.display = 'flex';
+        yearlyPricing.style.display = 'none';
+        
+        // Toggle between monthly and yearly pricing
+        pricingToggle.addEventListener('click', function() {
+            pricingToggle.classList.toggle('yearly');
+            
+            if (pricingToggle.classList.contains('yearly')) {
+                monthlyPricing.style.display = 'none';
+                yearlyPricing.style.display = 'flex';
+                monthlyToggle.classList.remove('active');
+                yearlyToggle.classList.add('active');
+            } else {
+                monthlyPricing.style.display = 'flex';
+                yearlyPricing.style.display = 'none';
+                monthlyToggle.classList.add('active');
+                yearlyToggle.classList.remove('active');
+            }
+        });
+        
+        // Click handlers for the text labels
+        monthlyToggle.addEventListener('click', function() {
+            if (pricingToggle.classList.contains('yearly')) {
+                pricingToggle.click();
+            }
+        });
+        
+        yearlyToggle.addEventListener('click', function() {
+            if (!pricingToggle.classList.contains('yearly')) {
+                pricingToggle.click();
+            }
+        });
+    });
+    
+    // FAQ Accordion functionality
+    function toggleFaq(element) {
+        const faqItem = element.parentElement;
+        const answer = element.nextElementSibling;
+        const icon = element.querySelector('.faq-icon');
+        
+        // Close all other FAQ items
+        const allFaqItems = document.querySelectorAll('.faq-item');
+        allFaqItems.forEach(item => {
+            if (item !== faqItem && item.classList.contains('active')) {
+                item.classList.remove('active');
+                item.querySelector('.faq-answer').style.maxHeight = '0px';
+                item.querySelector('.faq-icon').textContent = '+';
+            }
+        });
+        
+        // Toggle current FAQ item
+        faqItem.classList.toggle('active');
+        
+        if (faqItem.classList.contains('active')) {
+            answer.style.maxHeight = answer.scrollHeight + 'px';
+            icon.textContent = '−';
+        } else {
+            answer.style.maxHeight = '0px';
+            icon.textContent = '+';
+        }
+    }
+</script>
+{% endblock %}
+
+{% load static %}
+
+{% block extra_css %}
+<style>
+    /* Pricing Toggle Styles */
+    .pricing-toggle-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 2rem 0;
+        gap: 1.5rem;
+    }
+    
+    .pricing-toggle-option {
+        font-weight: 600;
+        color: #64748b;
+        cursor: pointer;
+        transition: color 0.3s;
+    }
+    
+    .pricing-toggle-option.active {
+        color: #2563EB;
+    }
+    
+    .pricing-toggle-switch {
+        position: relative;
+        width: 60px;
+        height: 30px;
+        background-color: #2563EB;
+        border-radius: 30px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    }
+    
+    .pricing-toggle-switch::after {
+        content: '';
+        position: absolute;
+        width: 24px;
+        height: 24px;
+        background-color: white;
+        border-radius: 50%;
+        top: 3px;
+        left: 3px;
+        transition: transform 0.3s;
+    }
+    
+    .pricing-toggle-switch.yearly::after {
+        transform: translateX(30px);
+    }
+    
+    /* Pricing Cards Styles */
+    .pricing-cards {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 2rem;
+        margin-top: 3rem;
+    }
+    
+    .pricing-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 350px;
+        overflow: hidden;
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
+    
+    .pricing-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    }
+    
+    .pricing-card-header {
+        padding: 2rem;
+        background: #f8fafc;
+        text-align: center;
+        position: relative;
+    }
+    
+    .pricing-card.featured .pricing-card-header {
+        background: #2563EB;
+        color: white;
+    }
+    
+    .popular-tag {
+        position: absolute;
+        top: 0;
+        right: 0;
+        background: #10B981;
+        color: white;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.5rem 1rem;
+        border-bottom-left-radius: 8px;
+    }
+    
+    .pricing-card h3 {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .pricing-card.featured h3 {
+        color: white;
+    }
+    
+    .price {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    
+    .pricing-card.featured .price {
+        color: white;
+    }
+    
+    .price span {
+        font-size: 1rem;
+        font-weight: 500;
+        opacity: 0.8;
+    }
+    
+    .for {
+        font-size: 0.9rem;
+        opacity: 0.7;
+    }
+    
+    .pricing-card.featured .for {
+        color: white;
+        opacity: 0.9;
+    }
+    
+    .pricing-card-body {
+        padding: 2rem;
+    }
+    
+    .features-list {
+        list-style: none;
+        margin-bottom: 2rem;
+    }
+    
+    .features-list li {
+        padding: 0.75rem 0;
+        position: relative;
+        padding-left: 2rem;
+        color: #4b5563;
+    }
+    
+    .features-list li::before {
+        content: '✓';
+        position: absolute;
+        left: 0;
+        color: #2563EB;
+        font-weight: bold;
+    }
+    
+    .cta-button {
+        display: block;
+        background: #2563EB;
+        color: white;
+        text-align: center;
+        padding: 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: background 0.3s;
+    }
+    
+    .cta-button:hover {
+        background: #1E40AF;
+        color: white;
+    }
+    
+    /* Yearly pricing is hidden by default */
+    .yearly-pricing {
+        display: none;
+    }
+    
+    /* FAQ Section Styles */
+    .faq-section {
+        padding: 4rem 0;
+        background-color: #f8fafc;
+    }
+    
+    .faq-content {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 0 1.5rem;
+    }
+    
+    .faq-content h2 {
+        text-align: center;
+        margin-bottom: 3rem;
+        font-size: 2.25rem;
+        color: #1e293b;
+    }
+    
+    .faq-accordion {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .faq-item {
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+    
+    .faq-item.active {
+        box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .faq-question {
+        padding: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    }
+    
+    .faq-question:hover {
+        background-color: #f1f5f9;
+    }
+    
+    .faq-item.active .faq-question {
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .faq-question h3 {
+        margin: 0;
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #334155;
+    }
+    
+    .faq-icon {
+        font-size: 1.5rem;
+        color: #2563EB;
+        font-weight: bold;
+        transition: transform 0.3s;
+    }
+    
+    .faq-item.active .faq-icon {
+        transform: rotate(180deg);
+    }
+    
+    .faq-answer {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.5s ease;
+    }
+    
+    .faq-answer p {
+        padding: 1.5rem;
+        margin: 0;
+        color: #64748b;
+        line-height: 1.6;
+        
+    }
+
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .pricing-cards {
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .pricing-card {
+            max-width: 100%;
+            width: 90%;
+        }
+        
+        .pricing-card-header {
+            padding: 2.5rem 1.5rem;
+        }
+        
+        .price {
+            font-size: 3rem;
+        }
+        
+        .price span {
+            font-size: 1.2rem;
+        }
+        
+        .for {
+            font-size: 1.1rem;
+        }
+        
+        .pricing-card-body {
+            padding: 2.5rem 1.5rem;
+        }
+        
+        .features-list li {
+            font-size: 1.1rem;
+            padding: 0.9rem 0;
+            padding-left: 2.5rem;
+        }
+        
+        .features-list li::before {
+            font-size: 1.2rem;
+        }
+        
+        .cta-button {
+            padding: 1.2rem;
+            font-size: 1.1rem;
+            border-radius: 10px;
+        }
+        
+        .faq-content h2,
+        .custom-pricing-content h2 {
+            font-size: 1.75rem;
+        }
+        
+        .faq-question h3 {
+            font-size: 1.1rem;
+        }
+        
+        .faq-answer p {
+            font-size: 1.05rem;
+        }
+        
+        .faq-section {
+            padding: 3rem 1rem;
+            overflow: visible;
+        }
+        
+        .pricing-toggle-container {
+            gap: 2rem;
+        }
+        
+        .pricing-toggle-option {
+            font-size: 1.2rem;
+        }
+        
+        .pricing-toggle-switch {
+            width: 70px;
+            height: 35px;
+        }
+        
+        .pricing-toggle-switch::after {
+            width: 29px;
+            height: 29px;
+        }
+        
+        .pricing-toggle-switch.yearly::after {
+            transform: translateX(35px);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pricing-container">
+    <section class="hero-section">
+        <div class="hero-content">
+            <h1>Pricing Plans</h1>
+            <p class="hero-subtitle">Affordable security solutions for your community</p>
+        </div>
+    </section>
+
+    <section class="pricing-intro-section">
+        <div class="pricing-intro-content">
+            <h2>Choose the Right Plan for Your Community</h2>
+            <p>VigiLink offers flexible pricing options designed to meet the needs of different communities. Whether you're a small subdivision or a large neighborhood, we have a plan that fits your requirements and budget.</p>
+        </div>
+    </section>
+
+    <style>
+        /* Additional mobile responsive styles */
+        @media (max-width: 768px) {
+            .hero-content h1 {
+                font-size: 2.8rem;
+                margin-bottom: 1.2rem;
+            }
+            
+            .hero-subtitle {
+                font-size: 1.3rem;
+                padding: 0 1rem;
+            }
+            
+            .pricing-intro-content h2 {
+                font-size: 2rem;
+                margin-bottom: 1.2rem;
+                padding: 0 1rem;
+            }
+            
+            .pricing-intro-content p {
+                font-size: 1.1rem;
+                padding: 0 1rem;
+                line-height: 1.7;
+            }
+        }
+    </style>
+
+    <section class="pricing-plans-section">
+        <div class="pricing-plans-content">
+            <!-- Pricing Toggle -->
+            <div class="pricing-toggle-container">
+                <div class="pricing-toggle-option active" id="monthlyToggle">Monthly</div>
+                <div class="pricing-toggle-switch" id="pricingToggle"></div>
+                <div class="pricing-toggle-option" id="yearlyToggle">Yearly</div>
+            </div>
+            
+            <!-- Monthly Pricing Cards -->
+            <div class="pricing-cards monthly-pricing" id="monthlyPricing">
+                <div class="pricing-card">
+                    <div class="pricing-card-header">
+                        <h3>Free</h3>
+                        <p class="price">₱0<span>/month</span></p>
+                        <p class="for">For individuals</p>
+                    </div>
+                    <div class="pricing-card-body">
+                        <ul class="features-list">
+                            <li>1 user account</li>
+                            <li>Post content with images</li>
+                            <li>Private messaging</li>
+                            <li>View resources</li>
+                            <li>Email support</li>
+                        </ul>
+                        {% if user.is_authenticated %}
+                        <a href="{% url 'dashboard' %}" class="cta-button">Get Started</a>
+                        {% else %}
+                        <a href="{% url 'register' %}" class="cta-button">Get Started</a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="pricing-card featured">
+                    <div class="pricing-card-header">
+                        <div class="popular-tag">Most Popular</div>
+                        <h3>Standard</h3>
+                        <p class="price">₱1,500<span>/month</span></p>
+                        <p class="for">For small subdivisions</p>
+                    </div>
+                    <div class="pricing-card-body">
+                        <ul class="features-list">
+                            <li>Up to 50 resident accounts</li>
+                            <li>Incident reporting</li>
+                            <li>Community announcements</li>
+                            <li>Event calendar</li>
+                            <li>Document repository</li>
+                            <li>Custom domain for subdivision</li>
+                            <li>Resident management</li>
+                            <li>Security role assignment</li>
+                            <li>Priority email support</li>
+                        </ul>
+                        {% if user.is_authenticated %}
+                        <a href="{% url 'payment' %}?plan=standard&cycle=monthly" class="cta-button">Get Started</a>
+                        {% else %}
+                        <a href="{% url 'login' %}" class="cta-button">Get Started</a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="pricing-card">
+                    <div class="pricing-card-header">
+                        <h3>Premium</h3>
+                        <p class="price">₱3,000<span>/month</span></p>
+                        <p class="for">For large subdivisions</p>
+                    </div>
+                    <div class="pricing-card-body">
+                        <ul class="features-list">
+                            <li>Unlimited resident accounts</li>
+                            <li>Incident reporting</li>
+                            <li>Community announcements</li>
+                            <li>Event calendar</li>
+                            <li>Document repository</li>
+                            <li>Custom domain for subdivision</li>
+                            <li>Resident management</li>
+                            <li>Security role assignment</li>
+                            <li>Priority email support</li>
+                        </ul>
+                        {% if user.is_authenticated %}
+                        <a href="{% url 'payment' %}?plan=premium&cycle=monthly" class="cta-button">Get Started</a>
+                        {% else %}
+                        <a href="{% url 'login' %}" class="cta-button">Get Started</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Yearly Pricing Cards -->
+            <div class="pricing-cards yearly-pricing" id="yearlyPricing">
+                <div class="pricing-card">
+                    <div class="pricing-card-header">
+                        <h3>Free</h3>
+                        <p class="price">₱0<span>/year</span></p>
+                        <p class="for">For individuals</p>
+                    </div>
+                    <div class="pricing-card-body">
+                        <ul class="features-list">
+                            <li>1 user account</li>
+                            <li>Post content with images</li>
+                            <li>Private messaging</li>
+                            <li>View resources</li>
+                            <li>Email support</li>
+                        </ul>
+                        {% if user.is_authenticated %}
+                        <a href="{% url 'dashboard' %}" class="cta-button">Get Started</a>
+                        {% else %}
+                        <a href="{% url 'register' %}" class="cta-button">Get Started</a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="pricing-card featured">
+                    <div class="pricing-card-header">
+                        <div class="popular-tag">Save 20%</div>
+                        <h3>Standard</h3>
+                        <p class="price">₱14,400<span>/year</span></p>
+                        <p class="for">For small subdivisions</p>
+                    </div>
+                    <div class="pricing-card-body">
+                        <ul class="features-list">
+                            <li>Up to 50 resident accounts</li>
+                            <li>Incident reporting</li>
+                            <li>Community announcements</li>
+                            <li>Event calendar</li>
+                            <li>Document repository</li>
+                            <li>Custom domain for subdivision</li>
+                            <li>Resident management</li>
+                            <li>Security role assignment</li>
+                            <li>Priority email support</li>
+                        </ul>
+                        {% if user.is_authenticated %}
+                        <a href="{% url 'payment' %}?plan=standard&cycle=yearly" class="cta-button">Get Started</a>
+                        {% else %}
+                        <a href="{% url 'login' %}" class="cta-button">Get Started</a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="pricing-card">
+                    <div class="pricing-card-header">
+                        <h3>Premium</h3>
+                        <p class="price">₱28,800<span>/year</span></p>
+                        <p class="for">For large subdivisions</p>
+                    </div>
+                    <div class="pricing-card-body">
+                        <ul class="features-list">
+                            <li>Unlimited resident accounts</li>
+                            <li>Incident reporting</li>
+                            <li>Community announcements</li>
+                            <li>Event calendar</li>
+                            <li>Document repository</li>
+                            <li>Custom domain for subdivision</li>
+                            <li>Resident management</li>
+                            <li>Security role assignment</li>
+                            <li>Priority email support</li>
+                        </ul>
+                        {% if user.is_authenticated %}
+                        <a href="{% url 'payment' %}?plan=premium&cycle=yearly" class="cta-button">Get Started</a>
+                        {% else %}
+                        <a href="{% url 'login' %}" class="cta-button">Get Started</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+
+    <section class="faq-section">
+        <div class="faq-content">
+            <h2>Frequently Asked Questions</h2>
+            
+            <style>
+                /* Additional FAQ mobile responsive styles */
+                @media (max-width: 768px) {
+                    .faq-content h2 {
+                        font-size: 2.2rem;
+                        margin-bottom: 2rem;
+                    }
+                    
+                    .faq-item {
+                        margin-bottom: 1rem;
+                    }
+                    
+                    .faq-question {
+                        padding: 1.8rem 1.5rem;
+                    }
+                    
+                    .faq-question h3 {
+                        font-size: 1.2rem;
+                        line-height: 1.5;
+                    }
+                    
+                    .faq-icon {
+                        font-size: 1.8rem;
+                        margin-left: 0.5rem;
+                    }
+                    
+                    .faq-answer p {
+                        padding: 1.8rem 1.5rem;
+                        font-size: 1.1rem;
+                        line-height: 1.7;
+                    }
+                }
+            </style>
+            
+            <div class="faq-accordion">
+                <div class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)">
+                        <h3>Can I change plans later?</h3>
+                        <span class="faq-icon">+</span>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Yes, you can upgrade or downgrade your plan at any time. Changes will be reflected in your next billing cycle. We make it easy to adjust your subscription as your community's needs evolve.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)">
+                        <h3>Is there a setup fee?</h3>
+                        <span class="faq-icon">+</span>
+                    </div>
+                    <div class="faq-answer">
+                        <p>No, there are no setup fees. You only pay the monthly or annual subscription fee for your chosen plan. We believe in transparent pricing with no hidden costs.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)">
+                        <h3>Do you offer annual billing?</h3>
+                        <span class="faq-icon">+</span>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Yes, we offer annual billing with a 20% discount compared to monthly billing. This provides significant savings while ensuring continuous service for your community.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)">
+                        <h3>What payment methods do you accept?</h3>
+                        <span class="faq-icon">+</span>
+                    </div>
+                    <div class="faq-answer">
+                        <p>We accept all major credit cards, bank transfers, and PayPal. If you need an alternative payment method, please contact our support team.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)">
+                        <h3>Is there a free trial available?</h3>
+                        <span class="faq-icon">+</span>
+                    </div>
+                    <div class="faq-answer">
+                        <p>We offer a 14-day free trial for our Standard and Premium plans. This allows you to explore all features and determine if VigiLink is the right solution for your community.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)">
+                        <h3>How do I get started?</h3>
+                        <span class="faq-icon">+</span>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Simply create an account, select your preferred plan, and complete the payment process. Our team will guide you through the setup process and help you onboard your community members.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+    // Pricing page scripts
+</script>
+
+<style>
+    /* Additional responsive styles for smaller screens */
+    @media (max-width: 480px) {
+        .pricing-card {
+            width: 95%;
+        }
+        
+        .pricing-card-header {
+            padding: 2rem 1.2rem;
+        }
+        
+        .price {
+            font-size: 2.8rem;
+        }
+        
+        .pricing-card-body {
+            padding: 2rem 1.2rem;
+        }
+        
+        .features-list li {
+            font-size: 1.05rem;
+            padding-left: 2.2rem;
+        }
+        
+        .pricing-toggle-container {
+            gap: 1.5rem;
+        }
+        
+        .pricing-toggle-option {
+            font-size: 1.1rem;
+        }
+        
+        .hero-content h1 {
+            font-size: 2.5rem;
+        }
+        
+        .hero-subtitle {
+            font-size: 1.2rem;
+        }
+        
+        .pricing-intro-content h2 {
+            font-size: 1.8rem;
+        }
+        
+        .faq-content h2 {
+            font-size: 2rem;
+        }
+    }
+</style>
+{% endblock %}

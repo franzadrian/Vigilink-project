@@ -1,0 +1,327 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Edit Profile - VigiLink{% endblock %}
+
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'dashboard/css/view_profile.css' %}">
+<style>
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: #4b5563;
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        font-size: 1rem;
+        transition: border-color 0.2s;
+    }
+    
+    .form-control:focus {
+        outline: none;
+        border-color: #4285f4;
+        box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+    }
+    
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+    
+    /* Center buttons on mobile */
+    @media (max-width: 768px) {
+        .form-actions {
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .btn-cancel, .btn-save {
+            width: 100%;
+            max-width: 200px;
+            text-align: center;
+        }
+    }
+    
+    .btn-cancel {
+        background: #f3f4f6;
+        color: #4b5563;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+    }
+    
+    .btn-cancel:hover {
+        background: #e5e7eb;
+        color: #111827;
+    }
+    
+    .btn-save {
+        background: #4285f4;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .btn-save:hover {
+        background: #3b78e7;
+    }
+    
+    .profile-picture-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+    
+    .profile-picture-preview {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        overflow: hidden;
+        margin-bottom: 1rem;
+        border: 3px solid #e5e7eb;
+    }
+    
+    .profile-picture-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .profile-picture-upload {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .file-input-label {
+        background: #f3f4f6;
+        color: #4b5563;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-top: 0.5rem;
+    }
+    
+    .file-input-label:hover {
+        background: #e5e7eb;
+        color: #111827;
+    }
+    
+    .file-input {
+        display: none;
+    }
+    
+    .non-editable-field {
+        background-color: #f3f4f6;
+        color: #6b7280;
+        cursor: not-allowed;
+    }
+    
+    .alert {
+        padding: 1rem;
+        border-radius: 0.375rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .alert-success {
+        background-color: #d1fae5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+    }
+    
+    .alert-danger {
+        background-color: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    <div class="profile-edit-container">
+        <h1 class="section-title">Edit Profile</h1>
+        
+
+        <form method="post" enctype="multipart/form-data" action="{% url 'edit_profile' %}">
+            {% csrf_token %}
+            
+            <div class="profile-picture-container">
+                <div class="profile-picture-preview">
+                    {% if user.profile_picture %}
+                        <img id="profile-image-preview" src="{{ user.profile_picture.url }}" alt="{{ user.full_name }}" onerror="this.src='/static/accounts/images/profile.png'">
+                    {% else %}
+                        <img id="profile-image-preview" src="/static/accounts/images/profile.png" alt="{{ user.full_name }}">
+                    {% endif %}
+                </div>
+                <div class="profile-picture-upload">
+                    <span>Profile Picture</span>
+                    <label for="profile_picture" class="file-input-label">Choose File</label>
+                    <input type="file" id="profile_picture" name="profile_picture" class="file-input" accept="image/*">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" id="username" name="username" class="form-control" value="{{ user.username }}" style="border-color: #4285f4;">
+                <small>Choose a unique username (6-15 characters, letters and numbers only, no special characters)</small>
+                {% if username_error %}
+                <div class="error-message" style="color: #b91c1c; margin-top: 0.25rem; font-size: 0.875rem;">
+                    {{ username_error }}
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" id="email" name="email" class="form-control non-editable-field" value="{{ user.email }}" readonly>
+                <small>Email cannot be changed</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="full_name" class="form-label">Full Name</label>
+                <input type="text" id="full_name" name="full_name" class="form-control" value="{{ user.full_name }}" required>
+                <small>Full name must be between 7-15 characters, no numbers or special characters allowed</small>
+                {% if full_name_error %}
+                <div class="error-message" style="color: #b91c1c; margin-top: 0.25rem; font-size: 0.875rem;">
+                    {{ full_name_error }}
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="contact" class="form-label">Contact</label>
+                <input type="text" id="contact" name="contact" class="form-control" value="{{ user.contact }}">
+            </div>
+            
+            <div class="form-group">
+                <label for="address" class="form-label">Address</label>
+                <textarea id="address" name="address" class="form-control" rows="3">{{ user.address }}</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="about" class="form-label">About</label>
+                <textarea id="about" name="about" class="form-control" rows="4" placeholder="Tell us about yourself">{{ user.about }}</textarea>
+            </div>
+            
+            <div class="form-row" style="display: flex; gap: 1rem;">
+                <div class="form-group" style="flex: 1;">
+                    <label for="block" class="form-label">Block</label>
+                    <input type="text" id="block" name="block" class="form-control" value="{{ user.block }}">
+                </div>
+                
+                <div class="form-group" style="flex: 1;">
+                    <label for="lot" class="form-label">Lot</label>
+                    <input type="text" id="lot" name="lot" class="form-control" value="{{ user.lot }}">
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <a href="{% url 'view_profile' %}" class="btn-cancel">Cancel</a>
+                <button type="submit" class="btn-save" id="saveButton" disabled style="font-weight: 500;">Save Changes</button>
+            </div>
+        </form>
+    </div>
+    
+    <script>
+        // Preview profile picture before upload
+        document.getElementById('profile_picture').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    document.getElementById('profile-image-preview').src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+                enableSaveButton(); // Enable save button when profile picture changes
+            }
+        });
+        
+        // Track form changes to enable/disable save button
+        const initialValues = {};
+        const formInputs = document.querySelectorAll('input[type="text"], input[type="email"], textarea');
+        const saveButton = document.getElementById('saveButton');
+        
+        // Store initial values
+        formInputs.forEach(input => {
+            initialValues[input.id] = input.value;
+            
+            // Add change event listener
+            input.addEventListener('input', function() {
+                checkFormChanges();
+                
+                // Clear error messages when user types in fields
+                if (input.id === 'username') {
+                    // Find the parent form-group and then find error message within it
+                    const formGroup = input.closest('.form-group');
+                    if (formGroup) {
+                        const errorMessage = formGroup.querySelector('.error-message');
+                        if (errorMessage) {
+                            errorMessage.style.display = 'none';
+                        }
+                    }
+                }
+                
+                if (input.id === 'full_name') {
+                    // Find the parent form-group and then find error message within it
+                    const formGroup = input.closest('.form-group');
+                    if (formGroup) {
+                        const errorMessage = formGroup.querySelector('.error-message');
+                        if (errorMessage) {
+                            errorMessage.style.display = 'none';
+                        }
+                    }
+                }
+            });
+        });
+        
+        // Check if any form field has changed
+        function checkFormChanges() {
+            let hasChanges = false;
+            
+            // Check text inputs and textarea
+            formInputs.forEach(input => {
+                if (input.value !== initialValues[input.id]) {
+                    hasChanges = true;
+                }
+            });
+            
+            // Check if profile picture was selected
+            const profilePicInput = document.getElementById('profile_picture');
+            if (profilePicInput.files.length > 0) {
+                hasChanges = true;
+            }
+            
+            // Enable/disable save button
+            saveButton.disabled = !hasChanges;
+        }
+        
+        // Function to enable save button
+        function enableSaveButton() {
+            saveButton.disabled = false;
+        }
+    </script>
+{% endblock %}

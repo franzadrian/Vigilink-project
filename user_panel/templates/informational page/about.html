@@ -1,0 +1,115 @@
+{% extends 'informational page/base_no_footer.html' %}
+
+{% block title %}About Us - VigiLink {% endblock %}
+
+{% load static %}
+
+{% block content %}
+<div class="about-container">
+    <section class="hero-section">
+        <div class="hero-content">
+            <h1>About VigiLink</h1>
+            <p class="hero-subtitle">Strengthening community security through smart, connected technology</p>
+        </div>
+    </section>
+
+    <section class="about-section">
+        <div class="about-content">
+            <h2>Our Platform</h2>
+            <p>VigiLink is a subdivision-based neighborhood safety watch system designed to strengthen community security through smart, connected technology. Developed as a web-based platform, VigiLink empowers residents, homeowner associations, and local authorities to work together in keeping their subdivision safe.</p>
+            
+            <p>Currently, VigiLink is focused exclusively on subdivisions such as Deca Homes and Camella Homes as part of a trial phase — a way to measure how effective the system can be on a smaller scale before upgrading it to serve entire districts. This approach allows us to fine-tune features, ensure reliability, and prove just how powerful and valuable the platform can be.</p>
+            
+            <p>In each subdivision, the Home Owner (subscriber) manages the community's account, overseeing only the residents who live in or have purchased property within their area. The Home Owner also encourages residents to join the system, ensuring everyone is connected to the same safety network.</p>
+        </div>
+    </section>
+
+    <section class="features-section">
+        <div class="features-content">
+            <h2>What Residents Can Do</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h3>Report Issues</h3>
+                    <p>Report neighborhood issues, suspicious activities, or unknown individuals — with the option to report anonymously.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <h3>Community Events</h3>
+                    <p>View upcoming community events and access important resources.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-user-check"></i>
+                    </div>
+                    <h3>Visitor Monitoring</h3>
+                    <p>Monitor registered visitors entering the subdivision.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-bullhorn"></i>
+                    </div>
+                    <h3>Community Updates</h3>
+                    <p>Post community-related content and updates.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-comments"></i>
+                    </div>
+                    <h3>Direct Communication</h3>
+                    <p>Communicate directly with other residents through 1-on-1 messaging.</p>
+                </div>
+            </div>
+            
+            <p class="features-note">All reports go directly to users with the Security role, assigned by the Home Owner, for immediate action. For anonymous reports, the Security will not see the reporter's identity, protecting the privacy of concerned residents.</p>
+            
+            <p>Beyond immediate response, VigiLink's data dashboard provides valuable insights into incident trends, enabling communities to plan effective safety measures based on real data.</p>
+        </div>
+    </section>
+
+    <section class="cross-platform-section">
+        <div class="cross-platform-content">
+            <h2>Cross-Platform Access</h2>
+            <p>VigiLink works seamlessly on cellphones, laptops, tablets, and desktop computers, so residents and security teams can stay connected anytime, anywhere.</p>
+            <div class="devices-illustration">
+                <i class="fas fa-mobile-alt device-icon"></i>
+                <i class="fas fa-laptop device-icon"></i>
+                <i class="fas fa-tablet-alt device-icon"></i>
+                <i class="fas fa-desktop device-icon"></i>
+            </div>
+        </div>
+    </section>
+
+    <section class="mission-section">
+        <div class="mission-content">
+            <h2>Our Mission</h2>
+            <p>To create safer, more connected subdivisions by enabling quick communication, fostering vigilance, and providing tools that empower residents and security teams to work as one.</p>
+        </div>
+    </section>
+
+    <section class="privacy-section">
+        <div class="privacy-content">
+            <h2>Privacy & User Rights</h2>
+            <p>At VigiLink, we value your trust and are committed to safeguarding your personal information. All reports, messages, and resident records are securely stored and accessible only to authorized users. Anonymous reporting ensures that your identity remains private if you choose not to disclose it. We do not share your data with third parties without your consent, and all communications within the platform are encrypted to protect your privacy.</p>
+            
+            <h3>As a user, you have the right to:</h3>
+            <ul class="rights-list">
+                <li>Access and update your personal information.</li>
+                <li>View upcoming events and community resources.</li>
+                <li>Report incidents with the option to remain anonymous.</li>
+                <li>Share content with the community or communicate privately with other residents.</li>
+            </ul>
+            
+            <p class="privacy-note">Your safety is our priority — both in your subdivision and online.</p>
+        </div>
+    </section>
+</div>
+{% endblock %}

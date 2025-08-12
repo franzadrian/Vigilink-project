@@ -19,7 +19,8 @@ class LoginRequiredMiddleware:
         # Check if the user is authenticated
         if not request.user.is_authenticated:
             # Check if the path starts with /user/ (dashboard-related URLs)
-            if path.startswith('/user/'):
+            # Exclude informational pages like About, Contact, Pricing, Terms, and Privacy
+            if path.startswith('/user/') and not (path.startswith('/user/about/') or path.startswith('/user/contact/') or path.startswith('/user/pricing/') or path.startswith('/user/terms/') or path.startswith('/user/privacy/')):
                 logger.warning(f"Unauthenticated access attempt to {path}, redirecting to login")
                 # Redirect to login page with next parameter
                 return redirect(f'{settings.LOGIN_URL}?next={path}')

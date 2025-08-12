@@ -34,8 +34,9 @@
         </div>
         <div class="header-right">
             <nav class="nav-links">
-                <a href="#about">About</a>
-                <a href="#contact">Contact</a>
+                <a href="{% url 'about' %}">About</a>
+                <a href="{% url 'contact' %}">Contact</a>
+                <a href="{% url 'pricing' %}">Pricing</a>
             </nav>
             
             <div class="menu-toggle" onclick="toggleMobileMenu()">
@@ -45,8 +46,9 @@
             </div>
             
             <div class="mobile-nav" id="mobileNav">
-                <a href="#about" class="mobile-nav-link">About</a>
-                <a href="#contact" class="mobile-nav-link">Contact</a>
+                <a href="{% url 'about' %}" class="mobile-nav-link">About</a>
+                <a href="{% url 'contact' %}" class="mobile-nav-link">Contact</a>
+                <a href="{% url 'pricing' %}" class="mobile-nav-link">Pricing</a>
             </div>
         </div>
     </header>

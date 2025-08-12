@@ -382,6 +382,13 @@
             border-radius: 0.5rem;
             padding: 1.5rem;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
+            position: relative;
+            overflow: visible;
+            box-sizing: border-box;
+            width: 100%;
         }
 
         .post-header {
@@ -400,18 +407,36 @@
 
         .post-info {
             flex: 1;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
         }
 
         .post-author {
             font-weight: 600;
             color: #1f2937;
             margin-bottom: 0.75rem;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
+        }
+        
+        .author-link:hover {
+            text-decoration: underline !important;
         }
 
         .post-content {
             color: #1f2937;
             margin-bottom: 1rem;
             line-height: 1.6;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            box-sizing: border-box;
         }
 
         .post-image {

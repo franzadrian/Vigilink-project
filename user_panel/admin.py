@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Post, PostReaction, PostReply, PostShare
+from .models import Post, PostReaction, PostReply  # PostShare removed
 
 # Register your models here.
 class PostAdmin(admin.ModelAdmin):
@@ -17,11 +17,9 @@ class PostReplyAdmin(admin.ModelAdmin):
     list_filter = ('created_at',)
     search_fields = ('message',)
 
-class PostShareAdmin(admin.ModelAdmin):
-    list_display = ('user', 'post', 'created_at')
-    list_filter = ('created_at',)
+# PostShareAdmin removed
 
 admin.site.register(Post, PostAdmin)
 admin.site.register(PostReaction, PostReactionAdmin)
 admin.site.register(PostReply, PostReplyAdmin)
-admin.site.register(PostShare, PostShareAdmin)
+# PostShare admin registration removed

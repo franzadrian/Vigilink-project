@@ -1,0 +1,109 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Profile - VigiLink{% endblock %}
+
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'dashboard/css/view_profile.css' %}">
+{% endblock %}
+{% block content %}
+            <!-- Profile Header -->
+            <div class="profile-header">
+                <div class="profile-info">
+                    {% if user.profile_picture %}
+                        <div class="profile-avatar">
+                            <img src="{{ user.profile_picture.url }}" alt="{{ user.full_name }}" class="avatar-img" onerror="this.src='/static/accounts/images/profile.png'">
+                        </div>
+                    {% else %}
+                        <div class="profile-avatar">
+                            {{ user.username|slice:":2"|upper }}
+                        </div>
+                    {% endif %}
+                    <div class="profile-details">
+                        <h1>{{ user.full_name }}</h1>
+                        <p class="profile-email">{{ user.email }}</p>
+                        <div class="profile-location">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                <circle cx="12" cy="10" r="3"></circle>
+                            </svg>
+                            {% if user.city %}{{ user.city.name }}{% if user.district %}, {{ user.district.name }}{% endif %}{% else %}Location not set{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% if is_own_profile %}
+                <div class="edit-btn-container">
+                    <a href="{% url 'edit_profile' %}" class="edit-btn">Edit Profile</a>
+                    <a href="{% url 'change_password' %}" class="edit-btn" style="background-color: #f59e0b; margin-left: 10px;">Change Password</a>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if messages %}
+            <div id="message-container">
+                {% for message in messages %}
+                <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            <script>
+                // Auto-hide messages after 3.5 seconds
+                setTimeout(function() {
+                    var messageContainer = document.getElementById('message-container');
+                    if (messageContainer) {
+                        messageContainer.style.opacity = '0';
+                        setTimeout(function() {
+                            messageContainer.style.display = 'none';
+                        }, 500);
+                    }
+                }, 3500);
+            </script>
+            {% endif %}
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <h3>Username</h3>
+                    <p>{{ user.username }}</p>
+                </div>
+                <div class="stat-item">
+                    <h3>Contact</h3>
+                    <p>{{ user.contact|default:"Not provided" }}</p>
+                </div>
+                <div class="stat-item">
+                    <h3>Member Since</h3>
+                    <p>{{ user.date_joined|date:"F j, Y" }}</p>
+                </div>
+                <div class="stat-item">
+                    <h3>Role</h3>
+                    <p>{{ user.get_role_display|default:"Resident" }}</p>
+                </div>
+                <div class="stat-item">
+                    <h3>Address</h3>
+                    <p>{{ user.address|default:"Not provided" }}</p>
+                </div>
+                <div class="stat-item">
+                    <h3>Block / Lot</h3>
+                    <p>{% if user.block or user.lot %}{{ user.block }} / {{ user.lot }}{% else %}Not provided{% endif %}</p>
+                </div>
+            </div>
+
+            <!-- About Section -->
+            <section class="about-section">
+                <h2 class="section-title">About</h2>
+                <p class="about-text">
+                    {% if user.about %}
+                        {{ user.about }}
+                    {% else %}
+                        {{ user.full_name }} is a member of the VigiLink community.
+                        {% if user.city %}
+                        Based in {{ user.city.name }}{% if user.district %}, {{ user.district.name }}{% endif %}.
+                        {% endif %}
+                    {% endif %}
+                </p>
+            </section>
+
+            <!-- End of Profile Content -->
+{% endblock %}

@@ -1,7 +1,7 @@
 {% extends 'dashboard/base.html' %}
 {% load static %}
 
-{% block title %}View Post{% endblock %}
+{% block title %}View Post - VigiLink{% endblock %}
 
 {% block extra_js %}
 <script src="{% static 'dashboard/js/post_interactions.js' %}"></script>
@@ -58,41 +58,33 @@
                     </button>
                 </form>
                 
-                <button class="reply-btn" onclick="toggleReplyForm()">
+                <button class="reply-btn" data-post-id="{{ post.post_id }}" onclick="toggleReplyForm()">
                     <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
                     </svg>
-                    <span>Reply</span>
+                    <span>View Comment</span>
                 </button>
                 
-                <form method="post" action="{% url 'share_post' post.post_id %}" class="share-form">
-                    {% csrf_token %}
-                    <button type="submit" class="share-btn">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
-                        </svg>
-                        <span>Share</span>
-                    </button>
-                </form>
+                <!-- Share button removed -->
             </div>
             
-            <div class="share-count">{{ share_count }} {% if share_count == 1 %}Share{% else %}Shares{% endif %}</div>
+            <!-- Share count removed -->
         </div>
     </div>
     
     <div id="reply-form-container" class="reply-form-container" style="display: none;">
         <form id="reply-form" class="reply-form">
             {% csrf_token %}
-            <textarea name="reply_message" id="reply-message" placeholder="Write your reply..." required></textarea>
+            <textarea name="reply_message" id="reply-message" placeholder="Write your comment..." required></textarea>
             <div class="reply-form-actions">
                 <button type="button" onclick="toggleReplyForm()" class="cancel-reply-btn">Cancel</button>
-                <button type="button" id="submit-reply-btn" class="submit-reply-btn">Reply</button>
+                <button type="button" id="submit-reply-btn" class="submit-reply-btn">Comment</button>
             </div>
         </form>
     </div>
     
     <div class="replies-container">
-        <h3>Replies ({{ replies|length }})</h3>
+        <h3 data-reply-count="{{ replies|length }}">Comments ({{ replies|length }})</h3>
         
         {% if replies %}
             {% for reply in replies %}
@@ -121,7 +113,7 @@
                 </div>
             {% endfor %}
         {% else %}
-            <div class="no-replies">No replies yet. Be the first to reply!</div>
+            <div class="no-replies">No comment yet. Be the first to comment!</div>
         {% endif %}
     </div>
 </div>
@@ -212,7 +204,12 @@
                         
                         // Update reply count
                         const currentCount = parseInt(repliesHeading.textContent.match(/\d+/)[0]) + 1;
-                        repliesHeading.textContent = `Replies (${currentCount})`;
+                        repliesHeading.textContent = `Comments (${currentCount})`;
+                        
+                        // Store the updated count in localStorage to ensure it's updated when returning to dashboard
+                        const postId = '{{ post.post_id }}';
+                        localStorage.setItem(`post_${postId}_reply_count`, currentCount);
+                        console.log(`Stored reply count ${currentCount} in localStorage for post ${postId}`);
                         
                         // Clear form and hide it
                         document.getElementById('reply-message').value = '';

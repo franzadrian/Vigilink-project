@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}VigiLink - Neighborhood Safety Watch{% endblock %}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'informational page/css/styles.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="{% static 'favicon/favicon.ico' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'favicon/apple-touch-icon.svg' %}">
+    <link rel="icon" type="image/svg+xml" sizes="32x32" href="{% static 'favicon/shield.svg' %}">
+    <link rel="icon" type="image/svg+xml" sizes="16x16" href="{% static 'favicon/favicon-16x16.svg' %}">
+    <link rel="manifest" href="{% static 'favicon/site.webmanifest' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <div class="logo">
+                <a href="{% if request.user.is_authenticated %}/user/dashboard/{% else %}{% url 'index' %}{% endif %}" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                    <img src="{% static 'accounts/images/vigilink_logo.png' %}" alt="VigiLink Logo" class="logo-img" style="height:40px;">
+                    <span class="logo-text" style="vertical-align:middle; margin-left: 10px;">VigiLink</span>
+                </a>
+            </div>
+            
+            <nav class="nav">
+                <a href="{% url 'about' %}" class="{% if request.path == '/user/about/' %}active{% endif %}">About</a>
+                <a href="{% url 'contact' %}" class="{% if request.path == '/user/contact/' %}active{% endif %}">Contact</a>
+                <a href="{% url 'pricing' %}" class="{% if request.path == '/user/pricing/' %}active{% endif %}">Pricing</a>
+            </nav>
+
+            <div class="menu-toggle" onclick="toggleMobileMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+
+            <div class="mobile-nav" id="mobileNav">
+                <a href="{% url 'about' %}" class="{% if request.path == '/user/about/' %}active{% endif %}">About</a>
+                <a href="{% url 'contact' %}" class="{% if request.path == '/user/contact/' %}active{% endif %}">Contact</a>
+                <a href="{% url 'pricing' %}" class="{% if request.path == '/user/pricing/' %}active{% endif %}">Pricing</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-logo">
+                <img src="{% static 'accounts/images/vigilink_logo.png' %}" alt="VigiLink Logo" class="footer-logo-img">
+                <span class="footer-logo-text">VigiLink</span>
+            </div>
+            <div class="footer-links">
+                <div class="footer-links-column">
+                    <h3>Company</h3>
+                    <a href="{% url 'about' %}">About Us</a>
+                    <a href="{% url 'contact' %}">Contact</a>
+                    <a href="{% url 'pricing' %}">Pricing</a>
+                </div>
+                <div class="footer-links-column">
+                    <h3>Resources</h3>
+                    <a href="#">Blog</a>
+                    <a href="#">FAQ</a>
+                    <a href="#">Support</a>
+                </div>
+                <div class="footer-links-column">
+                    <h3>Legal</h3>
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; {% now "Y" %} VigiLink. All rights reserved.</p>
+            <div class="social-links">
+                <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" class="social-link"><i class="fab fa-twitter"></i></a>
+                <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="social-link"><i class="fab fa-linkedin-in"></i></a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        function toggleMobileMenu() {
+            const mobileNav = document.getElementById('mobileNav');
+            mobileNav.classList.toggle('active');
+        }
+
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const mobileNav = document.getElementById('mobileNav');
+            const menuToggle = document.querySelector('.menu-toggle');
+            
+            if (!menuToggle.contains(event.target) && !mobileNav.contains(event.target)) {
+                mobileNav.classList.remove('active');
+            }
+        });
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

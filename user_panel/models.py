@@ -54,10 +54,4 @@ class PostReply(models.Model):
     def __str__(self):
         return f"{self.user.username} replied to post {self.post.post_id}"
 
-class PostShare(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='shares')
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    def __str__(self):
-        return f"{self.user.username} shared post {self.post.post_id}"
+# PostShare model removed

@@ -1,0 +1,319 @@
+{% extends 'informational page/base_no_footer.html' %}
+
+{% block title %}Payment Successful - VigiLink{% endblock %}
+
+{% block extra_css %}
+<style>
+    .success-page {
+        min-height: calc(100vh - 80px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+        padding: 2rem 1rem;
+    }
+    
+    .success-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+        width: 100%;
+        max-width: 800px;
+        position: relative;
+        animation: fadeInUp 0.8s ease-out;
+    }
+    
+    .success-header {
+         background: linear-gradient(135deg, #2563eb 0%, #4a6fdc 100%);
+         color: white;
+         padding: 1.5rem;
+         text-align: center;
+         position: relative;
+     }
+    
+    .success-header h2 {
+        font-size: 2rem;
+        font-weight: 700;
+        color: white;
+        margin: 0;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .success-body {
+        padding: 2.5rem 2rem;
+        text-align: center;
+    }
+    
+    .success-icon {
+        width: 120px;
+        height: 120px;
+        background: #e8f5e9;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 2rem;
+        animation: scaleIn 0.5s ease-out 0.3s both;
+    }
+    
+    .success-icon i {
+        font-size: 4rem;
+        color: #28a745;
+    }
+    
+    .success-title {
+        font-size: 1.8rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #333;
+    }
+    
+    .success-subtitle {
+        font-size: 1.2rem;
+        color: #555;
+        margin-bottom: 2rem;
+    }
+    
+    .order-details {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        border-left: 4px solid #17a2b8;
+    }
+    
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+        font-size: 1rem;
+    }
+    
+    .detail-row:last-child {
+        margin-bottom: 0;
+    }
+    
+    .detail-label {
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .detail-value {
+        color: #212529;
+    }
+    
+    .success-message {
+        margin-bottom: 2rem;
+        font-size: 1.1rem;
+        color: #6c757d;
+        line-height: 1.6;
+    }
+    
+    .dashboard-btn {
+        display: inline-block;
+        background: linear-gradient(135deg, #4a6fdc 0%, #2563eb 100%);
+        color: white;
+        font-weight: 600;
+        padding: 1rem 2.5rem;
+        border-radius: 50px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.2);
+    }
+    
+    .dashboard-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.3);
+    }
+    
+    .support-link {
+        display: block;
+        margin-top: 1.5rem;
+        color: #6c757d;
+        text-decoration: none;
+        font-size: 0.95rem;
+    }
+    
+    .support-link a {
+        color: #4a6fdc;
+        font-weight: 500;
+        text-decoration: none;
+        border-bottom: 1px dashed #4a6fdc;
+        transition: all 0.2s ease;
+    }
+    
+    .support-link a:hover {
+        color: #2563eb;
+        border-bottom: 1px solid #2563eb;
+    }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    @keyframes scaleIn {
+        from {
+            transform: scale(0.8);
+            opacity: 0;
+        }
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .success-card {
+            max-width: 95%;
+        }
+        
+        .success-header h2 {
+            font-size: 1.8rem;
+        }
+        
+        .success-icon {
+            width: 100px;
+            height: 100px;
+        }
+        
+        .success-icon i {
+            font-size: 3.5rem;
+        }
+        
+        .success-title {
+            font-size: 1.5rem;
+        }
+        
+        .success-body {
+            padding: 2rem 1.5rem;
+        }
+        
+        .order-details {
+            padding: 1.8rem;
+        }
+        
+        .detail-row {
+            font-size: 1.1rem;
+            margin-bottom: 0.8rem;
+        }
+        
+        .success-message {
+            font-size: 1.2rem;
+        }
+        
+        .dashboard-btn {
+            padding: 1.2rem 2.8rem;
+            font-size: 1.1rem;
+        }
+    }
+    
+    /* Additional styles for smaller mobile screens */
+    @media (max-width: 480px) {
+        .success-card {
+            max-width: 98%;
+        }
+        
+        .success-header h2 {
+            font-size: 1.6rem;
+        }
+        
+        .success-icon {
+            width: 90px;
+            height: 90px;
+            margin-bottom: 1.5rem;
+        }
+        
+        .success-icon i {
+            font-size: 3rem;
+        }
+        
+        .success-title {
+            font-size: 1.4rem;
+        }
+        
+        .success-subtitle {
+            font-size: 1.1rem;
+        }
+        
+        .success-body {
+            padding: 1.8rem 1.2rem;
+        }
+        
+        .order-details {
+            padding: 1.5rem 1.2rem;
+        }
+        
+        .detail-row {
+            font-size: 1rem;
+        }
+        
+        .dashboard-btn {
+            width: 100%;
+            padding: 1.1rem 0;
+            text-align: center;
+        }
+        
+        .support-link {
+            font-size: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="success-page">
+    <div class="success-card">
+        <div class="success-header">
+            <h2>Payment Successful!</h2>
+        </div>
+        <div class="success-body">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            
+            <h3 class="success-title">Thank you for your payment</h3>
+            <p class="success-subtitle">Your {{ plan_type|title }} Plan subscription is now active.</p>
+            
+            <div class="order-details">
+                <div class="detail-row">
+                    <span class="detail-label">Order ID:</span>
+                    <span class="detail-value">{{ order_id }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Plan:</span>
+                    <span class="detail-value">{{ plan_type|title }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Billing Cycle:</span>
+                    <span class="detail-value">{{ billing_cycle|title }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Price:</span>
+                    <span class="detail-value">₱{{ price }}</span>
+                </div>
+            </div>
+            
+            <p class="success-message">
+                You will receive a confirmation email shortly with your receipt and subscription details.
+                Your account has been upgraded and all new features are now available.
+            </p>
+            
+            <a href="{% url 'dashboard' %}" class="dashboard-btn">
+                <i class="fas fa-home me-2"></i> Go to Dashboard
+            </a>
+            
+            <p class="support-link">
+                If you have any questions, please <a href="{% url 'contact' %}">contact our support team</a>.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

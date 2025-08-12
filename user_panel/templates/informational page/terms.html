@@ -1,0 +1,144 @@
+{% extends 'informational page/base_no_footer.html' %}
+
+{% block title %}Terms of Service - VigiLink{% endblock %}
+
+{% load static %}
+
+{% block content %}
+<div class="terms-container">
+    <section class="hero-section">
+        <div class="hero-content">
+            <h1>Terms of Service</h1>
+            <p class="hero-subtitle">Effective Date: {% now "F j, Y" %}</p>
+        </div>
+    </section>
+
+    <section class="terms-content-section">
+        <div class="terms-content">
+            <p>Welcome to VigiLink, a subdivision-based neighborhood safety watch system. By using our website and services, you agree to comply with the following terms. Please read them carefully.</p>
+            
+            <h2>1. Eligibility</h2>
+            <p>VigiLink is available only to residents, homeowners, and authorized personnel of subdivisions subscribed by a Home Owner (subscriber).</p>
+            <p>You must be at least 18 years old or have parental/guardian consent to use the service.</p>
+            
+            <h2>2. User Responsibilities</h2>
+            <ul>
+                <li>Provide accurate information when registering.</li>
+                <li>Use the platform for lawful purposes only.</li>
+                <li>Refrain from posting harmful, offensive, or irrelevant content.</li>
+                <li>Do not submit false or misleading incident reports.</li>
+                <li>Respect other users in all communications, including 1-on-1 messaging.</li>
+            </ul>
+            
+            <h2>3. Reporting and Security Roles</h2>
+            <ul>
+                <li>Reports may be submitted with your name or anonymously.</li>
+                <li>All reports are forwarded to users with the Security role assigned by the Home Owner.</li>
+                <li>Anonymous reports will not reveal your identity to Security personnel.</li>
+                <li>Security personnel are responsible for handling and following up on reports within the subdivision.</li>
+            </ul>
+            
+            <h2>4. Content and Communication</h2>
+            <ul>
+                <li>Users may post community updates, resources, and event announcements.</li>
+                <li>Private messaging is for legitimate, respectful communication only.</li>
+                <li>VigiLink reserves the right to remove content that violates these terms.</li>
+            </ul>
+            
+            <h2>5. Privacy and Data Use</h2>
+            <ul>
+                <li>We collect and store information necessary to operate the platform.</li>
+                <li>Personal information will not be shared with third parties without consent, except when required by law.</li>
+                <li>All communications and stored data are protected by encryption.</li>
+                <li>For more details, please see our Privacy Policy.</li>
+            </ul>
+            
+            <h2>6. Limitations of Liability</h2>
+            <ul>
+                <li>VigiLink is a trial system currently limited to subdivision use.</li>
+                <li>We are not responsible for events, damages, or losses outside the control of the platform.</li>
+                <li>The platform is intended to assist in community safety but does not replace law enforcement or emergency services.</li>
+            </ul>
+            
+            <h2>7. Changes to the Terms</h2>
+            <p>We may update these Terms of Service from time to time. Continued use of VigiLink after changes means you accept the updated terms.</p>
+            
+            <h2>Contact Us</h2>
+            <p>If you have any questions about these terms, please contact us at: info@vigilink.com or +1(555) 123-4567</p>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .terms-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem;
+    }
+    
+    .hero-section {
+        text-align: center;
+        margin-bottom: 3rem;
+    }
+    
+    .hero-content h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #2563eb;
+        margin-bottom: 1rem;
+    }
+    
+    .hero-subtitle {
+        font-size: 1.1rem;
+        color: #64748b;
+    }
+    
+    .terms-content-section {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .terms-content h2 {
+        color: #1e40af;
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 1.5rem 0 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .terms-content p {
+        margin-bottom: 1rem;
+        line-height: 1.6;
+    }
+    
+    .terms-content ul {
+        margin-bottom: 1.5rem;
+        padding-left: 1.5rem;
+    }
+    
+    .terms-content li {
+        margin-bottom: 0.5rem;
+        line-height: 1.6;
+    }
+    
+    @media (max-width: 768px) {
+        .terms-container {
+            padding: 1.5rem 1rem;
+        }
+        
+        .hero-content h1 {
+            font-size: 2rem;
+        }
+        
+        .terms-content-section {
+            padding: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}

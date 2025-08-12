@@ -3,11 +3,11 @@ from django.contrib.auth.admin import UserAdmin
 from .models import User, City, District
 
 class CustomUserAdmin(UserAdmin):
-    list_display = ('username', 'email', 'full_name', 'city', 'is_staff', 'is_verified')
+    list_display = ('username', 'email', 'full_name', 'role', 'city', 'is_staff', 'is_verified')
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
-        ('Personal info', {'fields': ('full_name', 'email')}),
-        ('Location', {'fields': ('city', 'district')}),
+        ('Personal info', {'fields': ('full_name', 'email', 'role', 'about')}),
+        ('Location', {'fields': ('city', 'district', 'address', 'block', 'lot')}),
         ('Contact', {'fields': ('contact',)}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'is_verified', 'groups', 'user_permissions')}),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
@@ -15,7 +15,7 @@ class CustomUserAdmin(UserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('username', 'email', 'password1', 'password2', 'full_name', 'city', 'district', 'contact'),
+            'fields': ('username', 'email', 'password1', 'password2', 'full_name', 'role', 'about', 'city', 'district', 'address', 'block', 'lot', 'contact'),
         }),
     )
     search_fields = ('username', 'email', 'full_name')

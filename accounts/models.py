@@ -98,6 +98,14 @@ class User(AbstractUser):
     first_name = None
     last_name = None
     
+    # User roles
+    ROLE_CHOICES = (
+        ('resident', 'Resident'),
+        ('homeowner', 'Home Owner'),
+        ('security', 'Security'),
+        ('admin', 'Admin'),
+    )
+    
     full_name = models.CharField(max_length=300, blank=True)
     city = models.ForeignKey(City, on_delete=models.SET_NULL, null=True, blank=True)
     district = models.ForeignKey(District, on_delete=models.SET_NULL, null=True, blank=True)
@@ -106,6 +114,13 @@ class User(AbstractUser):
     verification_code = models.CharField(max_length=6, blank=True, null=True)
     verification_code_created = models.DateTimeField(null=True, blank=True)
     profile_picture = models.ImageField(upload_to='profile_pictures/', default='accounts/static/accounts/images/profile.png')
+    
+    # Additional fields
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='resident')
+    address = models.TextField(blank=True)
+    block = models.CharField(max_length=50, blank=True)
+    lot = models.CharField(max_length=50, blank=True)
+    about = models.TextField(blank=True, help_text='A short bio or description about yourself')
     
     objects = CustomUserManager()
     

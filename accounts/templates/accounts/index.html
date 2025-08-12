@@ -28,7 +28,9 @@
                 <span></span>
             </div>
             <nav class="nav" id="mobileNav">
-                <a href="#" class="nav-link">Contact</a>
+                <a href="{% url 'about' %}" class="nav-link">About</a>
+                <a href="{% url 'contact' %}" class="nav-link">Contact</a>
+                <a href="{% url 'pricing' %}" class="nav-link">Pricing</a>
                 <a href="{% url 'login' %}" class="nav-link">Sign In</a>
                 <a href="{% url 'register' %}"><button class="btn-primary">Get Started</button></a>
             </nav>
@@ -104,9 +106,11 @@
                 <div class="footer-section">
                     <h4>Quick Links</h4>
                     <ul>
-                        <li><a href="#">About</a></li>
-                        <li><a href="#">Pricing</a></li>
-                        <li><a href="#">Contact</a></li>
+                        <li><a href="{% url 'about' %}">About</a></li>
+                        <li><a href="{% url 'pricing' %}">Pricing</a></li>
+                        <li><a href="{% url 'contact' %}">Contact</a></li>
+                        <li><a href="{% url 'terms' %}">Terms of Service</a></li>
+                        <li><a href="{% url 'privacy' %}">Privacy Policy</a></li>
                     </ul>
                 </div>
                 <div class="footer-section">
