@@ -204,7 +204,7 @@
             <div class="form-group">
                 <label for="full_name" class="form-label">Full Name</label>
                 <input type="text" id="full_name" name="full_name" class="form-control" value="{{ user.full_name }}" required>
-                <small>Full name must be between 7-15 characters, no numbers or special characters allowed</small>
+                <small>Full name must be between 7-20 characters, no numbers or special characters allowed</small>
                 {% if full_name_error %}
                 <div class="error-message" style="color: #b91c1c; margin-top: 0.25rem; font-size: 0.875rem;">
                     {{ full_name_error }}

@@ -103,10 +103,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return validDomains.includes(domain);
         }
         
-        // Function to validate full name length (between 7 and 15 characters total)
+        // Function to validate full name length (between 7 and 20 characters total)
 function validateFullNameLength(fullName) {
     const minLength = 7;
-    const maxLength = 15;
+    const maxLength = 20;
     const fullNameLength = (fullName || '').trim().length;
     return fullNameLength >= minLength && fullNameLength <= maxLength;
 }
@@ -142,8 +142,8 @@ function validateFullNameLength(fullName) {
                 if (fullNameLength < 7) {
                     const charsNeeded = 7 - fullNameLength;
                     showError(fullNameInput, `${charsNeeded} more character${charsNeeded !== 1 ? 's' : ''} needed in full name.`);
-                } else if (fullNameLength > 15) {
-                    const charsExcess = fullNameLength - 15;
+                } else if (fullNameLength > 20) {
+                    const charsExcess = fullNameLength - 20;
                     showError(fullNameInput, `Full name too long. Please remove ${charsExcess} character${charsExcess !== 1 ? 's' : ''}.`);
                 } else {
                     // Only add success class during typing
@@ -159,7 +159,7 @@ function validateFullNameLength(fullName) {
                 const fullName = fullNameInput ? fullNameInput.value.trim() : '';
                 
                 if (fullName !== '' && validateName(fullName)) {
-                    if (fullName.length >= 7 && fullName.length <= 15) {
+                    if (fullName.length >= 7 && fullName.length <= 20) {
                         showSuccess(this, 'Valid full name');
                     }
                 }
@@ -379,15 +379,15 @@ function validateFullNameLength(fullName) {
                         fullNameInput.focus();
                         hasError = true;
                     }
-                    // Check if full name meets length requirement (7-15 characters)
+                    // Check if full name meets length requirement (7-20 characters)
                     else if (!validateFullNameLength(fullName)) {
                         event.preventDefault();
                         if (fullName.length < 7) {
                             const charsNeeded = 7 - fullName.length;
                             showError(fullNameInput, `Full name must be at least 7 characters. ${charsNeeded} more character${charsNeeded !== 1 ? 's' : ''} needed.`);
-                        } else if (fullName.length > 15) {
-                            const charsExcess = fullName.length - 15;
-                            showError(fullNameInput, `Full name must be at most 15 characters. Please remove ${charsExcess} character${charsExcess !== 1 ? 's' : ''}.`);
+                        } else if (fullName.length > 20) {
+                            const charsExcess = fullName.length - 20;
+                            showError(fullNameInput, `Full name must be at most 20 characters. Please remove ${charsExcess} character${charsExcess !== 1 ? 's' : ''}.`);
                         }
                         fullNameInput.focus();
                         hasError = true;

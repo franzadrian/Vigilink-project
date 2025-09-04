@@ -100,8 +100,9 @@ class User(AbstractUser):
     
     # User roles
     ROLE_CHOICES = (
+        ('guest', 'Guest'),
         ('resident', 'Resident'),
-        ('homeowner', 'Home Owner'),
+        ('communityowner', 'Community Owner'),
         ('security', 'Security'),
         ('admin', 'Admin'),
     )
@@ -116,7 +117,7 @@ class User(AbstractUser):
     profile_picture = models.ImageField(upload_to='profile_pictures/', default='accounts/static/accounts/images/profile.png')
     
     # Additional fields
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='resident')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='guest')
     address = models.TextField(blank=True)
     block = models.CharField(max_length=50, blank=True)
     lot = models.CharField(max_length=50, blank=True)

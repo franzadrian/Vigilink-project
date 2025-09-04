@@ -38,7 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'accounts',
-    'user_panel'
+    'user_panel',
+    'admin_panel'
 ]
 
 MIDDLEWARE = [
@@ -118,6 +119,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Define static files directories
+STATICFILES_DIRS = [
+    BASE_DIR / 'accounts' / 'static',
+    BASE_DIR / 'admin_panel' / 'static',
+    BASE_DIR / 'user_panel' / 'static',
+]
 
 # Media files (User uploads)
 MEDIA_URL = '/media/'

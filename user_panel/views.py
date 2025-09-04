@@ -530,9 +530,9 @@ def edit_profile(request):
                 context['full_name_error'] = 'Full name cannot be empty.'
                 return render(request, 'dashboard/edit_profile.html', context)
             
-            # Check if full name is between 7-15 characters
-            if len(full_name) < 7 or len(full_name) > 15:
-                context['full_name_error'] = 'Full name must be between 7-15 characters long.'
+            # Check if full name is between 7-20 characters
+            if len(full_name) < 7 or len(full_name) > 20:
+                context['full_name_error'] = 'Full name must be between 7-20 characters long.'
                 return render(request, 'dashboard/edit_profile.html', context)
             
             # Check if full name contains numbers

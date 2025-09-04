@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Sign In - VigiLink</title>
+    <meta name="description" content="Sign in to your VigiLink neighborhood watch account for enhanced community security access.">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'admin_dashboard/css/admin_login.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .messages {
+            margin-bottom: 20px;
+        }
+        .alert {
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .alert-error {
+            background-color: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #ef4444;
+        }
+        .alert-success {
+            background-color: #dcfce7;
+            color: #15803d;
+            border: 1px solid #22c55e;
+        }
+        .alert-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+            border: 1px solid #f59e0b;
+        }
+        .alert-info {
+            background-color: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #3b82f6;
+        }
+    </style>
+    <link rel="icon" type="image/svg+xml" href="{% static 'favicon/shield.svg' %}">
+    <link rel="apple-touch-icon" href="{% static 'favicon/shield.svg' %}">
+    <link rel="manifest" href="{% static 'favicon/site.webmanifest' %}">
+</head>
+<body>
+    <!-- No sidebar needed for login page -->
+    
+    <!-- Header -->
+    <header class="header" id="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="header-left">
+                    <div class="logo">
+                        <a href="{% url 'admin_panel:admin_index' %}" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                            <div class="logo-icon">
+                                <img src="{% static 'admin_dashboard/images/vigilink_logo.png' %}" alt="VigiLink Logo" width="30" height="30">
+                            </div>
+                            <span class="logo-text" style="margin-left: 10px;">VigiLink Admin</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Removed sidebar section -->
+
+    <!-- Sign In Section -->
+    <main class="signin-main">
+        <div class="signin-container">
+            <div class="signin-card">
+                <div class="signin-header">
+                    <div class="signin-logo">
+                        <div class="logo-icon">
+                            <img src="{% static 'admin_dashboard/images/vigilink_logo.png' %}" alt="VigiLink Logo" width="40" height="40">
+                        </div>
+                        <span class="logo-text">VigiLink</span>
+                    </div>
+                </div>
+                
+                {% if messages %}
+                <div class="messages">
+                    {% for message in messages %}
+                    <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <form class="signin-form" method="POST" action="{% url 'admin_panel:admin_login' %}">{% csrf_token %}
+                    <div class="form-group">
+                        <label for="email" class="form-label">Email or Username</label>
+                        <input 
+                            type="text" 
+                            id="email" 
+                            name="email" 
+                            class="form-input" 
+                            placeholder="your@email.com or username"
+                            required
+                        >
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password" class="form-label">Password</label>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password" 
+                            class="form-input" 
+                            placeholder="password"
+                            required
+                        >
+                    </div>
+                    
+                    <button type="submit" class="signin-btn">Sign In</button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <!-- No sidebar scripts needed for login page -->
+</body>
+</html>
