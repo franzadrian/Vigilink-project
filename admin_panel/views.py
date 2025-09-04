@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden, JsonResponse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
-from accounts.models import User, City, District
+from accounts.models import User
 import json
 from django.views.decorators.csrf import csrf_exempt
 
@@ -147,62 +147,9 @@ def update_user(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 @login_required
-@csrf_exempt
-def delete_user(request):
+def admin_communication(request):
     # Check if user has admin role or is a superuser
     if request.user.role != 'admin' and not request.user.is_superuser:
-        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+        return HttpResponseForbidden("You don't have permission to access this page.")
     
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            user_id = data.get('user_id')
-            user = get_object_or_404(User, id=user_id)
-            
-            # Store user info before deletion for response
-            user_info = {
-                'id': user.id,
-                'name': user.full_name,
-                'username': user.username,
-                'email': user.email
-            }
-            
-            # Delete the user
-            user.delete()
-            
-            # Return success response with deleted user info
-            return JsonResponse({
-                'status': 'success',
-                'message': 'User deleted successfully',
-                'user': user_info
-            })
-            
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
-    
-    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
-
-@login_required
-def get_cities_districts(request):
-    # Check if user has admin role or is a superuser
-    if request.user.role != 'admin' and not request.user.is_superuser:
-        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
-    
-    # Get all cities
-    cities = City.objects.all().order_by('name')
-    cities_data = [{'id': city.id, 'name': city.name} for city in cities]
-    
-    # Get all districts with their city information
-    districts = District.objects.all().order_by('name')
-    districts_data = [{
-        'id': district.id, 
-        'name': district.name, 
-        'city_id': district.city.id,
-        'city_name': district.city.name
-    } for district in districts]
-    
-    return JsonResponse({
-        'status': 'success',
-        'cities': cities_data,
-        'districts': districts_data
-    })
+    return render(request, 'admin_communication/admin_communication.html')

@@ -71,7 +71,7 @@
                     </a>
                 </li>
                 <li>
-                    <a href="#" class="sidebar-link">
+                    <a href="{% url 'admin_panel:admin_communication' %}" class="sidebar-link">
                         <svg class="sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
                         </svg>
@@ -192,19 +192,19 @@
                 </div>
                 
                 <!-- Pagination Controls -->
-                <div class="pagination-controls">
-                    <div class="pagination-info">
-                        Showing <span id="startIndex">1</span> to <span id="endIndex">10</span> of <span id="totalItems">{{ users|length }}</span> entries
+                <div class="pagination-controls" style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-top: 20px; padding: 15px 20px; background-color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: all 0.3s ease;">
+                    <div class="pagination-info" style="font-size: 14px; color: #4b5563; margin-bottom: 10px;">
+                        Showing <span id="startIndex" style="font-weight: 600; color: #2563EB;">1</span> to <span id="endIndex" style="font-weight: 600; color: #2563EB;">10</span> of <span id="totalItems" style="font-weight: 600; color: #2563EB;">{{ users|length }}</span> entries
                     </div>
-                    <div class="pagination-buttons">
-                        <button id="prevPage" class="btn pagination-btn">
-                            <i class="fas fa-chevron-left"></i> Previous
+                    <div class="pagination-buttons" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                        <button id="prevPage" class="btn" style="background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s; display: flex; align-items: center; gap: 6px;">
+                            <i class="fas fa-chevron-left" style="font-size: 12px;"></i> Previous
                         </button>
-                        <div id="pageNumbers" class="page-numbers-container">
-                            <!-- Page numbers will be displayed here but not clickable -->
+                        <div id="pageNumbers" style="display: flex; flex-wrap: wrap; gap: 6px; margin: 0 4px;">
+                            <!-- Page numbers will be dynamically inserted here by JavaScript -->
                         </div>
-                        <button id="nextPage" class="btn pagination-btn">
-                            Next <i class="fas fa-chevron-right"></i>
+                        <button id="nextPage" class="btn" style="background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s; display: flex; align-items: center; gap: 6px;">
+                            Next <i class="fas fa-chevron-right" style="font-size: 12px;"></i>
                         </button>
                     </div>
                 </div>
@@ -212,66 +212,17 @@
                 <style>
                     /* Pagination Styles */
                     .pagination-controls {
-                        display: flex;
-                        flex-wrap: wrap;
-                        justify-content: space-between;
-                        align-items: center;
-                        margin-top: 20px;
                         margin-bottom: 30px;
-                        padding: 15px 20px;
-                        background-color: white;
-                        border-radius: 8px;
-                        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-                        transition: all 0.3s ease;
                     }
                     
-                    .pagination-info {
-                        font-size: 14px;
-                        color: #4b5563;
-                        margin-bottom: 10px;
-                    }
-                    
-                    .pagination-info span {
-                        font-weight: 600;
-                        color: #2563EB;
-                    }
-                    
-                    .pagination-buttons {
-                        display: flex;
-                        flex-wrap: wrap;
-                        gap: 8px;
-                        align-items: center;
-                    }
-                    
-                    .pagination-btn {
-                        background-color: white;
-                        color: #4b5563;
-                        border: 1px solid #d1d5db;
-                        padding: 8px 16px;
-                        border-radius: 6px;
-                        cursor: pointer;
-                        font-weight: 500;
-                        transition: all 0.2s;
-                        display: flex;
-                        align-items: center;
-                        gap: 6px;
-                    }
-                    
-                    .pagination-btn:hover {
+                    .pagination-controls button:hover {
                         background-color: #e5e7eb;
                         border-color: #9ca3af;
                         transform: translateY(-1px);
                         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                     }
                     
-                    .page-numbers-container {
-                        display: flex;
-                        flex-wrap: wrap;
-                        gap: 6px;
-                        margin: 0 4px;
-                    }
-                    
-                    .page-number {
+                    #pageNumbers button {
                         min-width: 36px;
                         height: 36px;
                         background-color: #f3f4f6;
@@ -281,55 +232,22 @@
                         display: flex;
                         align-items: center;
                         justify-content: center;
+                        cursor: pointer;
                         transition: all 0.2s;
-                        pointer-events: none; /* Make page numbers not clickable */
-                        user-select: none;
                     }
                     
-                    .page-number.active {
+                    #pageNumbers button:hover {
+                        background-color: #e5e7eb;
+                        border-color: #9ca3af;
+                    }
+                    
+                    #pageNumbers button.active {
                         background-color: #2563EB;
                         color: white;
                         border-color: #2563EB;
                     }
                     
                     /* Responsive Styles */
-                    @media (max-width: 768px) {
-                        .pagination-controls {
-                            flex-direction: column;
-                            align-items: flex-start;
-                            padding: 12px 15px;
-                        }
-                        
-                        .pagination-info {
-                            margin-bottom: 15px;
-                            width: 100%;
-                            text-align: center;
-                        }
-                        
-                        .pagination-buttons {
-                            width: 100%;
-                            justify-content: center;
-                        }
-                        
-                        .pagination-btn {
-                            padding: 6px 12px;
-                            font-size: 14px;
-                            background-color: white;
-                        }
-                    }
-                    
-                    @media (max-width: 480px) {
-                        .page-numbers-container {
-                            max-width: 120px;
-                            overflow: hidden;
-                        }
-                        
-                        .pagination-btn {
-                            min-width: 80px;
-                            justify-content: center;
-                            color: #4b5563;
-                        }
-                    }
                     @media (max-width: 768px) {
                         .pagination-controls {
                             flex-direction: column;
@@ -353,8 +271,6 @@
                         .pagination-buttons button {
                             padding: 6px 12px;
                             font-size: 13px;
-                            background-color: white;
-                            color: #4b5563;
                         }
                     }
                 </style>
@@ -463,17 +379,11 @@
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label for="editCity" style="display: block; margin-bottom: 5px; font-weight: 500; color: #4b5563;">City:</label>
-                                <select id="editCity" class="form-control" style="width: 100%; height: 44px; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 16px; box-sizing: border-box;">
-                                    <option value="">Select City</option>
-                                    <!-- Cities will be populated dynamically -->
-                                </select>
+                                <input type="text" id="editCity" class="form-control" style="width: 100%; height: 44px; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 16px; box-sizing: border-box;">
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label for="editDistrict" style="display: block; margin-bottom: 5px; font-weight: 500; color: #4b5563;">District:</label>
-                                <select id="editDistrict" class="form-control" style="width: 100%; height: 44px; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 16px; box-sizing: border-box;">
-                                    <option value="">Select District</option>
-                                    <!-- Districts will be populated dynamically based on selected city -->
-                                </select>
+                                <input type="text" id="editDistrict" class="form-control" style="width: 100%; height: 44px; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 16px; box-sizing: border-box;">
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #4b5563;">Block & Lot:</label>
