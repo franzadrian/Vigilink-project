@@ -10,4 +10,6 @@ urlpatterns = [
     path('login/', views.admin_login, name='admin_login'),
     path('logout/', views.admin_logout, name='admin_logout'),
     path('update-user/', views.update_user, name='update_user'),
+    path('delete-user/', views.delete_user, name='delete_user'),
+    path('get-cities-districts/', views.get_cities_districts, name='get_cities_districts'),
 ]

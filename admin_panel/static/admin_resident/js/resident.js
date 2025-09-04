@@ -1,4 +1,4 @@
-        // Current user being viewed/edited
+// Current user being viewed/edited
         let currentUser = null;
         let currentRow = null;
         
@@ -15,10 +15,65 @@
             });
         }
         
+        // Global variables for cities and districts data
+        let citiesData = [];
+        let districtsData = [];
+        
+        // Function to fetch cities and districts
+        function fetchCitiesAndDistricts() {
+            fetch('/admin-panel/get-cities-districts/')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        citiesData = data.cities;
+                        districtsData = data.districts;
+                        
+                        // Populate city dropdown
+                        const cityDropdown = document.getElementById('editCity');
+                        cityDropdown.innerHTML = '<option value="">Select City</option>';
+                        
+                        citiesData.forEach(city => {
+                            const option = document.createElement('option');
+                            option.value = city.id;
+                            option.textContent = city.name;
+                            cityDropdown.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching cities and districts:', error);
+                });
+        }
+        
+        // Function to update district dropdown based on selected city
+        function updateDistrictDropdown(cityId) {
+            const districtDropdown = document.getElementById('editDistrict');
+            districtDropdown.innerHTML = '<option value="">Select District</option>';
+            
+            if (!cityId) return;
+            
+            const filteredDistricts = districtsData.filter(district => district.city_id == cityId);
+            
+            filteredDistricts.forEach(district => {
+                const option = document.createElement('option');
+                option.value = district.id;
+                option.textContent = district.name;
+                districtDropdown.appendChild(option);
+            });
+        }
+        
         // Add event listeners for view resident buttons
         document.addEventListener('DOMContentLoaded', function() {
             // Setup dialog close buttons
             setupDialogCloseButtons();
+            
+            // Fetch cities and districts
+            fetchCitiesAndDistricts();
+            
+            // Add event listener for city dropdown change
+            document.getElementById('editCity').addEventListener('change', function() {
+                updateDistrictDropdown(this.value);
+            });
             
             // Load saved users from localStorage if available
             try {
@@ -85,15 +140,39 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
     // Create blockLot string from block and lot
     const blockLot = (block && lot) ? `Block ${block}, Lot ${lot}` : 'Not provided';
     
+    // Extract location information correctly
+    let cityValue = 'Not provided';
+    let districtValue = 'Not provided';
+    
+    if (cells[2] && cells[2].textContent) {
+        const locationText = cells[2].textContent.trim();
+        console.log('Location text from table:', locationText);
+        
+        if (locationText.includes(',')) {
+            // Format is typically "District, City"
+            const locationParts = locationText.split(',');
+            if (locationParts.length >= 2) {
+                districtValue = locationParts[0].trim();
+                cityValue = locationParts[1].trim();
+            }
+        } else if (locationText !== 'Not provided') {
+            // If there's no comma but there is text, assume it's the city
+            cityValue = locationText;
+        }
+    }
+    
+    console.log('Extracted city:', cityValue);
+    console.log('Extracted district:', districtValue);
+    
     currentUser = {
         id: userId, // Add the user ID
         name: name || (cells[0] ? cells[0].textContent : 'Not provided'),
         email: cells[1] ? cells[1].textContent : 'Not provided',
         location: cells[2] ? cells[2].textContent : 'Not provided',
         role: cells[3] ? cells[3].textContent : 'Not provided',
-        // Extract city and district from location
-        city: cells[2] ? cells[2].textContent.split(',')[0].trim() : 'Not provided',
-        district: cells[2] && cells[2].textContent.includes(',') ? cells[2].textContent.split(',')[1].trim() : 'Not provided',
+        // Set city and district from extracted values
+        city: cityValue,
+        district: districtValue,
         // Use the passed parameters or default to "Not provided"
         username: username || 'Not provided',
         dateJoined: dateJoined || 'Not provided',
@@ -167,10 +246,41 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
             
             // Set up the confirm button
             document.getElementById('confirmDeleteBtn').onclick = function() {
-                // In a real application, you would send a delete request to the server
-                // For this example, we'll just remove the row from the table
-                const row = deleteButton.closest('tr');
-                row.remove();
+                // Get the user ID from the button's data attribute
+                const userId = deleteButton.closest('.btn-remove').previousElementSibling.dataset.id;
+                
+                // Send a delete request to the server
+                fetch('/admin-panel/delete-user/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({
+                        user_id: userId
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Remove the row from the table
+                        const row = deleteButton.closest('tr');
+                        row.remove();
+                        
+                        // Show success message
+                        document.getElementById('successMessage').textContent = 'User deleted successfully!';
+                        document.getElementById('successDialog').style.display = 'block';
+                    } else {
+                        // Show error message
+                        document.getElementById('errorMessage').textContent = data.message || 'Failed to delete user';
+                        document.getElementById('errorDialog').style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting user:', error);
+                    document.getElementById('errorMessage').textContent = 'An error occurred while deleting the user';
+                    document.getElementById('errorDialog').style.display = 'block';
+                });
                 
                 // Hide the confirmation dialog
                 document.getElementById('confirmationDialog').style.display = 'none';
@@ -181,6 +291,23 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                 document.getElementById('confirmationDialog').style.display = 'none';
             };
         };
+        
+        // Helper function to get CSRF token from cookies
+        function getCsrfToken() {
+            const name = 'csrftoken';
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
         
         document.addEventListener('DOMContentLoaded', function() {
             // Close button for user details modal
@@ -203,9 +330,109 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                 
                 // Populate form fields with current user data
                 document.getElementById('editName').value = currentUser.name;
+                document.getElementById('editUsername').value = currentUser.username;
                 document.getElementById('editEmail').value = currentUser.email;
-                document.getElementById('editCity').value = currentUser.city;
-                document.getElementById('editDistrict').value = currentUser.district;
+                document.getElementById('editContact').value = currentUser.contact;
+                document.getElementById('editAddress').value = currentUser.address;
+                document.getElementById('editBlock').value = currentUser.block;
+                document.getElementById('editLot').value = currentUser.lot;
+                
+                // Make Date Joined field read-only
+                const dateJoinedField = document.getElementById('editDateJoined');
+                dateJoinedField.value = currentUser.dateJoined;
+                dateJoinedField.readOnly = true;
+                
+                // Function to populate city and district dropdowns
+                const populateCityDistrict = () => {
+                    // Set city dropdown
+                    const citySelect = document.getElementById('editCity');
+                    let cityId = null;
+                    
+                    console.log('Current user city:', currentUser.city);
+                    console.log('Current user district:', currentUser.district);
+                    console.log('Available cities:', citiesData.map(c => c.name));
+                    
+                    // Find the city ID based on the city name
+                    if (currentUser.city && currentUser.city !== 'Not provided') {
+                        // First try exact match
+                        let cityMatch = citiesData.find(city => city.name === currentUser.city);
+                        
+                        // If no exact match, try case-insensitive match
+                        if (!cityMatch) {
+                            cityMatch = citiesData.find(city => 
+                                city.name.trim().toLowerCase() === currentUser.city.trim().toLowerCase());
+                        }
+                        
+                        if (cityMatch) {
+                            cityId = cityMatch.id;
+                            console.log('Found city match:', cityMatch.name, 'with ID:', cityId);
+                            
+                            // Set the selected option in the city dropdown
+                            for (let i = 0; i < citySelect.options.length; i++) {
+                                if (citySelect.options[i].value == cityId) {
+                                    citySelect.selectedIndex = i;
+                                    break;
+                                }
+                            }
+                            
+                            // Update district dropdown based on selected city
+                            updateDistrictDropdown(cityId);
+                            
+                            // Set district dropdown after districts are loaded
+                            setTimeout(() => {
+                                const districtSelect = document.getElementById('editDistrict');
+                                console.log('Districts for city:', districtsData.filter(d => d.city_id == cityId).map(d => d.name));
+                                
+                                if (currentUser.district && currentUser.district !== 'Not provided') {
+                                    // First try exact match
+                                    let districtMatch = districtsData.find(district => 
+                                        district.name === currentUser.district && 
+                                        district.city_id == cityId);
+                                    
+                                    // If no exact match, try case-insensitive match
+                                    if (!districtMatch) {
+                                        districtMatch = districtsData.find(district => 
+                                            district.name.trim().toLowerCase() === currentUser.district.trim().toLowerCase() && 
+                                            district.city_id == cityId);
+                                    }
+                                    
+                                    if (districtMatch) {
+                                        console.log('Found district match:', districtMatch.name, 'with ID:', districtMatch.id);
+                                        
+                                        // Set the selected option in the district dropdown
+                                        for (let i = 0; i < districtSelect.options.length; i++) {
+                                            if (districtSelect.options[i].value == districtMatch.id) {
+                                                districtSelect.selectedIndex = i;
+                                                break;
+                                            }
+                                        }
+                                    } else {
+                                        console.log('District not found:', currentUser.district);
+                                        console.log('Available districts for city:', 
+                                            districtsData.filter(d => d.city_id == cityId).map(d => d.name));
+                                    }
+                                } else {
+                                    console.log('No district provided for user');
+                                }
+                            }, 100);
+                        } else {
+                            console.log('City not found:', currentUser.city);
+                            console.log('Available cities:', citiesData.map(c => c.name));
+                        }
+                    } else {
+                        console.log('No city provided for user');
+                    }
+                };
+                
+                // Make sure we have cities and districts data before proceeding
+                if (citiesData.length === 0 || districtsData.length === 0) {
+                    // If data isn't loaded yet, fetch it and try again after a delay
+                    fetchCitiesAndDistricts();
+                    setTimeout(populateCityDistrict, 500);
+                } else {
+                    // Data is already loaded, populate immediately
+                    populateCityDistrict();
+                }
                 
                 // Set the correct role in the dropdown
                 const roleSelect = document.getElementById('editRole');
@@ -233,17 +460,41 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                     const updatedEmail = document.getElementById('editEmail').value;
                     const updatedContact = document.getElementById('editContact').value;
                     const updatedAddress = document.getElementById('editAddress').value;
-                    const updatedCity = document.getElementById('editCity').value;
-                    const updatedDistrict = document.getElementById('editDistrict').value;
+                    
+                    // Get selected city and district text values (not IDs)
+                    const citySelect = document.getElementById('editCity');
+                    const districtSelect = document.getElementById('editDistrict');
+                    const cityId = citySelect.value;
+                    const districtId = districtSelect.value;
+                    
+                    // Get the text values of the selected options with null checks
+                    let updatedCity = 'Not provided';
+                    let updatedDistrict = 'Not provided';
+                    
+                    // Check if city dropdown has a valid selection
+                    if (citySelect.selectedIndex > 0 && citySelect.options.length > 0) {
+                        updatedCity = citySelect.options[citySelect.selectedIndex].text;
+                        console.log('Saving city:', updatedCity);
+                    }
+                    
+                    // Check if district dropdown has a valid selection
+                    if (districtSelect.selectedIndex > 0 && districtSelect.options.length > 0) {
+                        updatedDistrict = districtSelect.options[districtSelect.selectedIndex].text;
+                        console.log('Saving district:', updatedDistrict);
+                    }
+                    
                     const updatedBlock = document.getElementById('editBlock').value;
                     const updatedLot = document.getElementById('editLot').value;
                     const updatedRole = document.getElementById('editRole').options[document.getElementById('editRole').selectedIndex].text;
                     const updatedRoleValue = document.getElementById('editRole').value;
                     
                     // Format location and blockLot strings
-                    const formattedLocation = (updatedCity && updatedDistrict) ?
+                    const formattedLocation = (updatedCity !== 'Not provided' && updatedDistrict !== 'Not provided') ?
                         `${updatedDistrict}, ${updatedCity}` :
-                        (updatedDistrict || updatedCity || 'Not provided');
+                        (updatedCity !== 'Not provided' ? updatedCity : 
+                         (updatedDistrict !== 'Not provided' ? updatedDistrict : 'Not provided'));
+                    
+                    console.log('Formatted location:', formattedLocation);
                     
                     const formattedBlockLot = (updatedBlock || updatedLot) ?
                         `Block ${updatedBlock || 'N/A'}, Lot ${updatedLot || 'N/A'}` :
@@ -259,6 +510,7 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                         address: updatedAddress,
                         city: updatedCity,
                         district: updatedDistrict,
+                        location: formattedLocation, // Update location field too
                         block: updatedBlock,
                         lot: updatedLot,
                         blockLot: formattedBlockLot,
@@ -302,7 +554,7 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                     document.getElementById('editMode').style.display = 'none';
                     
                     // Show success message with custom dialog
-                    document.getElementById('successMessage').textContent = 'User information updated successfully! (Note: Changes will be lost on page refresh)';
+                    document.getElementById('successMessage').textContent = 'User information updated successfully!';
                     document.getElementById('successDialog').style.display = 'block';
                     
                     // Store in localStorage for persistence within browser session
@@ -578,26 +830,13 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                  if (pageNumbers) {
                      pageNumbers.innerHTML = '';
                  
-                 // Generate page numbers (show max 5 pages)
-                 let startPage = Math.max(1, currentPage - 2);
-                 let endPage = Math.min(totalPages, startPage + 4);
-                 
-                 if (endPage - startPage < 4 && startPage > 1) {
-                     startPage = Math.max(1, endPage - 4);
-                 }
-                 
-                 for (let i = startPage; i <= endPage; i++) {
-                     const pageBtn = document.createElement('button');
-                     pageBtn.textContent = i;
-                     pageBtn.classList.add('page-number');
-                     if (i === currentPage) {
-                         pageBtn.classList.add('active');
-                     }
-                     pageBtn.addEventListener('click', function() {
-                         currentPage = i;
-                         applyPagination();
-                     });
-                     pageNumbers.appendChild(pageBtn);
+                 // Only show the current page number
+                 if (totalPages > 0) {
+                     const pageIndicator = document.createElement('div');
+                     pageIndicator.textContent = currentPage;
+                     pageIndicator.classList.add('page-number', 'active');
+                     // No click event listener - page number is not clickable
+                     pageNumbers.appendChild(pageIndicator);
                  }
                  }
                  
