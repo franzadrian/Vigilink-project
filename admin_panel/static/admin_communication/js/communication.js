@@ -35,7 +35,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Add functionality to new message button
-        document.querySelector('.new-message-btn').addEventListener('click', function() {
-            document.querySelector('.message-textarea').value = '';
-            document.querySelector('.message-textarea').focus();
-        });
+        const newMessageBtn = document.querySelector('.new-message-btn');
+        if (newMessageBtn) {
+            newMessageBtn.addEventListener('click', function() {
+                // Show the message modal instead of trying to access non-existent elements
+                const messageTextarea = document.getElementById('messageTextarea');
+                if (messageTextarea) {
+                    messageTextarea.value = '';
+                    messageTextarea.focus();
+                }
+            });
+        }

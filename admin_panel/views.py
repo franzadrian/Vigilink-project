@@ -6,6 +6,8 @@ from django.contrib import messages
 from accounts.models import User
 import json
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from admin_panel.models import ContactMessage
 
 # Create your views here.
 @login_required
@@ -161,7 +163,72 @@ def admin_communication(request):
     if request.user.role != 'admin' and not request.user.is_superuser:
         return HttpResponseForbidden("You don't have permission to access this page.")
     
-    return render(request, 'admin_communication/admin_communication.html')
+    # Get all contact messages, ordering unread messages first, then by creation date
+    from .models import ContactMessage
+    from django.db.models import Case, When, BooleanField
+    
+    # Order by is_read (False first), then by created_at (newest first)
+    contact_messages = ContactMessage.objects.all().order_by('is_read', '-created_at')
+    
+    context = {
+        'contact_messages': contact_messages
+    }
+    
+    return render(request, 'admin_communication/admin_communication.html', context)
+
+
+@login_required
+def get_message_details(request, message_id):
+    """Get message details API endpoint"""
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+    
+    try:
+        message = ContactMessage.objects.get(contact_id=message_id)
+        
+        # Check if the user is registered in the system
+        is_registered = False
+        if message.user is not None:
+            is_registered = True
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': message.message,
+            'email': message.email,
+            'is_registered': is_registered
+        })
+    except ContactMessage.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Message not found'}, status=404)
+
+
+@login_required
+@require_POST
+def mark_message_read(request, message_id):
+    """Mark a message as read"""
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+    
+    try:
+        message = ContactMessage.objects.get(contact_id=message_id)
+        message.is_read = True
+        message.save()
+        return JsonResponse({'status': 'success'})
+    except ContactMessage.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Message not found'}, status=404)
+
+@login_required
+@require_POST
+def delete_message(request, message_id):
+    """Delete a message"""
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+    
+    try:
+        message = ContactMessage.objects.get(contact_id=message_id)
+        message.delete()
+        return JsonResponse({'status': 'success'})
+    except ContactMessage.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Message not found'}, status=404)
 
 @login_required
 @csrf_exempt

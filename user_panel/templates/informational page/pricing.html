@@ -501,7 +501,7 @@
                             <li>Email support</li>
                         </ul>
                         {% if user.is_authenticated %}
-                        <a href="{% url 'dashboard' %}" class="cta-button">Get Started</a>
+                        <a href="{% url 'user_panel:dashboard' %}" class="cta-button">Get Started</a>
                         {% else %}
                         <a href="{% url 'register' %}" class="cta-button">Get Started</a>
                         {% endif %}
@@ -528,7 +528,7 @@
                             <li>Priority email support</li>
                         </ul>
                         {% if user.is_authenticated %}
-                        <a href="{% url 'payment' %}?plan=standard&cycle=monthly" class="cta-button">Get Started</a>
+                        <a href="{% url 'user_panel:payment' %}?plan=standard&cycle=monthly" class="cta-button">Get Started</a>
                         {% else %}
                         <a href="{% url 'login' %}" class="cta-button">Get Started</a>
                         {% endif %}
@@ -554,7 +554,7 @@
                             <li>Priority email support</li>
                         </ul>
                         {% if user.is_authenticated %}
-                        <a href="{% url 'payment' %}?plan=premium&cycle=monthly" class="cta-button">Get Started</a>
+                        <a href="{% url 'user_panel:payment' %}?plan=premium&cycle=monthly" class="cta-button">Get Started</a>
                         {% else %}
                         <a href="{% url 'login' %}" class="cta-button">Get Started</a>
                         {% endif %}
@@ -579,7 +579,7 @@
                             <li>Email support</li>
                         </ul>
                         {% if user.is_authenticated %}
-                        <a href="{% url 'dashboard' %}" class="cta-button">Get Started</a>
+                        <a href="{% url 'user_panel:dashboard' %}" class="cta-button">Get Started</a>
                         {% else %}
                         <a href="{% url 'register' %}" class="cta-button">Get Started</a>
                         {% endif %}
@@ -606,7 +606,7 @@
                             <li>Priority email support</li>
                         </ul>
                         {% if user.is_authenticated %}
-                        <a href="{% url 'payment' %}?plan=standard&cycle=yearly" class="cta-button">Get Started</a>
+                        <a href="{% url 'user_panel:payment' %}?plan=standard&cycle=yearly" class="cta-button">Get Started</a>
                         {% else %}
                         <a href="{% url 'login' %}" class="cta-button">Get Started</a>
                         {% endif %}
@@ -632,7 +632,7 @@
                             <li>Priority email support</li>
                         </ul>
                         {% if user.is_authenticated %}
-                        <a href="{% url 'payment' %}?plan=premium&cycle=yearly" class="cta-button">Get Started</a>
+                        <a href="{% url 'user_panel:payment' %}?plan=premium&cycle=yearly" class="cta-button">Get Started</a>
                         {% else %}
                         <a href="{% url 'login' %}" class="cta-button">Get Started</a>
                         {% endif %}

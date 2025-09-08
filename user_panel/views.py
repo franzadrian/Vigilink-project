@@ -35,6 +35,46 @@ def contact(request):
     """Contact page view"""
     return render(request, 'informational page/contact.html')
 
+from django.contrib import messages
+from admin_panel.models import ContactMessage
+
+def contact_submit(request):
+    """Handle contact form submission"""
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        email = request.POST.get('email')
+        subject = request.POST.get('subject')
+        message = request.POST.get('message')
+        
+        # Validate form data
+        if not all([name, email, subject, message]):
+            messages.error(request, 'Please fill in all required fields')
+            return redirect('user_panel:contact')
+        
+        # Create contact message
+        contact_message = ContactMessage(
+            name=name,
+            email=email,
+            subject=subject,
+            message=message,
+            user=request.user if request.user.is_authenticated else None
+        )
+        contact_message.save()
+        
+        # Custom success messages based on subject
+        if subject == 'General Inquiry':
+            messages.success(request, 'Thank you for your inquiry! We will provide you with all the information you need as soon as possible.')
+        elif subject == 'Feedback':
+            messages.success(request, 'Thank you for your feedback! Your insights are valuable and help us improve our services.')
+        elif subject == 'Report an Issue':
+            messages.success(request, 'Thank you for reporting this issue! We will investigate and address it promptly.')
+        else:
+            messages.success(request, 'Your message has been sent successfully. We will get back to you soon!')
+            
+        return redirect('user_panel:contact')
+    
+    return redirect('user_panel:contact')
+
 def pricing(request):
     """Pricing page view"""
     return render(request, 'informational page/pricing.html')
@@ -214,7 +254,7 @@ def payment_success(request):
     
     if not order_id:
         messages.error(request, 'Payment information not found.')
-        return redirect('dashboard')
+        return redirect('user_panel:dashboard')
     
     # Set price based on plan type and billing cycle
     price = 0
@@ -253,7 +293,7 @@ def payment_cancel(request):
         del request.session['billing_cycle']
     
     # Removed the 'Payment was cancelled.' message
-    return redirect('pricing')
+    return redirect('user_panel:pricing')
 
 def privacy(request):
     """Privacy Policy page view"""
@@ -364,7 +404,7 @@ def create_post(request):
                 logger.info(f"Total {image_count} images uploaded for post {post.post_id}")
             
             messages.success(request, 'Post created successfully!')
-            return redirect('dashboard')
+            return redirect('user_panel:dashboard')
         except Exception as e:
             logger.error(f"Error creating post: {str(e)}")
             messages.error(request, f"Error creating post: {str(e)}")
@@ -589,14 +629,14 @@ def edit_profile(request):
             user.save()
             
             messages.success(request, 'Profile updated successfully!')
-            return redirect('view_profile')
+            return redirect('user_panel:view_profile')
         
         # For GET requests, render the edit profile form
         return render(request, 'dashboard/edit_profile.html', context)
     except Exception as e:
         logger.error(f"Error editing profile: {str(e)}")
         messages.error(request, f"Error updating profile: {str(e)}")
-        return redirect('view_profile')
+        return redirect('user_panel:view_profile')
 
 @login_required
 def change_password(request):
@@ -649,14 +689,14 @@ def change_password(request):
             update_session_auth_hash(request, user)
             
             messages.success(request, 'Password changed successfully!')
-            return redirect('view_profile')
+            return redirect('user_panel:view_profile')
         
         # For GET requests, render the change password form
         return render(request, 'dashboard/change_password.html', context)
     except Exception as e:
         logger.error(f"Error changing password: {str(e)}")
         messages.error(request, f"Error changing password: {str(e)}")
-        return redirect('view_profile')
+        return redirect('user_panel:view_profile')
 
 @login_required
 @require_POST

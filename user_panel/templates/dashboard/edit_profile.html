@@ -166,7 +166,7 @@
         <h1 class="section-title">Edit Profile</h1>
         
 
-        <form method="post" enctype="multipart/form-data" action="{% url 'edit_profile' %}">
+        <form method="post" enctype="multipart/form-data" action="{% url 'user_panel:edit_profile' %}">
             {% csrf_token %}
             
             <div class="profile-picture-container">
@@ -240,7 +240,7 @@
             </div>
             
             <div class="form-actions">
-                <a href="{% url 'view_profile' %}" class="btn-cancel">Cancel</a>
+                <a href="{% url 'user_panel:view_profile' %}" class="btn-cancel">Cancel</a>
                 <button type="submit" class="btn-save" id="saveButton" disabled style="font-weight: 500;">Save Changes</button>
             </div>
         </form>

@@ -1,6 +1,8 @@
 from django.urls import path
 from . import views
 
+app_name = 'user_panel'
+
 urlpatterns = [
     path('dashboard/', views.dashboard, name='dashboard'),
     path('create-post/', views.create_post, name='create_post'),
@@ -29,6 +31,7 @@ urlpatterns = [
     # Informational pages
     path('about/', views.about, name='about'),
     path('contact/', views.contact, name='contact'),
+    path('contact/submit/', views.contact_submit, name='contact_submit'),
     path('pricing/', views.pricing, name='pricing'),
     path('terms/', views.terms, name='terms'),
     path('privacy/', views.privacy, name='privacy'),

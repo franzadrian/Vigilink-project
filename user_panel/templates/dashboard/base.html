@@ -24,7 +24,7 @@
                 </svg>
             </button>
             <div class="logo" style="margin-left: 15px;">
-                <a href="/user/dashboard/" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                <a href="{% url 'user_panel:dashboard' %}" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
                     <img src="{% static 'accounts/images/vigilink_logo.png' %}" alt="VigiLink Logo" class="logo-img" style="height:40px;">
                     <span class="logo-text" style="vertical-align:middle; margin-left: 15px; color: #2563EB;">VigiLink</span>
                 </a>
@@ -32,9 +32,9 @@
         </div>
         <div class="header-right">
             <nav class="nav-links">
-                <a href="{% url 'about' %}">About</a>
-                <a href="{% url 'contact' %}">Contact</a>
-                <a href="{% url 'pricing' %}">Pricing</a>
+                <a href="{% url 'user_panel:about' %}">About</a>
+                <a href="{% url 'user_panel:contact' %}">Contact</a>
+                <a href="{% url 'user_panel:pricing' %}">Pricing</a>
             </nav>
             
             <div class="menu-toggle" onclick="toggleMobileMenu()">
@@ -44,9 +44,9 @@
             </div>
             
             <div class="mobile-nav" id="mobileNav">
-                <a href="{% url 'about' %}" class="mobile-nav-link">About</a>
-                <a href="{% url 'contact' %}" class="mobile-nav-link">Contact</a>
-                <a href="{% url 'pricing' %}" class="mobile-nav-link">Pricing</a>
+                <a href="{% url 'user_panel:about' %}" class="mobile-nav-link">About</a>
+                <a href="{% url 'user_panel:contact' %}" class="mobile-nav-link">Contact</a>
+                <a href="{% url 'user_panel:pricing' %}" class="mobile-nav-link">Pricing</a>
             </div>
         </div>
     </header>
@@ -54,7 +54,7 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <nav class="sidebar-nav">
-            <a href="/user/dashboard/" class="sidebar-link active">
+            <a href="{% url 'user_panel:dashboard' %}" class="sidebar-link active">
                 <svg class="sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                 </svg>
@@ -91,7 +91,7 @@
                 Resources
             </a>
             <div class="sidebar-divider"></div>
-            <a href="/accounts/logout/" class="sidebar-link">
+            <a href="{% url 'logout' %}" class="sidebar-link">
                 <svg class="sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                 </svg>

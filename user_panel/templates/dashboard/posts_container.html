@@ -9,7 +9,7 @@
             <img src="{% if post.user.profile_picture %}{{ post.user.profile_picture.url }}{% else %}/static/accounts/images/profile.png{% endif %}" alt="{{ post.user.full_name }}" class="post-avatar" onerror="this.src='/static/accounts/images/profile.png'">
             <div class="post-info">
                 <div class="post-header-info">
-                    <div class="post-author"><a href="{% url 'view_user_profile' post.user.id %}" style="text-decoration: none; color: inherit;" class="author-link">{{ post.user.full_name }}</a></div>
+                    <div class="post-author"><a href="{% url 'user_panel:view_user_profile' post.user.id %}" style="text-decoration: none; color: inherit;" class="author-link">{{ post.user.full_name }}</a></div>
                     <div class="post-date">{{ post.uploaded_at|date:"F j, Y, g:i a" }}</div>
                 </div>
                 {% if post.user == request.user %}
@@ -53,7 +53,7 @@
         </div>
         <div class="post-actions">
             <div class="action-buttons">
-                <form method="post" action="{% url 'react_to_post' post.post_id %}" class="reaction-form" style="display: inline;" onsubmit="return false;">
+                <form method="post" action="{% url 'user_panel:react_to_post' post.post_id %}" class="reaction-form" style="display: inline;" onsubmit="return false;">
                     {% csrf_token %}
                     <button type="button" class="reaction-btn {% if post.user_reacted %}reacted{% endif %}">
                         <svg width="20" height="20" fill="{% if post.user_reacted %}#ef4444{% else %}none{% endif %}" stroke="{% if post.user_reacted %}#ef4444{% else %}currentColor{% endif %}" viewBox="0 0 24 24">

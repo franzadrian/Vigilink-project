@@ -14,13 +14,420 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
   <link rel="stylesheet" href="{% static 'admin_communication/css/communication.css' %}">
+  <style>
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.5);
+      animation: fadeIn 0.3s ease;
+    }
+    
+    .modal-content {
+      background-color: #fff;
+      margin: 5% auto;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+      width: 90%;
+      max-width: 600px;
+      position: relative;
+      animation: slideDown 0.4s ease;
+    }
+    
+    /* Responsive modal for mobile devices */
+    @media (max-width: 768px) {
+      .modal-content {
+        width: 95%;
+        padding: 20px 15px;
+        margin: 10% auto;
+      }
+    }
+    
+    .close-modal {
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      font-size: 24px;
+      color: #6b7280;
+      cursor: pointer;
+      transition: color 0.2s ease;
+    }
+    
+    .close-modal:hover {
+      color: #2563eb;
+    }
+    
+    .modal-header {
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .modal-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #1f2937;
+    }
+    
+    .modal-body {
+      margin-bottom: 25px;
+    }
+    
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding-top: 15px;
+      border-top: 1px solid #e5e7eb;
+    }
+    
+    /* View Message Modal */
+    .message-details {
+      margin-bottom: 20px;
+    }
+    
+    .message-detail-row {
+      display: flex;
+      margin-bottom: 15px;
+    }
+    
+    .message-label {
+      font-weight: 600;
+      width: 100px;
+      color: #4b5563;
+    }
+    
+    .message-value {
+      flex: 1;
+      color: #1f2937;
+      word-break: break-word;
+    }
+    
+    /* Responsive message details for mobile */
+    @media (max-width: 768px) {
+      .message-detail-row {
+        flex-direction: column;
+      }
+      
+      .message-label {
+        width: 100%;
+        margin-bottom: 5px;
+      }
+    }
+    
+    .message-content {
+      background-color: #f9fafb;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 10px;
+      white-space: pre-wrap;
+      color: #1f2937;
+      border-left: 3px solid #2563eb;
+      max-height: 300px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      word-break: break-word;
+    }
+    
+    /* Responsive message content for mobile */
+    @media (max-width: 768px) {
+      .message-content {
+        padding: 10px;
+        max-height: 200px;
+      }
+    }
+    
+    /* Improved Button Styles */
+    .view-btn, .delete-btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+    }
+    
+    .view-btn {
+      background-color: #e0f2fe;
+      color: #0369a1;
+      margin-right: 5px;
+    }
+    
+    .view-btn:hover {
+      background-color: #bae6fd;
+    }
+    
+    .delete-btn {
+      background-color: #fee2e2;
+      color: #b91c1c;
+    }
+    
+    .delete-btn:hover {
+      background-color: #fecaca;
+    }
+    
+    /* Status Styles */
+    .status-read, .status-unread {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    .status-read {
+      background-color: #d1fae5;
+      color: #065f46;
+    }
+    
+    .status-unread {
+      background-color: #e0f2fe;
+      color: #0369a1;
+    }
+    
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes slideDown {
+      from { transform: translateY(-50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    
+    /* Responsive styles for mobile */
+    @media (max-width: 768px) {
+      .header {
+        padding: 10px 15px;
+      }
+      
+      .header-left {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      
+      .logo {
+        margin-left: 10px !important;
+      }
+      
+      .logo-text {
+        font-size: 16px;
+      }
+      
+      .main-content {
+        padding: 15px;
+      }
+      
+      .page h1 {
+        font-size: 24px;
+      }
+      
+      .page p {
+        font-size: 14px;
+      }
+    }
+    
+    /* Form Styles */
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #4b5563;
+    }
+    
+    .form-control {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .form-control:focus {
+      border-color: #2563eb;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    
+    textarea.form-control {
+      min-height: 120px;
+      resize: vertical;
+    }
+    
+    .btn {
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+    }
+    
+    .btn-primary {
+      background-color: #2563eb;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background-color: #1d4ed8;
+    }
+    
+    .btn-secondary {
+      background-color: #e5e7eb;
+      color: #4b5563;
+    }
+    
+    .btn-secondary:hover {
+      background-color: #d1d5db;
+    }
+    
+    .btn-danger {
+      background-color: #ef4444;
+      color: white;
+    }
+    
+    .btn-danger:hover {
+      background-color: #dc2626;
+    }
+    
+    /* Table styles */
+    .table-container {
+      overflow-x: auto;
+      margin-bottom: 20px;
+    }
+    
+    .messages-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    
+    .messages-table th,
+    .messages-table td {
+      padding: 12px 15px;
+      text-align: left;
+    }
+    
+    /* Responsive table for mobile */
+    @media (max-width: 768px) {
+      .messages-table th,
+      .messages-table td {
+        padding: 10px 8px;
+      }
+      
+      .action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      
+      .view-btn, .delete-btn {
+        margin-right: 0;
+        text-align: center;
+      }
+    }
+    
+    /* Unread message styling */
+    .unread-row {
+      border-left: 4px solid #ff6b6b;
+      background-color: #fff8f8;
+    }
+    
+    /* User registration status */
+    .user-status {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      margin-left: 10px;
+      position: relative;
+    }
+    
+    /* Responsive user status for mobile */
+    @media (max-width: 768px) {
+      .user-status {
+        position: absolute;
+        top: 0;
+        right: 0;
+      }
+      
+      .message-detail-row {
+        position: relative;
+      }
+    }
+    
+    .registered-user {
+      background-color: #e7f7e7;
+      color: #2e7d32;
+      border: 1px solid #2e7d32;
+    }
+    
+    .unregistered-user {
+      background-color: #fff8e1;
+      color: #ff8f00;
+      border: 1px solid #ff8f00;
+    }
+    
+    /* Message type styles */
+    .message-type {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    tr[data-message-type="inquiry"] .message-type {
+      background-color: #e0f2fe;
+      color: #0369a1;
+    }
+    
+    tr[data-message-type="feedback"] .message-type {
+      background-color: #f0fdf4;
+      color: #166534;
+    }
+    
+    tr[data-message-type="report"] .message-type {
+      background-color: #fef2f2;
+      color: #991b1b;
+    }
+    
+    /* Filter container responsive styles */
+    @media (max-width: 768px) {
+      .filter-container {
+        flex-wrap: wrap;
+      }
+      
+      .filter-btn {
+        flex: 1 1 calc(50% - 5px);
+        min-width: 120px;
+        margin-bottom: 5px;
+        font-size: 0.85rem;
+      }
+    }
+  </style>
 </head>
 <body>
   <div class="app">
     <div class="sidebar-overlay"></div>
     <header class="header">
         <div class="header-left">
-            <button class="mobile-menu-btn" aria-label="Toggle sidebar" style="margin-right: 20px;">
+            <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle sidebar" style="margin-right: 20px;">
                 <svg class="sidebar-toggle-icon" width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                 </svg>
@@ -116,115 +523,603 @@
     <div id="sidebarOverlay" class="sidebar-overlay"></div>
 
     <main role="main" class="main-content">
-      <header class="page">
-        <h1>Admin Communication</h1>
-        <p>An organized and reliable office professional.</p>
+      <header class="page" style="margin-bottom: 20px;">
+        <h1 style="margin-bottom: 5px;">Admin Communication</h1>
+        <p style="margin-top: 0;">An organized and reliable office professional.</p>
       </header>
 
       <!-- Inbox Section -->
       <div class="inbox-section">
-        <div class="section-header">
+        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
           <h2 class="section-title">Inbox</h2>
-          <button class="new-message-btn"><i class="fas fa-plus-circle"></i> New Message</button>
+          <button class="new-message-btn" style="background-color: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 5px;"><i class="fas fa-plus-circle"></i> New Message</button>
         </div>
-
-        <table class="messages-table">
-          <thead>
-            <tr>
-              <th>Sender</th>
-              <th>Message Preview</th>
-              <th>Date</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td class="sender-name">Killkill Moh</td>
-              <td class="message-preview">I saw someone near...</td>
-              <td class="message-date">April 12</td>
-              <td class="status-unread">Unread</td>
-              <td class="actions-cell">
-                <button class="action-btn"><i class="fas fa-ellipsis-h"></i></button>
-              </td>
-            </tr>
-            <tr>
-              <td class="sender-name">Stephen</td>
-              <td class="message-preview">Group of people gath...</td>
-              <td class="message-date">April 12</td>
-              <td class="status-unread">Unread</td>
-              <td class="actions-cell">
-                <button class="action-btn"><i class="fas fa-ellipsis-h"></i></button>
-              </td>
-            </tr>
-            <tr>
-              <td class="sender-name">Lucas Mamoy</td>
-              <td class="message-preview">Cats of the siblings ne...</td>
-              <td class="message-date">April 12</td>
-              <td class="status-unread">Unread</td>
-              <td class="actions-cell">
-                <button class="action-btn"><i class="fas fa-ellipsis-h"></i></button>
-              </td>
-            </tr>
-            <tr>
-              <td class="sender-name">Bruce Wayne</td>
-              <td class="message-preview">Dogs of Blk 8 Lot 8 so...</td>
-              <td class="message-date">April 12</td>
-              <td class="status-unread">Unread</td>
-              <td class="actions-cell">
-                <button class="action-btn"><i class="fas fa-ellipsis-h"></i></button>
-              </td>
-            </tr>
-            <tr>
-              <td class="sender-name">Ryan Reynolds</td>
-              <td class="message-preview">There's a big bang th...</td>
-              <td class="message-date">April 12</td>
-              <td class="status-unread">Unread</td>
-              <td class="actions-cell">
-                <button class="action-btn"><i class="fas fa-ellipsis-h"></i></button>
-              </td>
-            </tr>
-            <tr>
-              <td class="sender-name">Samot Patdo</td>
-              <td class="message-preview">There's loud noise from...</td>
-              <td class="message-date">April 12</td>
-              <td class="status-unread">Unread</td>
-              <td class="actions-cell">
-                <button class="action-btn"><i class="fas fa-ellipsis-h"></i></button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Message Composition Section -->
-      <div class="message-section">
-        <h2 class="section-title" style="margin-bottom: 20px;">Message</h2>
         
-        <div class="message-form">
-          <div class="form-row">
-            <label class="form-label">To:</label>
-            <input type="text" class="form-input" value="Killkill Moh" readonly>
-          </div>
-          
-          <div class="form-row">
-            <label class="form-label">From:</label>
-            <input type="text" class="form-input" value="Admin" readonly>
-          </div>
-          
-          <textarea class="message-textarea" placeholder="Stop making vandal...">Stop making vandal...</textarea>
-          
-          <div class="form-actions">
-            <button class="btn btn-cancel"><i class="fas fa-times"></i> Cancel</button>
-            <button class="btn btn-send"><i class="fas fa-paper-plane"></i> Send</button>
-          </div>
+        <!-- Message Type Filter -->
+        <div class="filter-container" style="margin-bottom: 20px; display: flex; gap: 10px;">
+          <button id="filter-all" class="filter-btn active" style="padding: 8px 16px; border-radius: 6px; background-color: #2563eb; color: white; border: none; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">All Messages</button>
+          <button id="filter-inquiry" class="filter-btn" style="padding: 8px 16px; border-radius: 6px; background-color: #e5e7eb; color: #4b5563; border: none; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">Inquiries</button>
+          <button id="filter-feedback" class="filter-btn" style="padding: 8px 16px; border-radius: 6px; background-color: #e5e7eb; color: #4b5563; border: none; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">Feedback</button>
+          <button id="filter-report" class="filter-btn" style="padding: 8px 16px; border-radius: 6px; background-color: #e5e7eb; color: #4b5563; border: none; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">Reports</button>
+        </div>
+
+        <div class="table-container" style="overflow-x: auto;">
+          <table class="messages-table" style="width: 100%; border-collapse: separate; border-spacing: 0;">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Subject</th>
+                <th>Message</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="message-table-body">
+              {% for message in contact_messages %}
+              <tr class="{% if not message.is_read %}unread-row{% endif %}" data-message-type="{% if 'inquiry' in message.subject|lower %}inquiry{% elif 'feedback' in message.subject|lower %}feedback{% elif 'report' in message.subject|lower %}report{% else %}{{ message.message_type|default:'inquiry' }}{% endif %}" data-is-read="{{ message.is_read|yesno:'true,false' }}" data-date="{{ message.created_at|date:'U' }}">
+                <td>{{ message.name }}</td>
+                <td>{{ message.subject }}</td>
+                <td>{{ message.message|truncatechars:20 }}</td>
+                <td>{{ message.created_at|date:"M j, Y" }}</td>
+                <td><span class="{% if message.is_read %}status-read{% else %}status-unread{% endif %}">{% if message.is_read %}Read{% else %}Unread{% endif %}</span></td>
+                <td class="action-buttons">
+                  <button class="view-btn" data-id="{{ message.contact_id }}">View</button>
+                  <button class="delete-btn" data-id="{{ message.contact_id }}">Delete</button>
+                </td>
+              </tr>
+              {% empty %}
+                 <tr id="no-messages-row" class="no-messages">
+                     <td colspan="6" style="text-align: center;">No messages found</td>
+                 </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+      </div>
+      
+      <!-- Pagination Controls -->
+      <div class="pagination-controls" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+        <div class="pagination-info" style="color: #4b5563; font-size: 0.875rem;">
+          Showing <span id="startIndex" style="font-weight: 700; color: #2563EB;">1</span> to <span id="endIndex" style="font-weight: 700; color: #2563EB;">10</span> of <span id="totalItems" style="font-weight: 700; color: #2563EB;">0</span> messages
+        </div>
+        <div class="pagination-buttons" style="display: flex; gap: 10px; align-items: center;">
+          <button id="prevPage" style="padding: 8px 16px; background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; transition: all 0.2s; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 6px;">&lt; Previous</button>
+          <div id="pageNumbers" style="display: flex; gap: 5px;"></div>
+          <button id="nextPage" style="padding: 8px 16px; background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; transition: all 0.2s; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 6px;">Next &gt;</button>
         </div>
       </div>
+      </div>
+
+
     </main>
   </div>
 </div>
   
   <script src="{% static 'admin_communication/js/communication.js' %}"></script>
+  <style>
+    /* Pagination Styles */
+    .pagination-controls {
+      margin-bottom: 30px;
+    }
+    
+    .pagination-controls button:hover {
+      background-color: #e5e7eb;
+      border-color: #9ca3af;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    #pageNumbers button {
+      min-width: 36px;
+      height: 36px;
+      background-color: #f3f4f6;
+      color: #4b5563;
+      border: 2px solid #d1d5db;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+      margin: 0 3px;
+    }
+    
+    #pageNumbers button:hover {
+      background-color: #e5e7eb;
+      border-color: #2563EB;
+      transform: translateY(-1px);
+    }
+    
+    #pageNumbers button.active {
+      background-color: #2563EB;
+      color: white;
+      border: 2px solid #1E40AF;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);
+      font-weight: bold;
+    }
+    
+    /* Responsive Styles */
+    @media (max-width: 768px) {
+      .pagination-controls {
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+      }
+      
+      .pagination-info {
+        text-align: center;
+        width: 100%;
+      }
+      
+      .pagination-buttons {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      #pageNumbers button {
+        min-width: 32px;
+        height: 32px;
+        font-size: 14px;
+      }
+      
+      .pagination-buttons {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+      }
+      
+      .pagination-buttons button {
+        padding: 8px 15px;
+        font-size: 14px;
+        font-weight: 600;
+        min-width: 100px;
+        justify-content: center;
+      }
+    }
+  </style>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Pagination variables
+      let currentPage = 1;
+      const rowsPerPage = 10;
+      let totalItems = 0;
+      
+      // Modal elements
+      const viewMessageModal = document.getElementById('viewMessageModal');
+      const sendMessageModal = document.getElementById('sendMessageModal');
+      const closeViewModal = document.getElementById('closeViewModal');
+      const closeViewBtn = document.getElementById('closeViewBtn');
+      const closeSendModal = document.getElementById('closeSendModal');
+      const cancelSendBtn = document.getElementById('cancelSendBtn');
+      const replyBtn = document.getElementById('replyBtn');
+      const newMessageBtn = document.querySelector('.new-message-btn');
+      const sendMessageBtn = document.getElementById('sendMessageBtn');
+      
+      // Message detail elements
+      const messageFrom = document.getElementById('messageFrom');
+      const messageEmail = document.getElementById('messageEmail');
+      const messageSubject = document.getElementById('messageSubject');
+      const messageDate = document.getElementById('messageDate');
+      const messageContent = document.getElementById('messageContent');
+      
+      // Send message form elements
+      const recipientName = document.getElementById('recipientName');
+      const recipientEmail = document.getElementById('recipientEmail');
+      const messageSubjectInput = document.getElementById('messageSubjectInput');
+      const messageTextarea = document.getElementById('messageTextarea');
+      
+      // Filter buttons
+      const filterButtons = document.querySelectorAll('.filter-btn');
+      const messageTableBody = document.getElementById('message-table-body');
+      const noMessagesRow = document.getElementById('no-messages-row');
+      
+      // Function to sort messages - unread first, then by date
+      function sortMessages() {
+        const rows = Array.from(messageTableBody.querySelectorAll('tr:not(#no-messages-row)'));
+        
+        // Sort rows: unread first, then by date (newest first)
+        rows.sort((a, b) => {
+          const aIsRead = a.getAttribute('data-is-read') === 'true';
+          const bIsRead = b.getAttribute('data-is-read') === 'true';
+          
+          // If read status is different, unread comes first
+          if (aIsRead !== bIsRead) {
+            return aIsRead ? 1 : -1;
+          }
+          
+          // If both have same read status, sort by date (newest first)
+          const aDate = parseInt(a.getAttribute('data-date'));
+          const bDate = parseInt(b.getAttribute('data-date'));
+          return bDate - aDate;
+        });
+        
+        // Reattach rows in the new order
+        rows.forEach(row => messageTableBody.appendChild(row));
+      }
+      
+      // Function to filter messages by type
+        function filterMessages(type) {
+            const rows = messageTableBody.querySelectorAll('tr:not(.no-messages):not(.no-messages-dynamic)');
+            let visibleCount = 0;
+            
+            // Remove any dynamically created no-messages rows first
+            const dynamicNoMessages = messageTableBody.querySelectorAll('.no-messages-dynamic');
+            dynamicNoMessages.forEach(row => row.remove());
+            
+            rows.forEach(row => {
+                const messageType = row.getAttribute('data-message-type');
+                if (type === 'all' || (messageType && messageType.toLowerCase() === type.toLowerCase())) {
+                    // Only set display to empty string, actual visibility will be handled by pagination
+                    row.classList.add('filtered-in');
+                    row.classList.remove('filtered-out');
+                    visibleCount++;
+                } else {
+                    row.classList.add('filtered-out');
+                    row.classList.remove('filtered-in');
+                }
+            });
+        
+        // Show or hide the "No messages found" row
+        if (noMessagesRow) {
+          if (visibleCount === 0) {
+            noMessagesRow.style.display = '';
+            noMessagesRow.cells[0].textContent = `No ${type !== 'all' ? type + ' ' : ''}messages found`;
+          } else {
+            noMessagesRow.style.display = 'none';
+          }
+        } else if (visibleCount === 0) {
+          // Create a new no messages row with a different class to distinguish it
+                const newRow = document.createElement('tr');
+                newRow.className = 'no-messages-dynamic';
+                const cell = document.createElement('td');
+                cell.setAttribute('colspan', '6');
+                cell.style.textAlign = 'center';
+                cell.textContent = `No ${type !== 'all' ? type + ' ' : ''}messages found`;
+                newRow.appendChild(cell);
+                messageTableBody.appendChild(newRow);
+        }
+        
+        // After filtering, sort to maintain unread at top
+        sortMessages();
+        
+        // Reset to first page and apply pagination
+        currentPage = 1;
+        applyPagination();
+      }
+      
+      // Initialize sorting
+      sortMessages();
+      
+      // Filter button click handlers
+      filterButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          // Remove active class from all buttons
+          filterButtons.forEach(btn => {
+            btn.classList.remove('active');
+            btn.style.backgroundColor = '#e5e7eb';
+            btn.style.color = '#4b5563';
+          });
+          
+          // Add active class to clicked button
+          this.classList.add('active');
+          this.style.backgroundColor = '#2563eb';
+          this.style.color = 'white';
+          
+          // Get filter type from button id and use filterMessages function for consistency
+          const filterType = this.id.replace('filter-', '');
+          filterMessages(filterType);
+        });
+      });
+      
+      // View message button click handler
+      const viewButtons = document.querySelectorAll('.view-btn');
+      viewButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          const messageId = this.getAttribute('data-id');
+          const row = this.closest('tr');
+          const name = row.cells[0].textContent;
+          const subject = row.cells[1].textContent;
+          const date = row.cells[4].textContent; // Updated index for date cell
+          
+          // Fetch the full message details from the server
+          fetch(`/admin-panel/communication/message/${messageId}/`, {
+            method: 'GET',
+            headers: {
+              'X-CSRFToken': '{{ csrf_token }}',
+              'Content-Type': 'application/json'
+            }
+          })
+          .then(response => response.json())
+          .then(data => {
+            // Populate modal with message details
+            messageFrom.textContent = name;
+            messageSubject.textContent = subject;
+            messageDate.textContent = date;
+            messageContent.textContent = data.message || 'Message content not available';
+            messageEmail.textContent = data.email || 'Email not available';
+            
+            // Check if user is registered
+            const userStatus = document.getElementById('userStatus');
+            if (data.is_registered) {
+              userStatus.textContent = 'Registered User';
+              userStatus.className = 'user-status registered-user';
+            } else {
+              userStatus.textContent = 'Guest User';
+              userStatus.className = 'user-status unregistered-user';
+            }
+          })
+          .catch(error => {
+            console.error('Error fetching message details:', error);
+            // Fallback to preview if fetch fails
+            messageFrom.textContent = name;
+            messageSubject.textContent = subject;
+            messageDate.textContent = date;
+            messageContent.textContent = row.cells[2].textContent;
+            messageEmail.textContent = 'Email not available';
+            
+            const userStatus = document.getElementById('userStatus');
+            userStatus.textContent = 'Unknown';
+            userStatus.className = 'user-status unregistered-user';
+          });
+          
+          // Show the modal
+          viewMessageModal.style.display = 'block';
+          
+          // Mark message as read
+          fetch(`{% url 'admin_panel:mark_message_read' message_id=0 %}`.replace('0', messageId), {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': '{{ csrf_token }}',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.status === 'success') {
+              // Update UI to show message as read - ONLY update the status cell (5th column)
+              const statusCell = row.querySelector('td:nth-child(5)');
+              statusCell.innerHTML = '<span class="status-read">Read</span>';
+              
+              // Remove the unread-row class to remove the red indicator
+              row.classList.remove('unread-row');
+              
+              // Update data attribute
+              row.setAttribute('data-is-read', 'true');
+              
+              // Re-sort messages to move this now-read message to its proper place
+              sortMessages();
+            }
+          })
+          .catch(error => {
+            console.error('Error marking message as read:', error);
+          });
+        });
+      });
+
+      // Delete message button click handler
+      const deleteButtons = document.querySelectorAll('.delete-btn');
+      const deleteMessageModal = document.getElementById('deleteMessageModal');
+      const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+      const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+      const closeDeleteModal = document.getElementById('closeDeleteModal');
+      let currentMessageToDelete = null;
+      
+      deleteButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          // Store the message ID for later use
+          currentMessageToDelete = this.getAttribute('data-id');
+          // Show the custom delete confirmation modal
+          deleteMessageModal.style.display = 'block';
+        });
+      });
+      
+      // Confirm delete button handler
+      if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', function() {
+          if (currentMessageToDelete) {
+            fetch(`{% url 'admin_panel:delete_message' message_id=0 %}`.replace('0', currentMessageToDelete), {
+              method: 'POST',
+              headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({})
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (data.status === 'success') {
+                // Find and remove the row from the table
+                const rows = document.querySelectorAll('.delete-btn');
+                for (let btn of rows) {
+                  if (btn.getAttribute('data-id') === currentMessageToDelete) {
+                    const row = btn.closest('tr');
+                    row.remove();
+                    break;
+                  }
+                }
+                // Close the modal
+                deleteMessageModal.style.display = 'none';
+              }
+            })
+            .catch(error => {
+              console.error('Error deleting message:', error);
+              deleteMessageModal.style.display = 'none';
+            });
+          }
+        });
+      }
+      
+      // Cancel delete button handler
+      if (cancelDeleteBtn) {
+        cancelDeleteBtn.addEventListener('click', function() {
+          deleteMessageModal.style.display = 'none';
+          currentMessageToDelete = null;
+        });
+      }
+      
+      // Close delete modal handler
+      if (closeDeleteModal) {
+        closeDeleteModal.addEventListener('click', function() {
+          deleteMessageModal.style.display = 'none';
+          currentMessageToDelete = null;
+        });
+      }
+      
+      // New message button click handler
+      newMessageBtn.addEventListener('click', function() {
+        // Clear form fields
+        recipientName.value = '';
+        recipientEmail.value = '';
+        messageSubjectInput.value = '';
+        messageTextarea.value = '';
+        
+        // Show the modal
+        sendMessageModal.style.display = 'block';
+      });
+      
+      // Reply button click handler
+      replyBtn.addEventListener('click', function() {
+        // Close view modal
+        viewMessageModal.style.display = 'none';
+        
+        // Populate send message form with recipient details
+        recipientName.value = messageFrom.textContent;
+        recipientEmail.value = messageEmail.textContent;
+        messageSubjectInput.value = 'Re: ' + messageSubject.textContent;
+        messageTextarea.value = '';
+        
+        // Show send message modal
+        sendMessageModal.style.display = 'block';
+      });
+      
+      // Send message button click handler
+      sendMessageBtn.addEventListener('click', function() {
+        // Here you would implement the actual sending of the message
+        // For now, we'll just show a success message and close the modal
+        alert('Message sent successfully!');
+        sendMessageModal.style.display = 'none';
+      });
+      
+      // Close modal handlers
+      closeViewModal.addEventListener('click', function() {
+        viewMessageModal.style.display = 'none';
+      });
+      
+      closeViewBtn.addEventListener('click', function() {
+        viewMessageModal.style.display = 'none';
+      });
+      
+      closeSendModal.addEventListener('click', function() {
+        sendMessageModal.style.display = 'none';
+      });
+      
+      cancelSendBtn.addEventListener('click', function() {
+        sendMessageModal.style.display = 'none';
+      });
+      
+      // Close modals when clicking outside
+      window.addEventListener('click', function(event) {
+        if (event.target === viewMessageModal) {
+          viewMessageModal.style.display = 'none';
+        }
+        if (event.target === sendMessageModal) {
+          sendMessageModal.style.display = 'none';
+        }
+        if (event.target === deleteMessageModal) {
+          deleteMessageModal.style.display = 'none';
+          currentMessageToDelete = null;
+        }
+      });
+      
+      // Pagination functions
+      function applyPagination() {
+        const rows = Array.from(messageTableBody.querySelectorAll('tr:not(.no-messages):not(.no-messages-dynamic)'));
+        const visibleRows = rows.filter(row => !row.classList.contains('filtered-out'));
+        totalItems = visibleRows.length;
+        const totalPages = Math.ceil(totalItems / rowsPerPage);
+        
+        // Hide all rows first
+        visibleRows.forEach(row => {
+          row.style.display = 'none';
+        });
+        
+        // Show rows for current page
+        for (let i = (currentPage - 1) * rowsPerPage; i < currentPage * rowsPerPage && i < visibleRows.length; i++) {
+          visibleRows[i].style.display = '';
+        }
+        
+        // Update pagination info
+        const startIndex = totalItems === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
+        const endIndex = Math.min(currentPage * rowsPerPage, totalItems);
+        document.getElementById('startIndex').textContent = startIndex;
+        document.getElementById('endIndex').textContent = endIndex;
+        document.getElementById('totalItems').textContent = totalItems;
+        
+        // Update page number buttons
+        updatePageNumbers(totalPages);
+      }
+      
+      function updatePageNumbers(totalPages) {
+        const pageNumbers = document.getElementById('pageNumbers');
+        pageNumbers.innerHTML = '';
+        
+        // Only show current page number as unclickable display
+        const pageDisplay = document.createElement('div');
+        pageDisplay.textContent = currentPage;
+        pageDisplay.style.minWidth = '36px';
+        pageDisplay.style.height = '36px';
+        pageDisplay.style.backgroundColor = '#2563EB';
+        pageDisplay.style.color = 'white';
+        pageDisplay.style.border = '2px solid #2563EB';
+        pageDisplay.style.borderRadius = '6px';
+        pageDisplay.style.display = 'flex';
+        pageDisplay.style.alignItems = 'center';
+        pageDisplay.style.justifyContent = 'center';
+        pageDisplay.style.fontWeight = '600';
+        pageDisplay.style.margin = '0 3px';
+        pageDisplay.style.boxShadow = '0 2px 4px rgba(0,0,0,0.15)';
+        pageNumbers.appendChild(pageDisplay);
+        
+        // Enable/disable prev/next buttons
+        document.getElementById('prevPage').disabled = currentPage === 1;
+        document.getElementById('nextPage').disabled = currentPage === totalPages || totalPages === 0;
+      }
+      
+      // Add event listeners for pagination buttons
+      document.getElementById('prevPage').addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage--;
+          applyPagination();
+        }
+      });
+      
+      document.getElementById('nextPage').addEventListener('click', () => {
+        const rows = Array.from(messageTableBody.querySelectorAll('tr:not(.no-messages):not(.no-messages-dynamic)'));
+        const visibleRows = rows.filter(row => !row.classList.contains('filtered-out'));
+        const totalPages = Math.ceil(visibleRows.length / rowsPerPage);
+        
+        if (currentPage < totalPages) {
+          currentPage++;
+          applyPagination();
+        }
+      });
+      
+      // Initialize filter on page load after all variables are defined
+      // Set 'All Messages' as active by default
+      document.getElementById('filter-all').classList.add('active');
+      document.getElementById('filter-all').style.backgroundColor = '#2563eb';
+      document.getElementById('filter-all').style.color = 'white';
+      // Initialize with 'all' messages
+      filterMessages('all');
+      // Apply pagination
+      applyPagination();
+    });
+  </script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const sidebar = document.getElementById('sidebar');
@@ -282,5 +1177,95 @@
       });
     });
   </script>
+  <!-- View Message Modal -->
+  <div id="viewMessageModal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal" id="closeViewModal">&times;</span>
+      <div class="modal-header">
+        <h3 class="modal-title">Message Details</h3>
+      </div>
+      <div class="modal-body">
+        <div class="message-details">
+          <div class="message-detail-row">
+            <div class="message-label">From:</div>
+            <div class="message-value" id="messageFrom"></div>
+            <span id="userStatus" class="user-status"></span>
+          </div>
+          <div class="message-detail-row">
+            <div class="message-label">Email:</div>
+            <div class="message-value" id="messageEmail"></div>
+          </div>
+          <div class="message-detail-row">
+            <div class="message-label">Subject:</div>
+            <div class="message-value" id="messageSubject"></div>
+          </div>
+          <div class="message-detail-row">
+            <div class="message-label">Date:</div>
+            <div class="message-value" id="messageDate"></div>
+          </div>
+        </div>
+        <div>
+          <div class="message-label">Message:</div>
+          <div class="message-content" id="messageContent"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="closeViewBtn">Close</button>
+        <button class="btn btn-primary" id="replyBtn">Reply</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Send Message Modal -->
+  <div id="sendMessageModal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal" id="closeSendModal">&times;</span>
+      <div class="modal-header">
+        <h3 class="modal-title">Send Message</h3>
+      </div>
+      <div class="modal-body">
+        <form id="sendMessageForm">
+          <div class="form-group">
+            <label class="form-label" for="recipientName">To:</label>
+            <input type="text" class="form-control" id="recipientName" placeholder="Recipient Name">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="recipientEmail">Email:</label>
+            <input type="email" class="form-control" id="recipientEmail" placeholder="Recipient Email">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="messageSubjectInput">Subject:</label>
+            <input type="text" class="form-control" id="messageSubjectInput" placeholder="Message Subject">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="messageTextarea">Message:</label>
+            <textarea class="form-control" id="messageTextarea" placeholder="Type your message here..."></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelSendBtn">Cancel</button>
+        <button class="btn btn-primary" id="sendMessageBtn">Send Message</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteMessageModal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal" id="closeDeleteModal">&times;</span>
+      <div class="modal-header">
+        <h3 class="modal-title">Confirm Delete</h3>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete this message?</p>
+        <p>This action cannot be undone.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelDeleteBtn">Cancel</button>
+        <button class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

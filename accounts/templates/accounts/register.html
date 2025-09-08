@@ -29,9 +29,9 @@
             </div>
             
             <nav class="nav">
-                <a href="{% url 'about' %}">About</a>
-                <a href="{% url 'contact' %}">Contact</a>
-                <a href="{% url 'pricing' %}">Pricing</a>
+                <a href="{% url 'user_panel:about' %}">About</a>
+                <a href="{% url 'user_panel:contact' %}">Contact</a>
+                <a href="{% url 'user_panel:pricing' %}">Pricing</a>
             </nav>
 
             <div class="menu-toggle" onclick="toggleMobileMenu()">
@@ -41,9 +41,9 @@
             </div>
 
             <div class="mobile-nav" id="mobileNav">
-                <a href="{% url 'about' %}">About</a>
-                <a href="{% url 'contact' %}">Contact</a>
-                <a href="{% url 'pricing' %}">Pricing</a>
+                <a href="{% url 'user_panel:about' %}">About</a>
+                <a href="{% url 'user_panel:contact' %}">Contact</a>
+                <a href="{% url 'user_panel:pricing' %}">Pricing</a>
             </div>
         </div>
     </header>
@@ -112,7 +112,7 @@
 
                 </div>
                 <div class="form-group" style="grid-column: span 2; margin-top: 10px; margin-bottom: 20px; text-align: center;">
-                    <p style="font-size: 0.9rem; color: #64748b;">By continuing, you are agreeing to VigiLink's <a href="{% url 'terms' %}" style="color: #4a6cf7; text-decoration: none; font-weight: 600;">Terms of Service</a> and <a href="{% url 'privacy' %}" style="color: #4a6cf7; text-decoration: none; font-weight: 600;">Privacy Policy</a>.</p>
+                    <p style="font-size: 0.9rem; color: #64748b;">By continuing, you are agreeing to VigiLink's <a href="{% url 'user_panel:terms' %}" style="color: #4a6cf7; text-decoration: none; font-weight: 600;">Terms of Service</a> and <a href="{% url 'user_panel:privacy' %}" style="color: #4a6cf7; text-decoration: none; font-weight: 600;">Privacy Policy</a>.</p>
                 </div>
                 <button type="submit" class="submit-btn">Submit</button>
             </form>

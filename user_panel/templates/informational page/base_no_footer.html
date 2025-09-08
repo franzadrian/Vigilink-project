@@ -18,16 +18,16 @@
     <header class="header">
         <div class="header-container">
             <div class="logo">
-                <a href="{% if request.user.is_authenticated %}/user/dashboard/{% else %}{% url 'index' %}{% endif %}" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                <a href="{% if request.user.is_authenticated %}{% url 'user_panel:dashboard' %}{% else %}{% url 'index' %}{% endif %}" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
                     <img src="{% static 'accounts/images/vigilink_logo.png' %}" alt="VigiLink Logo" class="logo-img" style="height:40px;">
                     <span class="logo-text" style="vertical-align:middle; margin-left: 10px;">VigiLink</span>
                 </a>
             </div>
             
             <nav class="nav">
-                <a href="{% url 'about' %}" class="{% if request.path == '/user/about/' %}active{% endif %}">About</a>
-                <a href="{% url 'contact' %}" class="{% if request.path == '/user/contact/' %}active{% endif %}">Contact</a>
-                <a href="{% url 'pricing' %}" class="{% if request.path == '/user/pricing/' %}active{% endif %}">Pricing</a>
+                <a href="{% url 'user_panel:about' %}" class="{% if request.path == '/user/about/' %}active{% endif %}">About</a>
+                <a href="{% url 'user_panel:contact' %}" class="{% if request.path == '/user/contact/' %}active{% endif %}">Contact</a>
+                <a href="{% url 'user_panel:pricing' %}" class="{% if request.path == '/user/pricing/' %}active{% endif %}">Pricing</a>
             </nav>
 
             <div class="menu-toggle" onclick="toggleMobileMenu()">
@@ -37,9 +37,9 @@
             </div>
 
             <div class="mobile-nav" id="mobileNav">
-                <a href="{% url 'about' %}" class="{% if request.path == '/user/about/' %}active{% endif %}">About</a>
-                <a href="{% url 'contact' %}" class="{% if request.path == '/user/contact/' %}active{% endif %}">Contact</a>
-                <a href="{% url 'pricing' %}" class="{% if request.path == '/user/pricing/' %}active{% endif %}">Pricing</a>
+                <a href="{% url 'user_panel:about' %}" class="{% if request.path == '/user/about/' %}active{% endif %}">About</a>
+                <a href="{% url 'user_panel:contact' %}" class="{% if request.path == '/user/contact/' %}active{% endif %}">Contact</a>
+                <a href="{% url 'user_panel:pricing' %}" class="{% if request.path == '/user/pricing/' %}active{% endif %}">Pricing</a>
             </div>
         </div>
     </header>

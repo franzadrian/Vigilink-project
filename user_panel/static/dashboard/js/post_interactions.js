@@ -317,7 +317,8 @@ function loadReplies(postId, repliesList) {
     const storedCount = localStorage.getItem(`post_${postId}_reply_count`);
     console.log(`Current stored count for post ${postId}: ${storedCount}`);
     
-    // Fetch replies from the server
+    // Fetch replies from the server using the correct URL pattern
+    // This should match the URL pattern defined in urls.py with the user_panel namespace
     const url = `/user/api/post/${postId}/replies/`;
     console.log('Fetching replies from URL:', url);
     

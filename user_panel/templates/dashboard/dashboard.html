@@ -115,13 +115,13 @@
                 <p>Manage your property residents</p>
             </div>
             <div class="header-actions">
-                <a href="{% url 'create_post' %}" class="create-post-btn" style="margin-right: 5px; text-decoration: none;">
+                <a href="{% url 'user_panel:create_post' %}" class="create-post-btn" style="margin-right: 5px; text-decoration: none;">
                     <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
                     </svg>
                     Create Post
                 </a>
-                <a href="{% url 'view_profile' %}" class="user-avatar">
+                <a href="{% url 'user_panel:view_profile' %}" class="user-avatar">
                     <img src="{{ request.user.profile_picture.url|default:'/static/accounts/images/profile.png' }}" alt="{{ request.user.full_name }}" class="avatar-img" onerror="this.src='/static/accounts/images/profile.png'">
                 </a>
             </div>
@@ -133,7 +133,7 @@
                 <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
-                <form id="search-form" method="get" action="{% url 'dashboard' %}">
+                <form id="search-form" method="get" action="{% url 'user_panel:dashboard' %}">
                     <input type="text" name="search" class="search-input" placeholder="Search by username or name..." value="{{ request.GET.search|default:'' }}">
                     <input type="hidden" name="location" id="location-filter-hidden" value="{{ request.GET.location|default:'everyone' }}">
                 </form>
@@ -145,13 +145,13 @@
                         <option value="local" {% if request.GET.location == 'local' %}selected{% endif %}>Local</option>
                     </select>
                     <div class="mobile-actions">
-                        <a href="{% url 'create_post' %}" class="create-post-btn" style="margin-right: 5px; text-decoration: none;">
+                        <a href="{% url 'user_panel:create_post' %}" class="create-post-btn" style="margin-right: 5px; text-decoration: none;">
                             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
                             </svg>
                             Create Post
                         </a>
-                        <a href="{% url 'view_profile' %}" class="user-avatar">
+                        <a href="{% url 'user_panel:view_profile' %}" class="user-avatar">
                             <img src="{{ request.user.profile_picture.url|default:'/static/accounts/images/profile.png' }}" alt="{{ request.user.full_name }}" class="avatar-img" onerror="this.src='/static/accounts/images/profile.png'">
                         </a>
                     </div>

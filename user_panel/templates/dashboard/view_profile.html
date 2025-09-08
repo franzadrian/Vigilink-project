@@ -34,8 +34,8 @@
                 </div>
                 {% if is_own_profile %}
                 <div class="edit-btn-container">
-                    <a href="{% url 'edit_profile' %}" class="edit-btn">Edit Profile</a>
-                    <a href="{% url 'change_password' %}" class="edit-btn" style="background-color: #f59e0b; margin-left: 10px;">Change Password</a>
+                    <a href="{% url 'user_panel:edit_profile' %}" class="edit-btn">Edit Profile</a>
+                    <a href="{% url 'user_panel:change_password' %}" class="edit-btn" style="background-color: #f59e0b; margin-left: 10px;">Change Password</a>
                 </div>
                 {% endif %}
             </div>
@@ -43,9 +43,11 @@
             {% if messages %}
             <div id="message-container">
                 {% for message in messages %}
+                {% if 'Post created successfully!' != message|stringformat:"s" %}
                 <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
                     {{ message }}
                 </div>
+                {% endif %}
                 {% endfor %}
             </div>
             <script>
