@@ -1,53 +1,58 @@
-        // Current user being viewed/edited
-        let currentUser = null;
-        let currentRow = null;
+// Current user being viewed/edited
+let currentUser = null;
+let currentRow = null;
         
-        // Add event listeners for dialog close buttons
-        function setupDialogCloseButtons() {
-            // Success dialog close button
-            document.getElementById('closeSuccessBtn').addEventListener('click', function() {
-                document.getElementById('successDialog').style.display = 'none';
-            });
-            
-            // Error dialog close button
-            document.getElementById('closeErrorBtn').addEventListener('click', function() {
-                document.getElementById('errorDialog').style.display = 'none';
+// Add event listeners for dialog close buttons
+function setupDialogCloseButtons() {
+    // Success dialog close button
+    document.getElementById('closeSuccessBtn').addEventListener('click', function() {
+        document.getElementById('successDialog').style.display = 'none';
+    });
+    
+    // Error dialog close button
+    document.getElementById('closeErrorBtn').addEventListener('click', function() {
+        document.getElementById('errorDialog').style.display = 'none';
+    });
+}
+        
+// Add event listeners for view resident buttons
+document.addEventListener('DOMContentLoaded', function() {
+    // Setup dialog close buttons
+    setupDialogCloseButtons();
+    
+    // Setup remove buttons for all residents
+    const removeButtons = document.querySelectorAll('.remove-btn');
+    removeButtons.forEach(button => {
+        const row = button.closest('tr');
+        const userId = row.getAttribute('data-id');
+        const userName = row.cells[0].textContent;
+        
+        // Set the data-id attribute on the button
+        button.setAttribute('data-id', userId);
+        
+        // Add click event listener
+        button.onclick = function() {
+            removeResident(this, userName);
+        };
+    });
+    
+    // Load saved users from localStorage if available
+    try {
+        const storedUsers = JSON.parse(localStorage.getItem('vigilinkUsers')) || [];
+        if (storedUsers.length > 0) {
+            // Filter out deleted users from the table
+            const tableRows = document.querySelectorAll('#residentsTableBody tr');
+            tableRows.forEach(row => {
+                const rowId = row.getAttribute('data-id');
+                // Check if this row's user exists in localStorage
+                const userExists = storedUsers.some(user => user.id == rowId);
+                if (!userExists && rowId) {
+                    // If user doesn't exist in localStorage, it was deleted
+                    row.remove();
+                }
             });
         }
-        
-        // Add event listeners for view resident buttons
-        document.addEventListener('DOMContentLoaded', function() {
-            // Setup dialog close buttons
-            setupDialogCloseButtons();
-            
-            // Load saved users from localStorage if available
-            try {
-                const storedUsers = JSON.parse(localStorage.getItem('vigilinkUsers')) || [];
-                if (storedUsers.length > 0) {
-                    // Update table rows with stored data
-                    storedUsers.forEach(user => {
-                        const rows = document.querySelectorAll('#residentsTableBody tr');
-                        rows.forEach(row => {
-                            const viewButton = row.querySelector('.view-resident-btn');
-                            if (viewButton && viewButton.dataset.id === user.id) {
-                                // Update row data
-                                row.cells[0].textContent = user.name;
-                                row.cells[1].textContent = user.email;
-                                row.cells[2].textContent = user.location;
-                                row.cells[3].textContent = user.role;
-                                
-                                // Update button data attributes
-                                viewButton.dataset.name = user.name;
-                                viewButton.dataset.username = user.username;
-                                viewButton.dataset.address = user.address;
-                                viewButton.dataset.block = user.block;
-                                viewButton.dataset.lot = user.lot;
-                                viewButton.dataset.phone = user.contact;
-                            }
-                        });
-                    });
-                }
-            } catch (error) {
+    } catch (error) {
                 console.warn('Could not load data from localStorage:', error);
             }
             
@@ -78,13 +83,14 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
     }
     
     // Get the user ID from the button's data attribute
-    const userId = event.currentTarget.dataset.id;
+    const userId = event && event.currentTarget ? event.currentTarget.dataset.id : null;
     
     const cells = currentRow ? currentRow.cells : [];
     
     // Create blockLot string from block and lot
     const blockLot = (block && lot) ? `Block ${block}, Lot ${lot}` : 'Not provided';
     
+    // First try to get user data from server-rendered content
     currentUser = {
         id: userId, // Add the user ID
         name: name || (cells[0] ? cells[0].textContent : 'Not provided'),
@@ -92,8 +98,13 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
         location: cells[2] ? cells[2].textContent : 'Not provided',
         role: cells[3] ? cells[3].textContent : 'Not provided',
         // Extract city and district from location
-        city: cells[2] ? cells[2].textContent.split(',')[0].trim() : 'Not provided',
-        district: cells[2] && cells[2].textContent.includes(',') ? cells[2].textContent.split(',')[1].trim() : 'Not provided',
+        city: cells[2] ? cells[2].textContent.split(',')[1] ? cells[2].textContent.split(',')[1].trim() : cells[2].textContent.trim() : 'Not provided',
+        district: cells[2] && cells[2].textContent.includes(',') ? cells[2].textContent.split(',')[0].trim() : 'Not provided',
+        // Log extracted values for debugging
+        _debug_location: cells[2] ? cells[2].textContent : 'Not provided',
+        // Store the raw values to help with dropdown matching
+        _raw_city: cells[2] ? cells[2].textContent.split(',')[1] ? cells[2].textContent.split(',')[1].trim() : cells[2].textContent.trim() : '',
+        _raw_district: cells[2] && cells[2].textContent.includes(',') ? cells[2].textContent.split(',')[0].trim() : '',
         // Use the passed parameters or default to "Not provided"
         username: username || 'Not provided',
         dateJoined: dateJoined || 'Not provided',
@@ -103,6 +114,19 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
         blockLot: blockLot,
         contact: contact || 'Not provided'
     };
+    
+    // Store user in localStorage to ensure persistence after deletion
+    try {
+        const users = JSON.parse(localStorage.getItem('vigilinkUsers') || '[]');
+        const userExists = users.some(user => user.id === userId);
+        
+        if (!userExists && userId) {
+            users.push(currentUser);
+            localStorage.setItem('vigilinkUsers', JSON.stringify(users));
+        }
+    } catch (error) {
+        console.warn('Could not save to localStorage:', error);
+    }
     
     // Populate the modal with user details
     document.getElementById('userName').textContent = currentUser.name;
@@ -123,8 +147,107 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
     document.getElementById('editContact').value = currentUser.contact;
     document.getElementById('editRole').value = currentUser.role.toLowerCase();
     document.getElementById('editDateJoined').value = currentUser.dateJoined;
-    document.getElementById('editCity').value = currentUser.city;
-    document.getElementById('editDistrict').value = currentUser.district;
+    
+    // Set city dropdown value
+    const cityDropdown = document.getElementById('editCity');
+    if (cityDropdown) {
+        console.log('Current user city:', currentUser.city);
+        console.log('Raw city value:', currentUser._raw_city);
+        
+        // First try to find an exact match
+        let cityFound = false;
+        for (let i = 0; i < cityDropdown.options.length; i++) {
+            if (cityDropdown.options[i].value.toLowerCase() === currentUser.city.toLowerCase()) {
+                cityDropdown.selectedIndex = i;
+                cityFound = true;
+                console.log('City exact match found at index:', i);
+                break;
+            }
+        }
+        
+        // If no exact match, try a more flexible approach
+        if (!cityFound) {
+            for (let i = 0; i < cityDropdown.options.length; i++) {
+                // Skip the empty option
+                if (cityDropdown.options[i].value === '') continue;
+                
+                // Try to find a city that contains our value or vice versa
+                if (cityDropdown.options[i].value.toLowerCase().includes(currentUser.city.toLowerCase()) ||
+                    currentUser.city.toLowerCase().includes(cityDropdown.options[i].value.toLowerCase())) {
+                    cityDropdown.selectedIndex = i;
+                    cityFound = true;
+                    console.log('City partial match found at index:', i);
+                    break;
+                }
+            }
+        }
+        
+        // If still no match, select the first non-empty option if available
+        if (!cityFound && cityDropdown.options.length > 1) {
+            cityDropdown.selectedIndex = 1; // Select the first city after the placeholder
+            console.log('No city match found, selecting first option');
+        }
+        
+        // Trigger the change event to filter districts
+        const changeEvent = new Event('change');
+        cityDropdown.dispatchEvent(changeEvent);
+    }
+    
+    // Set district dropdown value after city change event has filtered the options
+    setTimeout(() => {
+        const districtDropdown = document.getElementById('editDistrict');
+        if (districtDropdown) {
+            console.log('Current user district:', currentUser.district);
+            console.log('Raw district value:', currentUser._raw_district);
+            
+            // Log all available options after filtering
+            console.log('Available district options:');
+            for (let i = 0; i < districtDropdown.options.length; i++) {
+                console.log(`- ${districtDropdown.options[i].value}`);
+            }
+            
+            // First try to find an exact match
+            let districtFound = false;
+            for (let i = 0; i < districtDropdown.options.length; i++) {
+                if (districtDropdown.options[i].value.toLowerCase() === currentUser.district.toLowerCase()) {
+                    districtDropdown.selectedIndex = i;
+                    districtFound = true;
+                    console.log('District exact match found at index:', i);
+                    break;
+                }
+            }
+            
+            // If no exact match, try a more flexible approach
+            if (!districtFound) {
+                for (let i = 0; i < districtDropdown.options.length; i++) {
+                    // Skip the empty option
+                    if (districtDropdown.options[i].value === '') continue;
+                    
+                    // Try to find a district that contains our value or vice versa
+                    if (districtDropdown.options[i].value.toLowerCase().includes(currentUser.district.toLowerCase()) ||
+                        currentUser.district.toLowerCase().includes(districtDropdown.options[i].value.toLowerCase())) {
+                        districtDropdown.selectedIndex = i;
+                        districtFound = true;
+                        console.log('District partial match found at index:', i);
+                        break;
+                    }
+                }
+            }
+            
+            // If still no match, select the first visible option if available
+            if (!districtFound && districtDropdown.options.length > 1) {
+                // Find the first visible option (not hidden by the city filter)
+                for (let i = 1; i < districtDropdown.options.length; i++) {
+                    if (districtDropdown.options[i].style.display !== 'none') {
+                        districtDropdown.selectedIndex = i;
+                        console.log('No district match found, selecting first visible option at index:', i);
+                        break;
+                    }
+                }
+            }
+        }
+    }, 200); // Increased timeout to ensure city filtering completes
+    
     document.getElementById('editAddress').value = currentUser.address;
     document.getElementById('editBlock').value = currentUser.block;
     document.getElementById('editLot').value = currentUser.lot;
@@ -154,6 +277,21 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
     }
 }
 
+        // Function to get CSRF token from cookies
+        function getCsrfToken() {
+            const name = 'csrftoken=';
+            const decodedCookie = decodeURIComponent(document.cookie);
+            const cookieArray = decodedCookie.split(';');
+            
+            for (let i = 0; i < cookieArray.length; i++) {
+                let cookie = cookieArray[i].trim();
+                if (cookie.indexOf(name) === 0) {
+                    return cookie.substring(name.length, cookie.length);
+                }
+            }
+            return '';
+        }
+        
         // Remove resident functionality
         function removeResident(button, name) {
             // Set the confirmation message
@@ -167,10 +305,53 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
             
             // Set up the confirm button
             document.getElementById('confirmDeleteBtn').onclick = function() {
-                // In a real application, you would send a delete request to the server
-                // For this example, we'll just remove the row from the table
-                const row = deleteButton.closest('tr');
-                row.remove();
+                // Get the user ID from the button's data attribute
+                const userId = deleteButton.dataset.id;
+                
+                // Call the delete endpoint
+                fetch('/admin-panel/delete-user/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({
+                        user_id: userId
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Remove the row from the table
+                        const row = deleteButton.closest('tr');
+                        row.remove();
+                        
+                        // Update the users in localStorage to reflect the deletion
+                        // This ensures the deletion persists after page refresh
+                        const users = JSON.parse(localStorage.getItem('vigilinkUsers') || '[]');
+                        const updatedUsers = users.filter(user => parseInt(user.id) !== parseInt(userId));
+                        localStorage.setItem('vigilinkUsers', JSON.stringify(updatedUsers));
+                        
+                        // Show success message
+                        document.getElementById('successMessage').textContent = 'User removed successfully!';
+                        document.getElementById('successDialog').style.display = 'block';
+                        
+                        // Auto close success message after 2 seconds
+                        setTimeout(function() {
+                            document.getElementById('successDialog').style.display = 'none';
+                        }, 2000);
+                    } else {
+                        // Show error message
+                        document.getElementById('errorMessage').textContent = data.message || 'An error occurred while deleting the user.';
+                        document.getElementById('errorDialog').style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    // Show error message
+                    document.getElementById('errorMessage').textContent = 'An error occurred while deleting the user.';
+                    document.getElementById('errorDialog').style.display = 'block';
+                    console.error('Error:', error);
+                });
                 
                 // Hide the confirmation dialog
                 document.getElementById('confirmationDialog').style.display = 'none';
@@ -243,11 +424,18 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                     // Format location and blockLot strings
                     const formattedLocation = (updatedCity && updatedDistrict) ?
                         `${updatedDistrict}, ${updatedCity}` :
-                        (updatedDistrict || updatedCity || 'Not provided');
+                        (updatedCity || updatedDistrict || 'Not provided');
                     
                     const formattedBlockLot = (updatedBlock || updatedLot) ?
                         `Block ${updatedBlock || 'N/A'}, Lot ${updatedLot || 'N/A'}` :
                         'Not provided';
+                    
+                    // Log values before updating
+                    console.log('Form values before update:', {
+                        city: updatedCity,
+                        district: updatedDistrict,
+                        location: formattedLocation
+                    });
                     
                     // Update the current user object with new values
                     currentUser = {
@@ -265,6 +453,13 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                         location: formattedLocation,
                         role: updatedRole
                     };
+                    
+                    // Log updated user object
+                    console.log('Updated user object:', {
+                        city: currentUser.city,
+                        district: currentUser.district,
+                        location: currentUser.location
+                    });
                     
                     // Update the view mode display with the latest data
                     document.getElementById('userName').textContent = currentUser.name;
@@ -305,24 +500,57 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                     document.getElementById('successMessage').textContent = 'User information updated successfully! (Note: Changes will be lost on page refresh)';
                     document.getElementById('successDialog').style.display = 'block';
                     
-                    // Store in localStorage for persistence within browser session
-                    try {
-                        // Get existing users or initialize empty array
-                        let storedUsers = JSON.parse(localStorage.getItem('vigilinkUsers')) || [];
-                        
-                        // Find and update user if exists, otherwise add new
-                        const userIndex = storedUsers.findIndex(user => user.id === currentUser.id);
-                        if (userIndex !== -1) {
-                            storedUsers[userIndex] = currentUser;
+                    // Send data to server for persistent storage
+                    fetch('/admin-panel/update-user/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        },
+                        body: JSON.stringify({
+                            user_id: currentUser.id,
+                            name: currentUser.name,
+                            username: currentUser.username,
+                            email: currentUser.email,
+                            contact: currentUser.contact,
+                            address: currentUser.address,
+                            city: currentUser.city,
+                            district: currentUser.district,
+                            block: currentUser.block,
+                            lot: currentUser.lot,
+                            role: currentUser.role.toLowerCase().replace(' ', '_')
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            console.log('User data saved successfully to server');
+                            // Update success message to indicate server save
+                            document.getElementById('successMessage').textContent = 'User information updated and saved to server successfully!';
+                            // Also store in localStorage as backup
+                            try {
+                                let storedUsers = JSON.parse(localStorage.getItem('vigilinkUsers')) || [];
+                                const userIndex = storedUsers.findIndex(user => user.id === currentUser.id);
+                                if (userIndex !== -1) {
+                                    storedUsers[userIndex] = currentUser;
+                                } else {
+                                    storedUsers.push(currentUser);
+                                }
+                                localStorage.setItem('vigilinkUsers', JSON.stringify(storedUsers));
+                            } catch (storageError) {
+                                console.warn('Could not save to localStorage:', storageError);
+                            }
                         } else {
-                            storedUsers.push(currentUser);
+                            console.error('Server error:', data.message);
+                            document.getElementById('errorMessage').textContent = data.message || 'Error saving to server';
+                            document.getElementById('errorDialog').style.display = 'block';
                         }
-                        
-                        // Save back to localStorage
-                        localStorage.setItem('vigilinkUsers', JSON.stringify(storedUsers));
-                    } catch (storageError) {
-                        console.warn('Could not save to localStorage:', storageError);
-                    }
+                    })
+                    .catch(error => {
+                        console.error('Fetch error:', error);
+                        document.getElementById('errorMessage').textContent = 'Network error while saving changes';
+                        document.getElementById('errorDialog').style.display = 'block';
+                    });
                     
                 } catch (error) {
                     console.error('Error updating user:', error);
@@ -577,28 +805,22 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                  // Update page numbers if element exists
                  if (pageNumbers) {
                      pageNumbers.innerHTML = '';
-                 
-                 // Generate page numbers (show max 5 pages)
-                 let startPage = Math.max(1, currentPage - 2);
-                 let endPage = Math.min(totalPages, startPage + 4);
-                 
-                 if (endPage - startPage < 4 && startPage > 1) {
-                     startPage = Math.max(1, endPage - 4);
-                 }
-                 
-                 for (let i = startPage; i <= endPage; i++) {
-                     const pageBtn = document.createElement('button');
-                     pageBtn.textContent = i;
-                     pageBtn.classList.add('page-number');
-                     if (i === currentPage) {
-                         pageBtn.classList.add('active');
+                     
+                     // Only show current page number and make it non-clickable
+                     if (totalPages > 0) {
+                         const pageIndicator = document.createElement('div');
+                         pageIndicator.textContent = `${currentPage}`;
+                         pageIndicator.style.margin = '0 10px';
+                         pageIndicator.style.fontWeight = '600';
+                         pageIndicator.style.color = '#2563EB';
+                         pageIndicator.style.padding = '8px 16px';
+                         pageIndicator.style.backgroundColor = '#f3f4f6';
+                         pageIndicator.style.borderRadius = '6px';
+                         pageIndicator.style.border = '2px solid #2563EB';
+                         pageIndicator.style.minWidth = '40px';
+                         pageIndicator.style.textAlign = 'center';
+                         pageNumbers.appendChild(pageIndicator);
                      }
-                     pageBtn.addEventListener('click', function() {
-                         currentPage = i;
-                         applyPagination();
-                     });
-                     pageNumbers.appendChild(pageBtn);
-                 }
                  }
                  
                  // Update prev/next buttons if elements exist
@@ -625,7 +847,7 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
              }
              
              // Previous page button (if it exists)
-             const prevPageBtn = document.getElementById('prevPage');
+             let prevPageBtn = document.getElementById('prevPage');
              if (prevPageBtn) {
                  prevPageBtn.addEventListener('click', function() {
                      if (currentPage > 1) {
@@ -636,7 +858,7 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
              }
              
              // Next page button (if it exists)
-             const nextPageBtn = document.getElementById('nextPage');
+             let nextPageBtn = document.getElementById('nextPage');
              if (nextPageBtn) {
                  nextPageBtn.addEventListener('click', function() {
                      // Get visible rows based on filter (using data-original-display attribute)
@@ -657,5 +879,43 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
              
              // Initialize table filtering
              filterTable();
-         });
+             
+             // Setup city and district dropdowns
+             const cityDropdown = document.getElementById('editCity');
+             const districtDropdown = document.getElementById('editDistrict');
+             
+             if (cityDropdown && districtDropdown) {
+                 // Store all district options for filtering
+                 const allDistrictOptions = Array.from(districtDropdown.options);
+                 
+                 // Filter districts based on selected city
+                 cityDropdown.addEventListener('change', function() {
+                     const selectedCity = this.value;
+                     
+                     // Clear current options except the first one
+                     while (districtDropdown.options.length > 1) {
+                         districtDropdown.remove(1);
+                     }
+                     
+                     // Reset to first option
+                     districtDropdown.selectedIndex = 0;
+                     
+                     if (selectedCity) {
+                         // Add matching districts
+                         allDistrictOptions.forEach(option => {
+                             if (option.dataset.city === selectedCity) {
+                                 districtDropdown.add(option.cloneNode(true));
+                             }
+                         });
+                     } else {
+                         // If no city selected, add all districts back
+                         allDistrictOptions.forEach(option => {
+                             if (option.value) { // Skip the placeholder option
+                                 districtDropdown.add(option.cloneNode(true));
+                             }
+                         });
+                     }
+                 });
+             }
+        }); // End of DOMContentLoaded event listener
 

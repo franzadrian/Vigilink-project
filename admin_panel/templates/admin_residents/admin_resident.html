@@ -10,6 +10,7 @@
     <link rel="apple-touch-icon" href="{% static 'favicon/shield.svg' %}">
     <link rel="manifest" href="{% static 'favicon/site.webmanifest' %}">
     <link rel="canonical" href="{% url 'admin_panel:admin_resident' %}" />
+    {% csrf_token %}
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
@@ -19,22 +20,24 @@
 <body>
     <div class="app" style="display: grid; grid-template-columns: 260px 1fr; grid-template-rows: 64px 1fr; grid-template-areas: 'topbar topbar' 'sidebar main'; min-height: 100vh; height: 100%;">
         <header class="header" style="grid-area: topbar; width: 100%;">
-            <div class="header-left">
-                <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle sidebar" style="margin-right: 20px;">
-                    <svg class="sidebar-toggle-icon" width="24" height="24" fill="none" stroke="#2563EB" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                    </svg>
-                </button>
-                <div class="logo" style="margin-left: 40px; border: none; box-shadow: none; background: none;">
-                    <a href="{% url 'admin_panel:admin_dashboard' %}" style="text-decoration: none; color: inherit; display: flex; align-items: center; border: none; box-shadow: none; background: none;">
-                        <img src="{% static 'accounts/images/vigilink_logo.png' %}" alt="VigiLink Logo" class="logo-img" style="height:40px; border: none; box-shadow: none;">
-                        <span class="logo-text" style="vertical-align:middle; margin-left: 10px; color: #2563EB; border: none; box-shadow: none; background: none;">VigiLink Admin</span>
-                    </a>
+            <div class="header-content" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div class="header-left" style="display: flex; align-items: center;">
+                    <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle sidebar" style="margin-right: 10px;">
+                        <svg class="sidebar-toggle-icon" width="24" height="24" fill="none" stroke="#2563EB" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                        </svg>
+                    </button>
+                    <div class="logo" style="border: none; box-shadow: none; background: none;">
+                        <a href="{% url 'admin_panel:admin_dashboard' %}" style="text-decoration: none; color: inherit; display: flex; align-items: center; border: none; box-shadow: none; background: none;">
+                            <img src="{% static 'accounts/images/vigilink_logo.png' %}" alt="VigiLink Logo" class="logo-img" style="height:40px; border: none; box-shadow: none;">
+                            <span class="logo-text" style="vertical-align:middle; margin-left: 10px; color: #2563EB; border: none; box-shadow: none; background: none;">VigiLink Admin</span>
+                        </a>
+                    </div>
                 </div>
-            </div>
-            <div class="header-right">
-                <div class="nav-links">
-                    <!-- Navigation links removed as requested -->
+                <div class="header-right">
+                    <div class="nav-links">
+                        <!-- Navigation links removed as requested -->
+                    </div>
                 </div>
             </div>
         </header>
@@ -120,7 +123,7 @@
             <!-- Content Area -->
             <header class="page">
                 <h1>Admin Residents</h1>
-                <p>An organized and reliable office professional.</p>
+                <p style="margin-bottom: 20px;">An organized and reliable office professional.</p>
             </header>
 
             <div class="controls">
@@ -177,7 +180,7 @@
                                             data-block="{{ user.block }}" 
                                             data-lot="{{ user.lot }}" 
                                             data-phone="{{ user.phone_number }}">View</button>
-                                        <button class="btn btn-remove" onclick="removeResident(this, '{{ user.full_name }}')">Remove</button>
+                                        <button class="btn btn-remove" data-id="{{ user.id }}" onclick="removeResident(this, '{{ user.full_name }}')">Remove</button>
                                     </div>
                                 </td>
                             </tr>
@@ -196,14 +199,14 @@
                     <div class="pagination-info" style="font-size: 14px; color: #4b5563; margin-bottom: 10px;">
                         Showing <span id="startIndex" style="font-weight: 600; color: #2563EB;">1</span> to <span id="endIndex" style="font-weight: 600; color: #2563EB;">10</span> of <span id="totalItems" style="font-weight: 600; color: #2563EB;">{{ users|length }}</span> entries
                     </div>
-                    <div class="pagination-buttons" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
-                        <button id="prevPage" class="btn" style="background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s; display: flex; align-items: center; gap: 6px;">
+                    <div class="pagination-buttons" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;">
+                        <button id="prevPage" class="btn" style="background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;">
                             <i class="fas fa-chevron-left" style="font-size: 12px;"></i> Previous
                         </button>
                         <div id="pageNumbers" style="display: flex; flex-wrap: wrap; gap: 6px; margin: 0 4px;">
                             <!-- Page numbers will be dynamically inserted here by JavaScript -->
                         </div>
-                        <button id="nextPage" class="btn" style="background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s; display: flex; align-items: center; gap: 6px;">
+                        <button id="nextPage" class="btn" style="background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;">
                             Next <i class="fas fa-chevron-right" style="font-size: 12px;"></i>
                         </button>
                     </div>
@@ -227,50 +230,86 @@
                         height: 36px;
                         background-color: #f3f4f6;
                         color: #4b5563;
-                        border: 1px solid #d1d5db;
+                        border: 2px solid #d1d5db;
                         border-radius: 6px;
                         display: flex;
                         align-items: center;
                         justify-content: center;
                         cursor: pointer;
                         transition: all 0.2s;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+                        margin: 0 3px;
                     }
                     
                     #pageNumbers button:hover {
                         background-color: #e5e7eb;
-                        border-color: #9ca3af;
+                        border-color: #2563EB;
+                        transform: translateY(-1px);
                     }
                     
                     #pageNumbers button.active {
                         background-color: #2563EB;
                         color: white;
-                        border-color: #2563EB;
+                        border: 2px solid #1E40AF;
+                        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);
+                        font-weight: bold;
                     }
                     
                     /* Responsive Styles */
                     @media (max-width: 768px) {
                         .pagination-controls {
                             flex-direction: column;
-                            align-items: flex-start;
+                            align-items: center;
                             gap: 15px;
+                        }
+                        
+                        .pagination-info {
+                            text-align: center;
+                            width: 100%;
                         }
                         
                         .pagination-buttons {
                             width: 100%;
                             justify-content: center;
                         }
+                        
+                        .header-content {
+                            justify-content: flex-start;
+                        }
+                        
+                        .sidebar {
+                            width: 0;
+                            overflow: hidden;
+                            transition: width 0.3s ease;
+                        }
+                        
+                        .sidebar.active {
+                            width: 250px;
+                        }
                     }
                     
                     @media (max-width: 480px) {
-                        #pageNumbers button {
+                        #pageNumbers div {
                             min-width: 32px;
                             height: 32px;
-                            font-size: 13px;
+                            font-size: 16px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
+                        
+                        .pagination-buttons {
+                            display: flex;
+                            justify-content: space-between;
+                            width: 100%;
                         }
                         
                         .pagination-buttons button {
-                            padding: 6px 12px;
-                            font-size: 13px;
+                            padding: 8px 15px;
+                            font-size: 14px;
+                            font-weight: 600;
+                            min-width: 100px;
+                            justify-content: center;
                         }
                     }
                 </style>
@@ -379,11 +418,21 @@
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label for="editCity" style="display: block; margin-bottom: 5px; font-weight: 500; color: #4b5563;">City:</label>
-                                <input type="text" id="editCity" class="form-control" style="width: 100%; height: 44px; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 16px; box-sizing: border-box;">
+                                <select id="editCity" class="form-control" style="width: 100%; height: 44px; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 16px; box-sizing: border-box;">
+                                    <option value="">Select a city</option>
+                                    {% for city in cities %}
+                                    <option value="{{ city.name }}">{{ city.name }}</option>
+                                    {% endfor %}
+                                </select>
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label for="editDistrict" style="display: block; margin-bottom: 5px; font-weight: 500; color: #4b5563;">District:</label>
-                                <input type="text" id="editDistrict" class="form-control" style="width: 100%; height: 44px; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 16px; box-sizing: border-box;">
+                                <select id="editDistrict" class="form-control" style="width: 100%; height: 44px; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 16px; box-sizing: border-box;">
+                                    <option value="">Select a district</option>
+                                    {% for district in districts %}
+                                    <option value="{{ district.name }}" data-city="{{ district.city.name }}">{{ district.name }}</option>
+                                    {% endfor %}
+                                </select>
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #4b5563;">Block & Lot:</label>

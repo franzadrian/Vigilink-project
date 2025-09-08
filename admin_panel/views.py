@@ -25,7 +25,16 @@ def admin_resident(request):
     # Fetch all users from the database
     users = User.objects.all()
     
-    return render(request, 'admin_residents/admin_resident.html', {'users': users})
+    # Fetch all cities and districts for dropdowns
+    from accounts.models import City, District
+    cities = City.objects.all()
+    districts = District.objects.all()
+    
+    return render(request, 'admin_residents/admin_resident.html', {
+        'users': users,
+        'cities': cities,
+        'districts': districts
+    })
 
 def admin_index(request):
     # This view is accessible to anyone
@@ -153,3 +162,29 @@ def admin_communication(request):
         return HttpResponseForbidden("You don't have permission to access this page.")
     
     return render(request, 'admin_communication/admin_communication.html')
+
+@login_required
+@csrf_exempt
+def delete_user(request):
+    # Check if user has admin role or is a superuser
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            user_id = data.get('user_id')
+            user = get_object_or_404(User, id=user_id)
+            
+            # Delete the user
+            user.delete()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'User deleted successfully'
+            })
+            
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
