@@ -23,8 +23,8 @@
             <div class="header-content" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <div class="header-left" style="display: flex; align-items: center;">
                     <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle sidebar" style="margin-right: 10px;">
-                        <svg class="sidebar-toggle-icon" width="24" height="24" fill="none" stroke="#2563EB" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                        <svg class="sidebar-toggle-icon" width="20" height="20" fill="none" stroke="#2563EB" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h16"/>
                         </svg>
                     </button>
                     <div class="logo" style="border: none; box-shadow: none; background: none;">
@@ -117,6 +117,24 @@
         </div>
         
         <div id="sidebarOverlay" class="sidebar-overlay"></div>
+
+        <style>
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                top: 64px;
+                left: 0;
+                width: 100%;
+                height: calc(100% - 64px);
+                background-color: rgba(0, 0, 0, 0.4);
+                z-index: 30;
+                transition: opacity 0.3s ease;
+            }
+            
+            .sidebar-overlay.active {
+                display: block;
+            }
+        </style>
 
         <main role="main" class="main-content" style="grid-area: main;">
 
@@ -283,7 +301,7 @@
                             transition: width 0.3s ease;
                         }
                         
-                        .sidebar.active {
+                        .sidebar.open {
                             width: 250px;
                         }
                     }
