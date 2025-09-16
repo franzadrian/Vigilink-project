@@ -210,33 +210,22 @@
                             {% endfor %}
                         </tbody>
                     </table>
-                </div>
-                
-                <!-- Pagination Controls -->
-                <div class="pagination-controls" style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-top: 20px; padding: 15px 20px; background-color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: all 0.3s ease;">
-                    <div class="pagination-info" style="font-size: 14px; color: #4b5563; margin-bottom: 10px;">
-                        Showing <span id="startIndex" style="font-weight: 600; color: #2563EB;">1</span> to <span id="endIndex" style="font-weight: 600; color: #2563EB;">10</span> of <span id="totalItems" style="font-weight: 600; color: #2563EB;">{{ users|length }}</span> entries
-                    </div>
-                    <div class="pagination-buttons" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;">
-                        <button id="prevPage" class="btn" style="background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                            <i class="fas fa-chevron-left" style="font-size: 12px;"></i> Previous
-                        </button>
-                        <div id="pageNumbers" style="display: flex; flex-wrap: wrap; gap: 6px; margin: 0 4px;">
-                            <!-- Page numbers will be dynamically inserted here by JavaScript -->
+                    <!-- Pagination Controls with proper spacing -->
+                    <div style="margin: 30px 0; padding: 15px 0; display: flex; flex-direction: column; align-items: center;">
+                        <div class="pagination-info" style="color: #4b5563; font-size: 0.875rem; margin-bottom: 15px; width: 100%; text-align: center;">
+                            Showing <span id="startIndex" style="font-weight: 700; color: #2563EB;">1</span> to <span id="endIndex" style="font-weight: 700; color: #2563EB;">10</span> of <span id="totalItems" style="font-weight: 700; color: #2563EB;">{{ users|length }}</span> entries
                         </div>
-                        <button id="nextPage" class="btn" style="background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                            Next <i class="fas fa-chevron-right" style="font-size: 12px;"></i>
-                        </button>
+                        <div class="pagination-buttons" style="display: flex; gap: 15px; align-items: center; width: 100%; justify-content: center;">
+                            <button type="button" id="prevPage" style="padding: 8px 16px; background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; transition: all 0.2s; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 80px; font-size: 0.95rem;"><i class="fas fa-chevron-left"></i> Previous</button>
+                            <div id="pageNumbers" style="display: flex; gap: 5px;"></div>
+                            <button type="button" id="nextPage" style="padding: 8px 16px; background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; transition: all 0.2s; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 80px; font-size: 0.95rem;">Next <i class="fas fa-chevron-right"></i></button>
+                        </div>
                     </div>
                 </div>
                 
                 <style>
                     /* Pagination Styles */
-                    .pagination-controls {
-                        margin-bottom: 30px;
-                    }
-                    
-                    .pagination-controls button:hover {
+                    .pagination-buttons button:hover {
                         background-color: #e5e7eb;
                         border-color: #9ca3af;
                         transform: translateY(-1px);
@@ -275,12 +264,6 @@
                     
                     /* Responsive Styles */
                     @media (max-width: 768px) {
-                        .pagination-controls {
-                            flex-direction: column;
-                            align-items: center;
-                            gap: 15px;
-                        }
-                        
                         .pagination-info {
                             text-align: center;
                             width: 100%;

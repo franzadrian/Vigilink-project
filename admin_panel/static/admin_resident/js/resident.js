@@ -806,20 +806,23 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                  if (pageNumbers) {
                      pageNumbers.innerHTML = '';
                      
-                     // Only show current page number and make it non-clickable
+                     // Only show current page number as unclickable display
                      if (totalPages > 0) {
-                         const pageIndicator = document.createElement('div');
-                         pageIndicator.textContent = `${currentPage}`;
-                         pageIndicator.style.margin = '0 10px';
-                         pageIndicator.style.fontWeight = '600';
-                         pageIndicator.style.color = '#2563EB';
-                         pageIndicator.style.padding = '8px 16px';
-                         pageIndicator.style.backgroundColor = '#f3f4f6';
-                         pageIndicator.style.borderRadius = '6px';
-                         pageIndicator.style.border = '2px solid #2563EB';
-                         pageIndicator.style.minWidth = '40px';
-                         pageIndicator.style.textAlign = 'center';
-                         pageNumbers.appendChild(pageIndicator);
+                         const pageDisplay = document.createElement('div');
+                         pageDisplay.textContent = currentPage;
+                         pageDisplay.style.minWidth = '36px';
+                         pageDisplay.style.height = '36px';
+                         pageDisplay.style.backgroundColor = '#2563EB';
+                         pageDisplay.style.color = 'white';
+                         pageDisplay.style.border = '2px solid #2563EB';
+                         pageDisplay.style.borderRadius = '6px';
+                         pageDisplay.style.display = 'flex';
+                         pageDisplay.style.alignItems = 'center';
+                         pageDisplay.style.justifyContent = 'center';
+                         pageDisplay.style.fontWeight = '600';
+                         pageDisplay.style.margin = '0 3px';
+                         pageDisplay.style.boxShadow = '0 2px 4px rgba(0,0,0,0.15)';
+                         pageNumbers.appendChild(pageDisplay);
                      }
                  }
                  
@@ -838,9 +841,11 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                  }
                  
                  if (nextPageBtn) {
+                     // Hide next button on last page or when there are no pages
                      if (currentPage === totalPages || totalPages === 0) {
-                         nextPageBtn.disabled = true;
+                         nextPageBtn.style.display = 'none';
                      } else {
+                         nextPageBtn.style.display = 'flex';
                          nextPageBtn.disabled = false;
                      }
                  }
