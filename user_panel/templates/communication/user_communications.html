@@ -1,0 +1,76 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}VigiLink - Communication{% endblock %}
+
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'communication/css/user_communication.css' %}">
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+{% endblock %}
+
+{% block content %}
+<!-- Dashboard Header -->
+    <div class="dashboard-header" style="margin-top: 0;">
+            <div class="dashboard-title">
+                <h1>Communication Center</h1>
+                <p>Manage your messages and communications</p>
+            </div>
+            <div class="header-actions">
+                <button class="create-post-btn" style="margin-right: 5px; text-decoration: none;">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                    </svg>
+                    New Message
+                </button>
+                <a href="{% url 'user_panel:view_profile' %}" class="user-avatar">
+                    <img src="{{ request.user.profile_picture.url|default:'/static/accounts/images/profile.png' }}" alt="{{ request.user.full_name }}" class="avatar-img" onerror="this.src='/static/accounts/images/profile.png'">
+                </a>
+            </div>
+        </div>
+
+    <!-- Messages Section -->
+    <section class="messages-section" style="margin-top: -20px;" aria-labelledby="recent-messages-title">
+            <div class="section-header">
+                <h2 class="section-title" id="recent-messages-title">Recent Messages</h2>
+                <a href="#" class="view-all-link">View All</a>
+            </div>
+
+        <div class="messages-list">
+            <div class="message-item">
+                <div class="message-content">
+                    <div class="message-sender">John Smith</div>
+                    <div class="message-preview">Request for parking space allocation...</div>
+                </div>
+                <div class="message-time">10:30 AM</div>
+            </div>
+
+            <div class="message-item">
+                <div class="message-content">
+                    <div class="message-sender">Alice Dito</div>
+                    <div class="message-preview">Question about maintenance fees...</div>
+                </div>
+                <div class="message-time">10:30 AM</div>
+            </div>
+
+            <div class="message-item">
+                <div class="message-content">
+                    <div class="message-sender">Cutey Sy</div>
+                    <div class="message-preview">Requesting for venue...</div>
+                </div>
+                <div class="message-time">10:30 AM</div>
+            </div>
+
+            <div class="message-item">
+                <div class="message-content">
+                    <div class="message-sender">Emma Wilson</div>
+                    <div class="message-preview">Question about maintenance fees...</div>
+                </div>
+                <div class="message-time">Yesterday</div>
+            </div>
+        </div>
+        </section>
+{% endblock %}

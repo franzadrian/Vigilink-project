@@ -178,6 +178,8 @@
             border-right: 1px solid #e5e7eb;
             transition: transform 0.3s ease;
             z-index: 40;
+            margin-top: 0;
+            padding-top: 0;
         }
 
         .sidebar.collapsed {
@@ -185,7 +187,7 @@
         }
 
         .sidebar-content {
-            padding: 1.5rem 0;
+            padding: 2.5rem 0;
         }
 
         .sidebar-brand {
@@ -198,7 +200,8 @@
 
         .sidebar-nav {
             list-style: none;
-            margin-top: 20px; /* Move sidebar items down */
+            margin-top: 0; /* Remove top margin to move sidebar items up */
+            padding-top: 10px;
         }
 
         .sidebar-nav li {
@@ -237,7 +240,7 @@
         .main-content {
             margin-left: 240px;
             margin-top: 64px;
-            padding: 1.5rem;
+            padding: 1rem 1.5rem;
             min-height: calc(100vh - 64px);
             transition: margin-left 0.3s ease;
         }

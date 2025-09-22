@@ -31,6 +31,11 @@ def about(request):
     """About page view"""
     return render(request, 'informational page/about.html')
 
+@login_required
+def communication(request):
+    """Communication page view"""
+    return render(request, 'communication/user_communications.html')
+
 def contact(request):
     """Contact page view"""
     return render(request, 'informational page/contact.html')

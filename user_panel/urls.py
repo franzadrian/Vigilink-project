@@ -23,6 +23,9 @@ urlpatterns = [
     
     # Payment
     path('payment/', views.payment, name='payment'),
+    
+    # Communication
+    path('communication/', views.communication, name='communication'),
     path('payment/create/', views.create_payment, name='create_payment'),
     path('payment/capture/', views.capture_payment, name='capture_payment'),
     path('payment/success/', views.payment_success, name='payment_success'),
