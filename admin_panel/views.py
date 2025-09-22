@@ -176,6 +176,57 @@ def admin_communication(request):
     
     return render(request, 'admin_communication/admin_communication.html', context)
 
+@login_required
+def get_new_messages(request):
+    """API endpoint to fetch new messages for real-time updates"""
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+    
+    # Get the last timestamp from the request, if provided
+    last_timestamp = request.GET.get('last_timestamp', None)
+    
+    # Base query for unread messages
+    query = ContactMessage.objects.filter(is_read=False)
+    
+    # If last_timestamp is provided, only get messages newer than that timestamp
+    if last_timestamp and last_timestamp != 'null' and last_timestamp != '0':
+        from django.utils import timezone
+        import datetime
+        
+        try:
+            # Convert timestamp to datetime
+            timestamp_float = float(last_timestamp) / 1000.0  # Convert from milliseconds to seconds
+            last_datetime = datetime.datetime.fromtimestamp(timestamp_float, tz=timezone.get_current_timezone())
+            
+            # Only get messages created after the last timestamp
+            query = query.filter(created_at__gt=last_datetime)
+        except (ValueError, TypeError):
+            # If timestamp conversion fails, ignore the filter
+            pass
+    
+    # Get the filtered messages, ordered by creation date (newest first)
+    unread_messages = query.order_by('-created_at')
+    
+    # Format messages for JSON response
+    messages_data = [{
+        'id': msg.contact_id,
+        'name': msg.name,
+        'email': msg.email,
+        'subject': msg.subject,
+        'message': msg.message,
+        'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        'is_read': msg.is_read
+    } for msg in unread_messages]
+    
+    # Get total unread count (not just filtered by timestamp)
+    total_unread_count = ContactMessage.objects.filter(is_read=False).count()
+    
+    return JsonResponse({
+        'status': 'success',
+        'unread_count': total_unread_count,
+        'messages': messages_data
+    })
+
 
 @login_required
 def get_message_details(request, message_id):
@@ -229,6 +280,20 @@ def delete_message(request, message_id):
         return JsonResponse({'status': 'success'})
     except ContactMessage.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Message not found'}, status=404)
+
+@login_required
+def get_unread_count(request):
+    """API endpoint to fetch only the unread message count"""
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+    
+    # Get total unread count
+    total_unread_count = ContactMessage.objects.filter(is_read=False).count()
+    
+    return JsonResponse({
+        'status': 'success',
+        'unread_count': total_unread_count
+    })
 
 @login_required
 @csrf_exempt

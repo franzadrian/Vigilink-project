@@ -176,6 +176,7 @@
       font-weight: 500;
       transition: all 0.3s;
       text-align: left;
+      position: relative;
     }
 
     .sidebar-link:hover {

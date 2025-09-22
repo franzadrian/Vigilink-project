@@ -34,6 +34,11 @@ document.addEventListener('DOMContentLoaded', function() {
     let totalItems = 0;
     let currentMessageToDelete = null;
     
+    // Real-time updates variables
+    let lastMessageTimestamp = Date.now();
+    let unreadMessageCount = 0;
+    const pollingInterval = 10000; // Poll every 10 seconds
+    
     // Pagination elements
     const prevPageBtn = document.getElementById('prevPage');
     const nextPageBtn = document.getElementById('nextPage');
@@ -150,6 +155,256 @@ document.addEventListener('DOMContentLoaded', function() {
             activeButton.style.color = 'white';
         }
     }
+    
+    // Real-time updates function
+    function fetchNewMessages() {
+        // Add timestamp to prevent caching and track last request
+        const url = `/admin-panel/communication/new-messages/?last_timestamp=${lastMessageTimestamp}`;
+        
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // Update unread count
+                    unreadMessageCount = data.unread_count;
+                    updateUnreadBadge();
+                    
+                    // If there are new messages, add them to the table
+                    if (data.messages && data.messages.length > 0) {
+                        const messageTableBody = document.getElementById('message-table-body');
+                        let newMessagesAdded = false;
+                        
+                        // Process messages and update lastMessageTimestamp
+                        data.messages.forEach(msg => {
+                            // Update last message timestamp if newer
+                            const msgTimestamp = new Date(msg.created_at).getTime();
+                            if (msgTimestamp > lastMessageTimestamp) {
+                                lastMessageTimestamp = msgTimestamp;
+                            }
+                            
+                            // Check if message already exists in the table by ID
+                            const existingRow = document.querySelector(`tr[data-message-id="${msg.id}"]`);
+                            if (!existingRow) {
+                                // Create new row for the message
+                                const newRow = createMessageRow(msg);
+                                messageTableBody.insertBefore(newRow, messageTableBody.firstChild);
+                                newMessagesAdded = true;
+                                
+                                // Show notification for new message
+                                showNotification(`New message received from ${msg.name}`, 'info');
+                            }
+                        });
+                        
+                        // Only re-sort and paginate if new messages were added
+                        if (newMessagesAdded) {
+                            sortMessages();
+                            applyPagination();
+                        }
+                    }
+                    
+                    console.log("Checked for new messages. Unread count: " + unreadMessageCount);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching new messages:', error);
+            })
+            .finally(() => {
+                // Schedule the next check regardless of success or failure
+                setTimeout(fetchNewMessages, pollingInterval);
+            });
+    }
+    
+    // Helper function to create a new message row
+    function createMessageRow(msg) {
+        const row = document.createElement('tr');
+        row.setAttribute('data-message-id', msg.id);
+        row.setAttribute('data-is-read', msg.is_read.toString());
+        row.setAttribute('data-date', new Date(msg.created_at).getTime());
+        row.setAttribute('data-message-type', msg.subject.toLowerCase());
+        row.className = msg.is_read ? 'read-row' : 'unread-row';
+        
+        // Format the date
+        const date = new Date(msg.created_at);
+        const options = { month: 'short', day: 'numeric', year: 'numeric' };
+        const formattedDate = date.toLocaleDateString('en-US', options);
+        
+        // Create the row content - match the exact structure from the template
+        row.innerHTML = `
+            <td>${msg.name}</td>
+            <td>${msg.subject}</td>
+            <td>${msg.message.substring(0, 20)}${msg.message.length > 20 ? '...' : ''}</td>
+            <td>${formattedDate}</td>
+            <td><span class="${msg.is_read ? 'status-read' : 'status-unread'}">${msg.is_read ? 'Read' : 'Unread'}</span></td>
+            <td class="action-buttons">
+                <button class="view-btn" data-id="${msg.id}">View</button>
+                <button class="delete-btn" data-id="${msg.id}">Delete</button>
+            </td>
+        `;
+        
+        // Add event listeners to the new buttons
+        row.querySelector('.view-btn').addEventListener('click', function() {
+            viewMessage(this.getAttribute('data-id'));
+        });
+        
+        row.querySelector('.delete-btn').addEventListener('click', function() {
+            showDeleteConfirmation(this.getAttribute('data-id'));
+        });
+        
+        return row;
+    }
+    
+    // Update unread message badge
+    function updateUnreadBadge() {
+        const badge = document.getElementById('unread-badge');
+        if (badge) {
+            if (unreadMessageCount > 0) {
+                badge.textContent = unreadMessageCount;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    }
+    
+    // Show notification
+    function showNotification(message, type = 'success') {
+        const notification = document.getElementById('notification');
+        if (!notification) {
+            // Create notification element if it doesn't exist
+            const notif = document.createElement('div');
+            notif.id = 'notification';
+            notif.className = `notification ${type}`;
+            document.body.appendChild(notif);
+        }
+        
+        const notif = document.getElementById('notification');
+        notif.textContent = message;
+        notif.className = `notification ${type} show`;
+        
+        // Hide notification after 3 seconds
+        setTimeout(() => {
+            notif.className = notif.className.replace('show', '');
+        }, 3000);
+    }
+    
+    // Handle view message click
+    function handleViewMessage() {
+        const messageId = this.getAttribute('data-id');
+        const row = this.closest('tr');
+        const name = row.cells[0].textContent;
+        const subject = row.cells[1].textContent;
+        // Get the date from the row and ensure it's in the correct format
+        const date = row.cells[3].textContent;
+        
+        // Fetch the full message details from the server
+        fetch(`/admin-panel/communication/message/${messageId}/`, {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Populate modal with message details
+            if (messageFrom) messageFrom.textContent = name;
+            if (messageSubject) messageSubject.textContent = subject;
+            if (messageDate) messageDate.textContent = date;
+            if (messageContent) messageContent.textContent = data.message || 'Message content not available';
+            if (messageEmail) messageEmail.textContent = data.email || 'Email not available';
+            
+            // Check if user is registered
+            const userStatus = document.getElementById('userStatus');
+            if (userStatus) {
+                if (data.is_registered) {
+                    userStatus.textContent = 'Registered User';
+                    userStatus.className = 'user-status registered-user';
+                } else {
+                    userStatus.textContent = 'Guest User';
+                    userStatus.className = 'user-status unregistered-user';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching message details:', error);
+            // Fallback to preview if fetch fails
+            if (messageFrom) messageFrom.textContent = name;
+            if (messageSubject) messageSubject.textContent = subject;
+            if (messageDate) messageDate.textContent = date;
+            if (messageContent && row.cells[2]) messageContent.textContent = row.cells[2].textContent;
+            if (messageEmail) messageEmail.textContent = 'Email not available';
+            
+            const userStatus = document.getElementById('userStatus');
+            if (userStatus) {
+                userStatus.textContent = 'Unknown';
+                userStatus.className = 'user-status unregistered-user';
+            }
+        });
+        
+        // Show the modal
+        if (viewMessageModal) viewMessageModal.style.display = 'block';
+        
+        // Mark message as read
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const markReadUrl = `/admin-panel/communication/mark-read/${messageId}/`;
+        
+        fetch(markReadUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Update UI to show message as read
+                const statusCell = row.querySelector('td:nth-child(5)');
+                if (statusCell) statusCell.innerHTML = '<span class="status-read">Read</span>';
+                
+                // Remove the unread-row class
+                row.classList.remove('unread-row');
+                
+                // Update data attribute
+                row.setAttribute('data-is-read', 'true');
+                
+                // Decrement unread count if this was an unread message
+                if (unreadMessageCount > 0) {
+                    unreadMessageCount--;
+                    updateUnreadBadge();
+                }
+                
+                // Re-sort messages
+                sortMessages();
+            }
+        })
+        .catch(error => {
+            console.error('Error marking message as read:', error);
+        });
+    }
+    
+    // Handle delete message click
+function handleDeleteMessage() {
+    const messageId = this.getAttribute('data-id');
+    currentMessageToDelete = messageId;
+    
+    // Show the delete confirmation modal
+    if (deleteMessageModal) deleteMessageModal.style.display = 'block';
+}
+
+// Function to show delete confirmation modal
+function showDeleteConfirmation(messageId) {
+    currentMessageToDelete = messageId;
+    
+    // Show the delete confirmation modal
+    if (deleteMessageModal) deleteMessageModal.style.display = 'block';
+}
     
     // Pagination functions
     function applyPagination() {
@@ -305,6 +560,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const row = this.closest('tr');
                 const name = row.cells[0].textContent;
                 const subject = row.cells[1].textContent;
+                // Get the date from the row - it's already formatted correctly
                 const date = row.cells[3].textContent; // Correct index for date cell
                 
                 // Fetch the full message details from the server
@@ -395,15 +651,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteButtons = document.querySelectorAll('.delete-btn');
     if (deleteButtons) {
         deleteButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const messageId = this.getAttribute('data-id');
-                currentMessageToDelete = messageId;
-                
-                // Show the delete confirmation modal
-                if (deleteMessageModal) deleteMessageModal.style.display = 'block';
-            });
+            button.addEventListener('click', handleDeleteMessage);
         });
     }
+    
+    // Initialize real-time updates
+    function initializeRealTimeUpdates() {
+        // Count initial unread messages
+        const unreadRows = document.querySelectorAll('#message-table-body tr.unread-row');
+        unreadMessageCount = unreadRows.length;
+        updateUnreadBadge();
+        
+        // Start polling for new messages
+        setTimeout(fetchNewMessages, pollingInterval);
+    }
+    
+    // Initialize on page load
+    initializeRealTimeUpdates();
     
     // New message button click handler
     if (newMessageBtn) {
@@ -506,25 +770,43 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    // Remove the row from the table
-                    const row = document.querySelector(`tr[data-id="${currentMessageToDelete}"]`);
-                    if (row) row.remove();
+                    // Remove the message row from the table
+                    const messageRows = document.querySelectorAll('#message-table-body tr');
+                    messageRows.forEach(row => {
+                        const viewBtn = row.querySelector('.view-btn');
+                        if (viewBtn && viewBtn.getAttribute('data-id') === currentMessageToDelete) {
+                            // Check if this was an unread message
+                            if (row.classList.contains('unread-row')) {
+                                // Decrement unread count
+                                if (unreadMessageCount > 0) {
+                                    unreadMessageCount--;
+                                    updateUnreadBadge();
+                                }
+                            }
+                            row.remove();
+                        }
+                    });
                     
-                    // Close the modal
+                    // Hide the modal
                     if (deleteMessageModal) deleteMessageModal.style.display = 'none';
                     
-                    // Reset currentMessageToDelete
+                    // Show success notification
+                    showNotification('Message deleted successfully', 'success');
+                    
+                    // Reset current message to delete
                     currentMessageToDelete = null;
                     
-                    // Update pagination
+                    // Re-apply pagination
                     applyPagination();
                 } else {
                     alert('Error deleting message: ' + (data.message || 'Unknown error'));
+                    showNotification('Error deleting message', 'error');
                 }
             })
             .catch(error => {
                 console.error('Error deleting message:', error);
                 alert('Error deleting message. Please try again.');
+                showNotification('Error deleting message', 'error');
             });
         });
     }

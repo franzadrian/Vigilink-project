@@ -14,9 +14,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
   <link rel="stylesheet" href="{% static 'admin_communication/css/communication.css' %}">
+  <link rel="stylesheet" href="{% static 'admin_dashboard/css/unread_badge.css' %}">
 
 </head>
 <body>
+  <!-- Notification container -->
+  <div id="notification-container"></div>
+  
   <div class="app">
     <div class="sidebar-overlay"></div>
     <header class="header">
@@ -77,6 +81,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
             </svg>
             Communication
+            <span id="unread-badge" class="unread-badge" style="display: none;">0</span>
           </a>
         </li>
         <li>
