@@ -7,7 +7,7 @@ from django.contrib.auth import update_session_auth_hash
 from django.db import models
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
-from .models import Post, PostReaction, PostReply, PostImage  # PostShare removed
+from .models import Post, PostReaction, PostReply, PostImage, Message  # PostShare removed
 from accounts.models import User
 import logging
 import json
@@ -34,7 +34,99 @@ def about(request):
 @login_required
 def communication(request):
     """Communication page view"""
-    return render(request, 'communication/user_communications.html')
+    # Get all messages for the current user (sent or received)
+    user_messages = Message.objects.filter(
+        models.Q(sender=request.user) | models.Q(receiver=request.user)
+    ).order_by('-sent_at')
+    
+    # Get all users for the new message form
+    users = User.objects.exclude(id=request.user.id)
+    
+    context = {
+        'user_messages': user_messages,
+        'users': users
+    }
+    return render(request, 'communication/user_communications.html', context)
+
+@login_required
+@require_POST
+def send_message(request):
+    """Handle sending a new message"""
+    if request.method == 'POST':
+        receiver_id = request.POST.get('receiver')
+        message_text = request.POST.get('message')
+        
+        if not receiver_id or not message_text:
+            return JsonResponse({'status': 'error', 'message': 'Receiver and message are required'}, status=400)
+        
+        try:
+            receiver = User.objects.get(id=receiver_id)
+            
+            # Create and save the message
+            message = Message(
+                sender=request.user,
+                receiver=receiver,
+                message=message_text
+            )
+            message.save()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Message sent successfully',
+                'data': {
+                    'message_id': message.message_id,
+                    'sender': request.user.username,
+                    'receiver': receiver.username,
+                    'sent_at': message.sent_at.strftime('%b %d, %Y, %I:%M %p')
+                }
+            })
+        except User.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Receiver not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
+
+@login_required
+def mark_message_read(request, message_id):
+    """Mark a message as read"""
+    try:
+        message = Message.objects.get(message_id=message_id, receiver=request.user)
+        message.is_read = True
+        message.save()
+        return JsonResponse({'status': 'success'})
+    except Message.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Message not found'}, status=404)
+
+@login_required
+def search_users(request):
+    """Search users by email or full name"""
+    if request.method == 'GET':
+        search_term = request.GET.get('term', '').strip()
+        if len(search_term) < 2:
+            return JsonResponse({'users': []})
+        
+        # Search for users by email or full name
+        users = User.objects.filter(
+            models.Q(email__icontains=search_term) | 
+            models.Q(full_name__icontains=search_term) |
+            models.Q(username__icontains=search_term)
+        ).exclude(id=request.user.id)[:10]  # Limit to 10 results
+        
+        # Format user data for response
+        user_data = [
+            {
+                'id': user.id,
+                'full_name': user.full_name,
+                'username': user.username,
+                'email': user.email
+            }
+            for user in users
+        ]
+        
+        return JsonResponse({'users': user_data})
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 def contact(request):
     """Contact page view"""

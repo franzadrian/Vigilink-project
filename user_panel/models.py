@@ -1,8 +1,32 @@
 from django.db import models
 from django.utils import timezone
 from django.conf import settings
+import hashlib
 
 # Create your models here.
+class Message(models.Model):
+    message_id = models.AutoField(primary_key=True)
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sent_messages')
+    receiver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='received_messages')
+    message = models.TextField()
+    encrypted_message = models.TextField()
+    sent_at = models.DateTimeField(default=timezone.now)
+    is_read = models.BooleanField(default=False)
+    
+    def save(self, *args, **kwargs):
+        # Encrypt the message before saving
+        if not self.encrypted_message and self.message:
+            # Simple encryption using SHA-256 (for demonstration)
+            # In a real app, use proper encryption libraries
+            self.encrypted_message = hashlib.sha256(self.message.encode()).hexdigest()
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"Message from {self.sender.username} to {self.receiver.username}"
+    
+    class Meta:
+        ordering = ['-sent_at']
+
 class Post(models.Model):
     post_id = models.AutoField(primary_key=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='posts')

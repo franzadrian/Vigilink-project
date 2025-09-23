@@ -26,6 +26,9 @@ urlpatterns = [
     
     # Communication
     path('communication/', views.communication, name='communication'),
+    path('communication/send/', views.send_message, name='send_message'),
+    path('communication/mark-read/<uuid:message_id>/', views.mark_message_read, name='mark_message_read'),
+    path('communication/search-users/', views.search_users, name='search_users'),
     path('payment/create/', views.create_payment, name='create_payment'),
     path('payment/capture/', views.capture_payment, name='capture_payment'),
     path('payment/success/', views.payment_success, name='payment_success'),
