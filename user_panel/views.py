@@ -49,6 +49,34 @@ def communication(request):
     return render(request, 'communication/user_communications.html', context)
 
 @login_required
+def global_user_search(request):
+    """Search for users globally by name, username, or email"""
+    search_term = request.GET.get('term', '').strip()
+    
+    if len(search_term) < 2:
+        return JsonResponse([], safe=False)
+    
+    # Search for users by name, username, or email
+    users = User.objects.filter(
+        models.Q(full_name__icontains=search_term) | 
+        models.Q(username__icontains=search_term) | 
+        models.Q(email__icontains=search_term)
+    ).exclude(id=request.user.id)[:10]  # Limit to 10 results
+    
+    # Format results for JSON response
+    results = []
+    for user in users:
+        results.append({
+            'id': user.id,
+            'name': user.full_name or user.username,
+            'username': user.username,
+            'email': user.email,
+            'avatar': user.profile_picture.url if user.profile_picture else None
+        })
+    
+    return JsonResponse(results, safe=False)
+
+@login_required
 @require_POST
 def send_message(request):
     """Handle sending a new message"""
@@ -907,6 +935,33 @@ def delete_reply(request, reply_id):
     except Exception as e:
         logger.error(f"Error deleting reply {reply_id}: {str(e)}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@login_required
+def search_users(request):
+    """
+    API endpoint to search users by name or username
+    """
+    search_term = request.GET.get('term', '').strip()
+    
+    if not search_term:
+        users = User.objects.exclude(id=request.user.id)
+    else:
+        users = User.objects.filter(
+            models.Q(full_name__icontains=search_term) | 
+            models.Q(username__icontains=search_term)
+        ).exclude(id=request.user.id)
+    
+    user_data = [{
+        'id': user.id,
+        'username': user.username,
+        'full_name': user.full_name,
+        'profile_picture': user.profile_picture.url if user.profile_picture else '/static/accounts/images/profile.png'
+    } for user in users]
+    
+    return JsonResponse({
+        'status': 'success',
+        'users': user_data
+    })
 
 @login_required
 def get_post_images(request, post_id):

@@ -1,174 +1,298 @@
 // send_message.js - Handles sending messages between users
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Get references to the message form elements
-    const messageModal = document.getElementById('messageModal');
-    const messageForm = document.getElementById('messageForm');
-    const receiverInput = document.getElementById('messageReceiverSearch');
-    const receiverHiddenInput = document.getElementById('messageReceiver');
-    const searchResults = document.getElementById('userSearchResults');
-    const messageContent = document.getElementById('messageContent');
-    const newMessageBtn = document.querySelector('.create-post-btn');
+    // Get references to the chat elements
+    const chatForm = document.getElementById('chatForm');
+    const chatMessageInput = document.getElementById('chatMessageInput');
+    const chatReceiverId = document.getElementById('chatReceiverId');
+    const chatMessagesList = document.getElementById('chatMessagesList');
+    const globalUserSearch = document.getElementById('globalUserSearch');
+    const globalSearchBtn = document.getElementById('globalSearchBtn');
+    const globalSearchResults = document.getElementById('globalSearchResults');
     
-    // Add event listener to the "New Message" button
-    if (newMessageBtn) {
-        newMessageBtn.addEventListener('click', function() {
-            // Show the message modal
-            messageModal.classList.add('show');
-        });
+    // Check if we have a saved conversation
+    const hasConversations = localStorage.getItem('hasConversations');
+    const lastSelectedUserId = localStorage.getItem('lastSelectedUserId');
+    const lastSelectedUserName = localStorage.getItem('lastSelectedUserName');
+    const lastSelectedUserAvatar = localStorage.getItem('lastSelectedUserAvatar');
+    
+    // If we have a saved conversation, restore it
+    if (hasConversations === 'true' && lastSelectedUserId && lastSelectedUserName) {
+        const conversationsContainer = document.getElementById('conversationsContainer');
+        if (conversationsContainer) {
+            conversationsContainer.innerHTML = '<h3>Recent messages</h3>';
+            conversationsContainer.className = 'recent-messages-header';
+            
+            // Create user item if it doesn't exist
+            const existingUserItem = document.querySelector(`.chat-user-item[data-user-id="${lastSelectedUserId}"]`);
+            if (!existingUserItem) {
+                const usersList = document.querySelector('.chat-users-list');
+                if (usersList) {
+                    // Check if we have a saved last message for this user
+                    const lastMessage = localStorage.getItem(`lastMessage_${lastSelectedUserId}`);
+                    const lastMessageText = lastMessage || "No conversation yet";
+                    
+                    // Create new user item
+                    const newUserItem = document.createElement('div');
+                    newUserItem.className = 'chat-user-item';
+                    newUserItem.dataset.userId = lastSelectedUserId;
+                    newUserItem.innerHTML = `
+                        <div class="chat-user-avatar">
+                            <img src="${lastSelectedUserAvatar || '/static/accounts/images/profile.png'}" alt="${lastSelectedUserName}" onerror="this.src='/static/accounts/images/profile.png'">
+                            <span class="user-status online"></span>
+                        </div>
+                        <div class="chat-user-info">
+                            <div class="chat-user-name">${lastSelectedUserName}</div>
+                            <div class="chat-last-message">${lastMessageText}</div>
+                        </div>
+                        <div class="chat-user-meta">
+                            <div class="chat-time">Recent</div>
+                        </div>
+                    `;
+                    
+                    // Add click event to the user item
+                    newUserItem.addEventListener('click', function() {
+                        startConversation(lastSelectedUserId, lastSelectedUserName, lastSelectedUserAvatar);
+                    });
+                    
+                    // Add to the top of the list
+                    if (usersList.firstChild) {
+                        usersList.insertBefore(newUserItem, usersList.firstChild);
+                    } else {
+                        usersList.appendChild(newUserItem);
+                    }
+                }
+            }
+        }
     }
     
-    // Close modal when clicking outside
-    window.addEventListener('click', function(event) {
-        if (event.target === messageModal) {
-            messageModal.classList.remove('show');
+    // Function to start a conversation with a user
+    function startConversation(userId, userName, userAvatar) {
+        // Update chat header
+        const chatWithName = document.getElementById('chatWithName');
+        const chatWithStatus = document.getElementById('chatWithStatus');
+        const chatWithAvatar = document.getElementById('chatWithAvatar');
+        
+        if (chatWithName && chatWithStatus && chatWithAvatar) {
+            chatWithName.textContent = userName;
+            chatWithStatus.textContent = 'Online';
+            chatWithAvatar.src = userAvatar || '/static/accounts/images/profile.png';
+            chatWithAvatar.alt = userName;
+            chatWithAvatar.onerror = function() { this.src = '/static/accounts/images/profile.png'; };
         }
-    });
+        
+        // Set receiver ID for the chat form
+        if (chatReceiverId) {
+            chatReceiverId.value = userId;
+        }
+        
+        // Check if we have saved messages for this user
+        const lastMessage = localStorage.getItem(`lastMessage_${userId}`);
+        
+        // Clear current messages and show empty chat
+        if (chatMessagesList) {
+            chatMessagesList.innerHTML = '';
+            const emptyChat = document.createElement('div');
+            emptyChat.className = 'no-messages-yet';
+            emptyChat.innerHTML = '<div class="empty-chat-content"><i class="fas fa-comment-dots empty-chat-icon"></i><p>No messages yet. Send a message to start the conversation.</p></div>';
+            chatMessagesList.appendChild(emptyChat);
+        }
+        
+        // Update the last message display if we have one saved
+        if (lastMessage && existingUserItem) {
+            const lastMessageEl = existingUserItem.querySelector('.chat-last-message');
+            if (lastMessageEl) {
+                lastMessageEl.textContent = lastMessage;
+            }
+        }
+        
+        // Focus on message input
+        if (chatMessageInput) {
+            chatMessageInput.focus();
+        }
+        
+        // Highlight user in the list if exists, or add temporarily
+        const existingUserItem = document.querySelector(`.chat-user-item[data-user-id="${userId}"]`);
+        if (existingUserItem) {
+            // Remove active class from all users
+            document.querySelectorAll('.chat-user-item').forEach(item => item.classList.remove('active'));
+            // Add active class to this user
+            existingUserItem.classList.add('active');
+        } else {
+            // Create a temporary user item in the list
+                const usersList = document.querySelector('.chat-users-list');
+                if (usersList) {
+                    // Change no conversations message to Recent messages if it exists
+                    const conversationsContainer = document.getElementById('conversationsContainer');
+                    if (conversationsContainer) {
+                        conversationsContainer.innerHTML = '<h3>Recent messages</h3>';
+                        conversationsContainer.className = 'recent-messages-header';
+                        
+                        // Save to localStorage that we have conversations
+                        localStorage.setItem('hasConversations', 'true');
+                        localStorage.setItem('lastSelectedUserId', userId);
+                        localStorage.setItem('lastSelectedUserName', userName);
+                        localStorage.setItem('lastSelectedUserAvatar', userAvatar || '/static/accounts/images/profile.png');
+                    }
+                    
+                    // Remove active class from all users
+                    document.querySelectorAll('.chat-user-item').forEach(item => item.classList.remove('active'));
+                    
+                    // Create new user item
+                    const newUserItem = document.createElement('div');
+                    newUserItem.className = 'chat-user-item active';
+                    newUserItem.dataset.userId = userId;
+                    
+                    // Check if we have a saved last message for this user
+                    const lastMessage = localStorage.getItem(`lastMessage_${userId}`);
+                    const lastMessageText = lastMessage || "No conversation yet";
+                    
+                    newUserItem.innerHTML = `
+                        <div class="chat-user-avatar">
+                            <img src="${userAvatar || '/static/accounts/images/profile.png'}" alt="${userName}" onerror="this.src='/static/accounts/images/profile.png'">
+                            <span class="user-status online"></span>
+                        </div>
+                        <div class="chat-user-info">
+                            <div class="chat-user-name">${userName}</div>
+                            <div class="chat-last-message">${lastMessageText}</div>
+                        </div>
+                        <div class="chat-user-meta">
+                            <div class="chat-time">Now</div>
+                        </div>
+                    `;
+                
+                // Add click event to the new user item
+                newUserItem.addEventListener('click', function() {
+                    // Remove active class from all users
+                    document.querySelectorAll('.chat-user-item').forEach(item => item.classList.remove('active'));
+                    // Add active class to this user
+                    this.classList.add('active');
+                    
+                    // Update chat header
+                    if (chatWithName && chatWithStatus && chatWithAvatar) {
+                        chatWithName.textContent = userName;
+                        chatWithStatus.textContent = 'Online';
+                        chatWithAvatar.src = userAvatar || '/static/accounts/images/profile.png';
+                        chatWithAvatar.alt = userName;
+                    }
+                    
+                    // Set receiver ID for the chat form
+                    if (chatReceiverId) {
+                        chatReceiverId.value = userId;
+                    }
+                });
+                
+                // Add to the top of the list
+                if (usersList.firstChild) {
+                    usersList.insertBefore(newUserItem, usersList.firstChild);
+                } else {
+                    usersList.appendChild(newUserItem);
+                }
+            }
+        }
+    }
     
-    // Close modal when clicking the close button
-    const closeButtons = document.querySelectorAll('.close-modal');
-    closeButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            messageModal.classList.remove('show');
-        });
-    });
-    
-    // Add user search functionality
-    if (receiverInput) {
-        receiverInput.addEventListener('input', function() {
-            const searchTerm = this.value.trim();
+    // Global user search functionality (all users)
+    if (globalUserSearch) {
+        // Function to perform global user search
+        function performGlobalSearch() {
+            const searchTerm = globalUserSearch.value.trim();
             
             if (searchTerm.length < 2) {
-                searchResults.classList.remove('show');
+                globalSearchResults.classList.remove('show');
+                globalSearchResults.innerHTML = '';
                 return;
             }
             
             // Get CSRF token
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
             
-            // Fetch users matching the search term
-            fetch('/user/communication/search-users/?term=' + encodeURIComponent(searchTerm), {
+            // Make AJAX request to search all users
+            fetch(`/user/communication/global-search/?term=${encodeURIComponent(searchTerm)}`, {
                 method: 'GET',
                 headers: {
-                    'X-CSRFToken': csrfToken
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
                 }
             })
             .then(response => response.json())
             .then(data => {
-                // Clear previous results
-                searchResults.innerHTML = '';
+                globalSearchResults.innerHTML = '';
                 
-                if (data.users && data.users.length > 0) {
-                    // Add each user to the results
-                    data.users.forEach(user => {
-                        const resultItem = document.createElement('div');
-                        resultItem.className = 'search-result-item';
-                        resultItem.textContent = user.full_name || user.username;
-                        resultItem.dataset.userId = user.id;
+                if (data.length === 0) {
+                    globalSearchResults.innerHTML = '<div class="no-results">No users found</div>';
+                } else {
+                    data.forEach(user => {
+                        const userItem = document.createElement('div');
+                        userItem.className = 'global-search-result-item';
+                        userItem.innerHTML = `
+                            <div class="user-avatar">
+                                <img src="${user.avatar || '/static/accounts/images/profile.png'}" alt="${user.name}" onerror="this.src='/static/accounts/images/profile.png'">
+                            </div>
+                            <div class="user-info">
+                                <div class="user-name">${user.name}</div>
+                                <div class="user-email">${user.email || user.username}</div>
+                            </div>
+                        `;
                         
-                        // Add click event to select the user
-                        resultItem.addEventListener('click', function() {
-                            receiverHiddenInput.value = this.dataset.userId;
-                            receiverInput.value = this.textContent;
-                            searchResults.classList.remove('show');
+                        // Add click event to start conversation
+                        userItem.addEventListener('click', function() {
+                            startConversation(user.id, user.name, user.avatar);
+                            globalSearchResults.classList.remove('show');
+                            globalUserSearch.value = '';
                         });
                         
-                        searchResults.appendChild(resultItem);
+                        globalSearchResults.appendChild(userItem);
                     });
-                    
-                    searchResults.classList.add('show');
-                } else {
-                    // No results found
-                    const noResults = document.createElement('div');
-                    noResults.className = 'search-result-item';
-                    noResults.textContent = 'No users found';
-                    searchResults.appendChild(noResults);
-                    searchResults.classList.add('show');
                 }
+                
+                globalSearchResults.classList.add('show');
             })
             .catch(error => {
                 console.error('Error searching users:', error);
+                globalSearchResults.innerHTML = '<div class="no-results">Error searching users</div>';
+                globalSearchResults.classList.add('show');
             });
-        });
+        }
         
-        // Hide search results when clicking outside
-        document.addEventListener('click', function(event) {
-            if (event.target !== receiverInput && event.target !== searchResults) {
-                searchResults.classList.remove('show');
-            }
-        });
-    }
-    
-    // Handle form submission
-    if (messageForm) {
-        messageForm.addEventListener('submit', function(event) {
-            event.preventDefault();
+        // Add event listeners for global search
+        if (globalUserSearch && globalSearchBtn) {
+            // Debounce function for search input
+            let searchTimeout;
             
-            // Get form data
-            const receiver = receiverHiddenInput.value;
-            const message = messageContent.value;
-            
-            // Validate form data
-            if (!receiver || !message.trim()) {
-                showAlert('Please select a recipient and enter a message', 'error');
-                return;
-            }
-            
-            // Create form data for submission
-            const formData = new FormData();
-            formData.append('receiver', receiver);
-            formData.append('message', message);
-            
-            // Get CSRF token
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            
-            // Send the message
-            fetch('/user/communication/send/', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    // Show success message
-                    showAlert('Message sent successfully', 'success');
-                    
-                    // Clear form
-                    messageContent.value = '';
-                    
-                    // Close modal
-                    messageModal.classList.remove('show');
-                    
-                    // Refresh messages list (optional)
-                    location.reload();
-                } else {
-                    // Show error message
-                    showAlert(data.message || 'Failed to send message', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error sending message:', error);
-                showAlert('An error occurred while sending the message', 'error');
+            globalUserSearch.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(performGlobalSearch, 300);
             });
-        });
+            
+            globalSearchBtn.addEventListener('click', performGlobalSearch);
+            
+            // Close search results when clicking outside
+            document.addEventListener('click', function(event) {
+                if (!globalUserSearch.contains(event.target) && 
+                    !globalSearchResults.contains(event.target) &&
+                    !globalSearchBtn.contains(event.target)) {
+                    globalSearchResults.classList.remove('show');
+                }
+            });
+        }
     }
     
     // Function to show alerts
     function showAlert(message, type) {
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type}`;
-        alertDiv.textContent = message;
+        const alertContainer = document.querySelector('.alert-container');
         
-        // Add the alert to the page
-        const alertContainer = document.querySelector('.alert-container') || document.body;
-        alertContainer.appendChild(alertDiv);
+        if (!alertContainer) return;
         
-        // Remove the alert after 3 seconds
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type}`;
+        alert.textContent = message;
+        
+        alertContainer.appendChild(alert);
+        
+        // Remove alert after 3 seconds
         setTimeout(() => {
-            alertDiv.remove();
+            alert.remove();
         }, 3000);
     }
     
