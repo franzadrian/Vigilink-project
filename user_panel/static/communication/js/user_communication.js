@@ -82,7 +82,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Handle user selection
     chatUserItems.forEach(userItem => {
-        userItem.addEventListener('click', function() {
+        userItem.addEventListener('click', function(e) {
+            // Check if the remove button was clicked
+            if (e.target.classList.contains('remove-chat')) {
+                return; // This is handled in send_message.js
+            }
+            
             // Remove active class from all users
             chatUserItems.forEach(item => item.classList.remove('active'));
             
@@ -100,13 +105,36 @@ document.addEventListener('DOMContentLoaded', function() {
             chatWithAvatar.src = userAvatar;
             chatWithAvatar.alt = userName;
             
-            // Set receiver ID for the chat form
-            chatReceiverId.value = userId;
-            currentChatUserId = userId;
+            // Set receiver ID for the form
+            if (chatReceiverId) {
+                chatReceiverId.value = userId;
+            }
             
             // Load chat messages
             loadChatMessages(userId);
+            currentChatUserId = userId;
+            
+            // For mobile: Switch to chat view
+            if (window.innerWidth <= 768) {
+                document.querySelector('.chat-container').classList.add('mobile-view-chat');
+            }
         });
+    });
+    
+    // Mobile back button functionality
+    const backToUsersBtn = document.querySelector('.back-to-users');
+    if (backToUsersBtn) {
+        backToUsersBtn.addEventListener('click', function() {
+            document.querySelector('.chat-container').classList.remove('mobile-view-chat');
+        });
+    }
+    
+    // Handle window resize for responsive behavior
+    window.addEventListener('resize', function() {
+        const chatContainer = document.querySelector('.chat-container');
+        if (window.innerWidth > 768 && chatContainer) {
+            chatContainer.classList.remove('mobile-view-chat');
+        }
     });
     
     // Handle chat form submission
@@ -155,6 +183,4 @@ document.addEventListener('DOMContentLoaded', function() {
             this.style.height = (this.scrollHeight) + 'px';
         });
     }
-    
-    // Modal functionality removed
 });

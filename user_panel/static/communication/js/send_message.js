@@ -10,57 +10,141 @@ document.addEventListener('DOMContentLoaded', function() {
     const globalSearchBtn = document.getElementById('globalSearchBtn');
     const globalSearchResults = document.getElementById('globalSearchResults');
     
-    // Check if we have a saved conversation
+    // Check if we have saved conversations
     const hasConversations = localStorage.getItem('hasConversations');
-    const lastSelectedUserId = localStorage.getItem('lastSelectedUserId');
-    const lastSelectedUserName = localStorage.getItem('lastSelectedUserName');
-    const lastSelectedUserAvatar = localStorage.getItem('lastSelectedUserAvatar');
+    const savedUsersJSON = localStorage.getItem('savedUsers');
+    let savedUsers = [];
     
-    // If we have a saved conversation, restore it
-    if (hasConversations === 'true' && lastSelectedUserId && lastSelectedUserName) {
+    if (savedUsersJSON) {
+        try {
+            savedUsers = JSON.parse(savedUsersJSON);
+        } catch (e) {
+            console.error('Error parsing saved users:', e);
+        }
+    }
+    
+    // If we have saved conversations, restore them
+    if (hasConversations === 'true' && savedUsers.length > 0) {
         const conversationsContainer = document.getElementById('conversationsContainer');
         if (conversationsContainer) {
             conversationsContainer.innerHTML = '<h3>Recent messages</h3>';
             conversationsContainer.className = 'recent-messages-header';
             
-            // Create user item if it doesn't exist
-            const existingUserItem = document.querySelector(`.chat-user-item[data-user-id="${lastSelectedUserId}"]`);
-            if (!existingUserItem) {
-                const usersList = document.querySelector('.chat-users-list');
-                if (usersList) {
-                    // Check if we have a saved last message for this user
-                    const lastMessage = localStorage.getItem(`lastMessage_${lastSelectedUserId}`);
-                    const lastMessageText = lastMessage || "No conversation yet";
-                    
-                    // Create new user item
-                    const newUserItem = document.createElement('div');
-                    newUserItem.className = 'chat-user-item';
-                    newUserItem.dataset.userId = lastSelectedUserId;
-                    newUserItem.innerHTML = `
-                        <div class="chat-user-avatar">
-                            <img src="${lastSelectedUserAvatar || '/static/accounts/images/profile.png'}" alt="${lastSelectedUserName}" onerror="this.src='/static/accounts/images/profile.png'">
-                            <span class="user-status online"></span>
-                        </div>
-                        <div class="chat-user-info">
-                            <div class="chat-user-name">${lastSelectedUserName}</div>
-                            <div class="chat-last-message">${lastMessageText}</div>
-                        </div>
-                        <div class="chat-user-meta">
-                            <div class="chat-time">Recent</div>
-                        </div>
-                    `;
-                    
-                    // Add click event to the user item
-                    newUserItem.addEventListener('click', function() {
-                        startConversation(lastSelectedUserId, lastSelectedUserName, lastSelectedUserAvatar);
-                    });
-                    
-                    // Add to the top of the list
-                    if (usersList.firstChild) {
-                        usersList.insertBefore(newUserItem, usersList.firstChild);
-                    } else {
+            const usersList = document.querySelector('.chat-users-list');
+            if (usersList) {
+                // Loop through all saved users and add them to the list
+                savedUsers.forEach(user => {
+                    // Create user item if it doesn't exist
+                    const existingUserItem = document.querySelector(`.chat-user-item[data-user-id="${user.id}"]`);
+                    if (!existingUserItem) {
+                        // Check if we have a saved last message for this user
+                        const lastMessage = localStorage.getItem(`lastMessage_${user.id}`);
+                        const lastMessageText = lastMessage || "No conversation yet";
+                        
+                        // Create new user item
+                        const newUserItem = document.createElement('div');
+                        newUserItem.className = 'chat-user-item';
+                        newUserItem.dataset.userId = user.id;
+                        newUserItem.innerHTML = `
+                            <div class="chat-user-avatar">
+                                <img src="${user.avatar || '/static/accounts/images/profile.png'}" alt="${user.name}" onerror="this.src='/static/accounts/images/profile.png'">
+                                <span class="user-status online"></span>
+                            </div>
+                            <div class="chat-user-info">
+                                <div class="chat-user-name">${user.name}</div>
+                                <div class="chat-last-message">${lastMessageText}</div>
+                            </div>
+                            <div class="chat-user-meta">
+                                <button class="remove-chat" title="Remove conversation">×</button>
+                                <div class="chat-time">Recent</div>
+                            </div>
+                        `;
+                        
+                        // Add click event to the user item
+                        newUserItem.addEventListener('click', function(e) {
+                            // Check if the remove button was clicked
+                            if (e.target.classList.contains('remove-chat')) {
+                                e.stopPropagation();
+                                removeUserFromRecentMessages(user.id);
+                                return;
+                            }
+                            
+                            startConversation(user.id, user.name, user.avatar);
+                        });
+                        
+                        // Add to the list
                         usersList.appendChild(newUserItem);
                     }
+                });
+            }
+        }
+    }
+    
+    // Function to remove a user from recent messages
+    function removeUserFromRecentMessages(userId) {
+        // Remove the user item from the UI
+        const userItem = document.querySelector(`.chat-user-item[data-user-id="${userId}"]`);
+        if (userItem) {
+            userItem.remove();
+        }
+        
+        // Remove the user from localStorage
+        let savedUsers = [];
+        const savedUsersJSON = localStorage.getItem('savedUsers');
+        
+        if (savedUsersJSON) {
+            try {
+                savedUsers = JSON.parse(savedUsersJSON);
+                // Filter out the removed user
+                savedUsers = savedUsers.filter(user => user.id !== userId);
+                
+                // Save the updated array back to localStorage
+                localStorage.setItem('savedUsers', JSON.stringify(savedUsers));
+                
+                // If no users left, remove the hasConversations flag
+                if (savedUsers.length === 0) {
+                    localStorage.removeItem('hasConversations');
+                    
+                    // Update the UI to show no conversations
+                    const conversationsContainer = document.getElementById('conversationsContainer');
+                    if (conversationsContainer) {
+                        conversationsContainer.innerHTML = `
+                            <div class="no-conversations">
+                                <p>No conversations yet. Search for users above to start chatting.</p>
+                            </div>
+                        `;
+                        conversationsContainer.className = '';
+                    }
+                }
+            } catch (e) {
+                console.error('Error parsing saved users:', e);
+            }
+        }
+        
+        // If this was the active conversation, clear the chat area
+        const chatWithName = document.getElementById('chatWithName');
+        if (chatWithName && chatWithName.textContent !== 'Select a conversation') {
+            const activeUserItem = document.querySelector('.chat-user-item.active');
+            if (!activeUserItem || activeUserItem.dataset.userId === userId) {
+                // Reset chat header
+                chatWithName.textContent = 'Select a conversation';
+                document.getElementById('chatWithStatus').textContent = 'No user selected';
+                document.getElementById('chatWithAvatar').src = '/static/accounts/images/profile.png';
+                
+                // Clear chat messages
+                if (chatMessagesList) {
+                    chatMessagesList.innerHTML = `
+                        <div class="no-chat-selected">
+                            <div class="no-chat-icon">💬</div>
+                            <h3>Select a conversation</h3>
+                            <p>Choose a user from the list to view your conversation history</p>
+                        </div>
+                    `;
+                }
+                
+                // Clear receiver ID
+                if (chatReceiverId) {
+                    chatReceiverId.value = '';
                 }
             }
         }
@@ -130,9 +214,31 @@ document.addEventListener('DOMContentLoaded', function() {
                         
                         // Save to localStorage that we have conversations
                         localStorage.setItem('hasConversations', 'true');
-                        localStorage.setItem('lastSelectedUserId', userId);
-                        localStorage.setItem('lastSelectedUserName', userName);
-                        localStorage.setItem('lastSelectedUserAvatar', userAvatar || '/static/accounts/images/profile.png');
+                        
+                        // Save this user to the savedUsers array
+                        let savedUsers = [];
+                        const savedUsersJSON = localStorage.getItem('savedUsers');
+                        
+                        if (savedUsersJSON) {
+                            try {
+                                savedUsers = JSON.parse(savedUsersJSON);
+                                // Remove this user if already exists (to avoid duplicates)
+                                savedUsers = savedUsers.filter(user => user.id !== userId);
+                            } catch (e) {
+                                console.error('Error parsing saved users:', e);
+                            }
+                        }
+                        
+                        // Add the current user to the beginning of the array
+                        savedUsers.unshift({
+                            id: userId,
+                            name: userName,
+                            avatar: userAvatar || '/static/accounts/images/profile.png',
+                            lastInteraction: new Date().getTime()
+                        });
+                        
+                        // Save the updated array back to localStorage
+                        localStorage.setItem('savedUsers', JSON.stringify(savedUsers));
                     }
                     
                     // Remove active class from all users
@@ -237,9 +343,60 @@ document.addEventListener('DOMContentLoaded', function() {
                         
                         // Add click event to start conversation
                         userItem.addEventListener('click', function() {
+                            // Start conversation with this user
                             startConversation(user.id, user.name, user.avatar);
+                            
+                            // Hide search results and clear search input
                             globalSearchResults.classList.remove('show');
                             globalUserSearch.value = '';
+                            
+                            // Check if this user is already in the recent messages list
+                            const existingUserItem = document.querySelector(`.chat-user-item[data-user-id="${user.id}"]`);
+                            if (!existingUserItem) {
+                                // Add this user to the recent messages list
+                                const usersList = document.querySelector('.chat-users-list');
+                                if (usersList) {
+                                    // Create new user item
+                                    const newUserItem = document.createElement('div');
+                                    newUserItem.className = 'chat-user-item active';
+                                    newUserItem.dataset.userId = user.id;
+                                    
+                                    newUserItem.innerHTML = `
+                                        <div class="chat-user-avatar">
+                                            <img src="${user.avatar || '/static/accounts/images/profile.png'}" alt="${user.name}" onerror="this.src='/static/accounts/images/profile.png'">
+                                            <span class="user-status online"></span>
+                                        </div>
+                                        <div class="chat-user-info">
+                                            <div class="chat-user-name">${user.name}</div>
+                                            <div class="chat-last-message">No conversation yet</div>
+                                        </div>
+                                        <div class="chat-user-meta">
+                                            <div class="chat-time">Now</div>
+                                        </div>
+                                    `;
+                                    
+                                    // Add click event to the new user item
+                                    newUserItem.addEventListener('click', function() {
+                                        startConversation(user.id, user.name, user.avatar);
+                                    });
+                                    
+                                    // Add to the top of the list
+                                    if (usersList.firstChild) {
+                                        usersList.insertBefore(newUserItem, usersList.firstChild);
+                                    } else {
+                                        usersList.appendChild(newUserItem);
+                                    }
+                                    
+                                    // Make sure the "Recent messages" header is displayed
+                                    const conversationsContainer = document.getElementById('conversationsContainer');
+                                    if (conversationsContainer) {
+                                        if (!conversationsContainer.querySelector('h3')) {
+                                            conversationsContainer.innerHTML = '<h3>Recent messages</h3>';
+                                            conversationsContainer.className = 'recent-messages-header';
+                                        }
+                                    }
+                                }
+                            }
                         });
                         
                         globalSearchResults.appendChild(userItem);
