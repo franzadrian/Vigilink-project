@@ -1,141 +1,9 @@
-// Initialize Lucide icons and sidebar functionality
+// Initialize Lucide icons
 document.addEventListener('DOMContentLoaded', function() {
   lucide.createIcons();
-  
-  // Mobile sidebar functionality
-  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-  // Get sidebar element without redeclaring the variable
-  const sidebarOverlay = document.getElementById('sidebarOverlay');
-  const mainContent = document.querySelector('.chat-content');
-
-  function toggleSidebar() {
-    sidebar.classList.toggle('open');
-    sidebarOverlay.classList.toggle('active');
-    
-    // Toggle the sidebar icon
-    const sidebarIcon = document.querySelector('.sidebar-toggle-icon path');
-    if (sidebar.classList.contains('open')) {
-      document.body.style.overflow = 'hidden';
-      sidebarIcon.setAttribute('d', 'M15 19l-7-7 7-7');
-    } else {
-      document.body.style.overflow = '';
-      sidebarIcon.setAttribute('d', 'M9 5l7 7-7 7');
-    }
-  }
-
-  function closeSidebar() {
-    sidebar.classList.remove('open');
-    sidebarOverlay.classList.remove('active');
-    document.body.style.overflow = '';
-  }
-
-  if (mobileMenuBtn) {
-    mobileMenuBtn.addEventListener('click', toggleSidebar);
-  }
-  
-  if (sidebarOverlay) {
-    sidebarOverlay.addEventListener('click', closeSidebar);
-  }
-  
-  // Close sidebar on window resize if in mobile view
-  window.addEventListener('resize', function() {
-    if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('open')) {
-      closeSidebar();
-    }
-  });
 });
 
-// Mock Data
-const mockUsers = [
-  {
-    id: "1",
-    name: "Alice Johnson",
-    avatar: "",
-    status: "online",
-    lastMessage: "Hey! How are you doing today?",
-    lastMessageTime: "2m",
-    unreadCount: 2
-  },
-  {
-    id: "2", 
-    name: "Bob Smith",
-    avatar: "",
-    status: "away",
-    lastMessage: "Sure, let's meet tomorrow at 3 PM",
-    lastMessageTime: "1h",
-    unreadCount: 0
-  },
-  {
-    id: "3",
-    name: "Carol Davis",
-    avatar: "",
-    status: "offline",
-    lastMessage: "Thanks for your help with the project!",
-    lastMessageTime: "3h",
-    unreadCount: 1
-  },
-  {
-    id: "4",
-    name: "David Wilson",
-    avatar: "",
-    status: "online",
-    lastMessage: "Did you see the latest updates?",
-    lastMessageTime: "5h",
-    unreadCount: 0
-  },
-  {
-    id: "5",
-    name: "Emma Brown",
-    avatar: "",
-    status: "away",
-    lastMessage: "I'll send you the files in a moment",
-    lastMessageTime: "1d",
-    unreadCount: 3
-  }
-];
-
-const mockMessages = [
-  {
-    id: "1",
-    text: "Hi there! How's your day going?",
-    timestamp: "10:30 AM",
-    isOwn: false,
-    sender: "Alice Johnson"
-  },
-  {
-    id: "2", 
-    text: "Pretty good, thanks! Just working on some projects. How about you?",
-    timestamp: "10:32 AM",
-    isOwn: true,
-    sender: "You"
-  },
-  {
-    id: "3",
-    text: "Same here! I'm excited about the new features we're building.",
-    timestamp: "10:33 AM", 
-    isOwn: false,
-    sender: "Alice Johnson"
-  },
-  {
-    id: "4",
-    text: "Yeah, it's going to be amazing! The chat interface is looking really clean.",
-    timestamp: "10:35 AM",
-    isOwn: true,
-    sender: "You"
-  },
-  {
-    id: "5",
-    text: "I love how responsive it is across different devices. Great work!",
-    timestamp: "10:36 AM",
-    isOwn: false,
-    sender: "Alice Johnson"
-  }
-];
-
 // Global State
-let selectedUser = null;
-let messages = [...mockMessages];
-let filteredUsers = [...mockUsers];
 let isMobile = window.innerWidth < 768;
 let sidebarCollapsed = false;
 let showUserList = true; // For mobile view switching
@@ -336,21 +204,7 @@ function renderMessages() {
 }
 
 function sendMessage(text) {
-  if (!selectedUser || !text.trim()) return;
-  
-  const newMessage = {
-    id: Date.now().toString(),
-    text: text.trim(),
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    isOwn: true,
-    sender: "You"
-  };
-  
-  messages.push(newMessage);
-  renderMessages();
-  
-  // Clear input
-  messageInput.value = '';
+  if (!text.trim()) return;
   updateSendButton();
 }
 
@@ -367,15 +221,6 @@ function updateSendButton() {
   
   // Reinitialize the icon
   lucide.createIcons();
-}
-
-// Search Functions
-function filterUsers(query) {
-  const searchTerm = query.toLowerCase();
-  filteredUsers = mockUsers.filter(user =>
-    user.name.toLowerCase().includes(searchTerm)
-  );
-  renderUsers();
 }
 
 // Sidebar Functions
@@ -418,15 +263,6 @@ messageForm.addEventListener('submit', (e) => {
 });
 
 messageInput.addEventListener('input', updateSendButton);
-
-userSearch.addEventListener('input', (e) => {
-  filterUsers(e.target.value);
-});
-
-// Handle search in header (desktop)
-document.querySelector('.header-right .search-input').addEventListener('input', (e) => {
-  filterUsers(e.target.value);
-});
 
 // Window resize handler
 window.addEventListener('resize', checkIfMobile);

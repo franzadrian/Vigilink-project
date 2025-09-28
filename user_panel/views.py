@@ -49,18 +49,133 @@ def communication(request):
     return render(request, 'communication/user_communications.html', context)
 
 @login_required
+def get_recent_chats(request):
+    """Get list of users the current user has recently chatted with"""
+    # Get distinct users from recent messages (both sent and received)
+    recent_messages = Message.objects.filter(
+        models.Q(sender=request.user) | models.Q(receiver=request.user)
+    ).select_related('sender', 'receiver').order_by('-sent_at')
+
+    # Get unique users from recent messages
+    seen_users = set()
+    recent_users = []
+    
+    for message in recent_messages:
+        other_user = message.receiver if message.sender == request.user else message.sender
+        if other_user.id not in seen_users:
+            seen_users.add(other_user.id)
+            recent_users.append({
+                'id': other_user.id,
+                'name': other_user.full_name or other_user.username,
+                'username': other_user.username,
+                'email': other_user.email,
+                'avatar': other_user.profile_picture.url if other_user.profile_picture else None,
+                'last_message': message.message,
+                'last_message_time': message.sent_at.isoformat()
+            })
+            if len(recent_users) >= 10:  # Limit to 10 recent chats
+                break
+
+    return JsonResponse(recent_users, safe=False)
+
+@login_required
 def chat_messages(request):
-    """Chat messages page view"""
-    # Get user_id from query parameters
+    """Get chat messages between current user and specified user"""
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Only GET requests are allowed'}, status=405)
+    
     user_id = request.GET.get('user_id')
-    user_name = request.GET.get('user_name', 'User')
+    if not user_id:
+        return JsonResponse({'error': 'User ID is required'}, status=400)
+        
+    try:
+        other_user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'User not found'}, status=404)
     
-    context = {
-        'receiver_id': user_id,
-        'receiver_name': user_name
-    }
+    messages = Message.objects.filter(
+        (models.Q(sender=request.user) & models.Q(receiver=other_user)) |
+        (models.Q(sender=other_user) & models.Q(receiver=request.user))
+    ).order_by('sent_at')
     
-    return render(request, 'communication/chat_messages.html', context)
+    messages_data = [{
+        'id': msg.id,
+        'sender': msg.sender.id,
+        'sender_name': msg.sender.get_full_name() or msg.sender.username,
+        'content': msg.content,
+        'sent_at': msg.sent_at.isoformat(),
+        'is_own': msg.sender.id == request.user.id
+    } for msg in messages]
+    
+    return JsonResponse(messages_data, safe=False)
+
+@login_required
+@require_POST
+def send_message(request):
+    """Send a new message"""
+    try:
+        data = json.loads(request.body)
+        receiver_id = data.get('receiver')
+        message_content = data.get('message')
+        
+        if not receiver_id or not message_content:
+            return JsonResponse({'error': 'Receiver and message are required'}, status=400)
+            
+        try:
+            receiver = User.objects.get(id=receiver_id)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'Receiver not found'}, status=404)
+            
+        message = Message.objects.create(
+            sender=request.user,
+            receiver=receiver,
+            content=message_content
+        )
+        
+        return JsonResponse({
+            'id': message.id,
+            'sender': request.user.id,
+            'sender_name': request.user.get_full_name() or request.user.username,
+            'content': message.content,
+            'sent_at': message.sent_at.isoformat(),
+            'is_own': True
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def get_chat_messages(request):
+    """Get chat messages between current user and specified user"""
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Only GET requests are allowed'}, status=405)
+    
+    user_id = request.GET.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'User ID is required'}, status=400)
+        
+    try:
+        other_user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'User not found'}, status=404)
+    
+    messages = Message.objects.filter(
+        (models.Q(sender=request.user) & models.Q(receiver=other_user)) |
+        (models.Q(sender=other_user) & models.Q(receiver=request.user))
+    ).order_by('sent_at')
+    
+    messages_data = [{
+        'id': msg.id,
+        'sender': msg.sender.id,
+        'sender_name': msg.sender.get_full_name() or msg.sender.username,
+        'message': msg.content,  # Use content field from the model
+        'sent_at': msg.sent_at.isoformat(),
+        'is_own': msg.sender.id == request.user.id
+    } for msg in messages]
+    
+    return JsonResponse(messages_data, safe=False)
 
 @login_required
 def global_user_search(request):
@@ -78,15 +193,13 @@ def global_user_search(request):
     ).exclude(id=request.user.id)[:10]  # Limit to 10 results
     
     # Format results for JSON response
-    results = []
-    for user in users:
-        results.append({
-            'id': user.id,
-            'name': user.full_name or user.username,
-            'username': user.username,
-            'email': user.email,
-            'avatar': user.profile_picture.url if user.profile_picture else None
-        })
+    results = [{
+        'id': user.id,
+        'name': user.full_name or user.username,
+        'username': user.username,
+        'email': user.email,
+        'avatar': user.profile_picture.url if user.profile_picture else None
+    } for user in users]
     
     return JsonResponse(results, safe=False)
 
@@ -94,40 +207,42 @@ def global_user_search(request):
 @require_POST
 def send_message(request):
     """Handle sending a new message"""
-    if request.method == 'POST':
-        receiver_id = request.POST.get('receiver')
-        message_text = request.POST.get('message')
+    if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'error': 'AJAX request required'}, status=400)
+
+    try:
+        data = json.loads(request.body)
+        receiver_id = data.get('receiver')
+        message_text = data.get('message')
         
         if not receiver_id or not message_text:
-            return JsonResponse({'status': 'error', 'message': 'Receiver and message are required'}, status=400)
+            return JsonResponse({'error': 'Receiver and message are required'}, status=400)
         
         try:
             receiver = User.objects.get(id=receiver_id)
             
             # Create and save the message
-            message = Message(
+            message = Message.objects.create(
                 sender=request.user,
                 receiver=receiver,
                 message=message_text
             )
-            message.save()
             
             return JsonResponse({
-                'status': 'success',
-                'message': 'Message sent successfully',
-                'data': {
-                    'message_id': message.message_id,
-                    'sender': request.user.username,
-                    'receiver': receiver.username,
-                    'sent_at': message.sent_at.strftime('%b %d, %Y, %I:%M %p')
-                }
+                'id': message.message_id,
+                'sender': request.user.id,
+                'sender_name': request.user.get_full_name() or request.user.username,
+                'message': message.message,
+                'sent_at': message.sent_at.isoformat(),
+                'is_own': True
             })
+            
         except User.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': 'Receiver not found'}, status=404)
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-    
-    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
+            return JsonResponse({'error': 'Receiver not found'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
 def mark_message_read(request, message_id):

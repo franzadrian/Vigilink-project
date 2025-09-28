@@ -6,30 +6,32 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'communication/css/user_communication.css' %}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 {% endblock %}
 
 {% block content %}
-<!-- Sidebar Overlay -->
-<div id="sidebarOverlay" class="sidebar-overlay"></div>
+{% csrf_token %}
 <!-- Chat Content -->
-<div class="chat-content">
+<div class="chat-content" style="height: 100vh; display: flex; overflow: hidden;">
   <!-- User List -->
   <div id="user-list" class="user-list">
     <div class="user-list-search">
       <div class="search-wrapper">
         <i data-lucide="search" class="search-icon"></i>
-        <input type="text" id="user-search" placeholder="Search conversations..." class="search-input">
+        <input type="text" id="user-search" placeholder="Search users..." class="search-input">
       </div>
     </div>
     
     <div class="users-container">
-      <!-- Users will be dynamically populated -->
+      <div id="search-results">
+        <!-- Users and conversations will be populated here -->
+      </div>
     </div>
   </div>
 
   <!-- Chat Messages -->
   <div id="chat-messages" class="chat-messages hidden">
-    <div class="messages-container">
+    <div class="messages-container" style="height: calc(100vh - 200px); overflow-y: auto;">
       <div id="messages-list" class="messages-list">
         <!-- Messages will be dynamically populated -->
       </div>
@@ -42,15 +44,15 @@
           <input type="text" id="message-input" placeholder="Type a message..." maxlength="1000" class="message-input">
           <div class="input-actions">
             <button type="button" class="input-btn">
-              <i data-lucide="paperclip"></i>
+              <i class="fas fa-image"></i>
             </button>
             <button type="button" class="input-btn">
-              <i data-lucide="smile"></i>
+              <i class="far fa-smile"></i>
             </button>
           </div>
         </div>
         <button type="submit" id="send-btn" class="send-btn">
-          <i data-lucide="send"></i>
+          <i class="fas fa-paper-plane"></i>
         </button>
       </form>
     </div>
@@ -60,7 +62,7 @@
   <div id="welcome-screen" class="welcome-screen">
     <div class="welcome-content">
       <div class="welcome-icon">
-        <i data-lucide="shield" class="welcome-shield-icon"></i>
+        <i class="fas fa-comments welcome-shield-icon"></i>
       </div>
       <div class="welcome-text">
         <h3>Welcome to VigiLink Communications</h3>
@@ -72,5 +74,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'communication/js/user_communication.js' %}"></script>
+<script src="{% static 'communication/js/user_search.js' %}"></script>
 {% endblock %}
