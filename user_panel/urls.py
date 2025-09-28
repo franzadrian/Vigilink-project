@@ -26,6 +26,7 @@ urlpatterns = [
     
     # Communication
     path('communication/', views.communication, name='communication'),
+    path('communication/chat_messages/', views.chat_messages, name='chat_messages'),
     path('communication/send/', views.send_message, name='send_message'),
     path('communication/mark-read/<uuid:message_id>/', views.mark_message_read, name='mark_message_read'),
     path('communication/global-search/', views.global_user_search, name='global_user_search'),

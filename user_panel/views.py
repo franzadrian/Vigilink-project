@@ -49,6 +49,20 @@ def communication(request):
     return render(request, 'communication/user_communications.html', context)
 
 @login_required
+def chat_messages(request):
+    """Chat messages page view"""
+    # Get user_id from query parameters
+    user_id = request.GET.get('user_id')
+    user_name = request.GET.get('user_name', 'User')
+    
+    context = {
+        'receiver_id': user_id,
+        'receiver_name': user_name
+    }
+    
+    return render(request, 'communication/chat_messages.html', context)
+
+@login_required
 def global_user_search(request):
     """Search for users globally by name, username, or email"""
     search_term = request.GET.get('term', '').strip()

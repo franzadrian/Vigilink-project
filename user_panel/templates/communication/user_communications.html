@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block title %}VigiLink - Communication{% endblock %}
+{% block title %}Communications - VigiLink{% endblock %}
 
 {% load static %}
 
@@ -8,144 +8,69 @@
 <link rel="stylesheet" href="{% static 'communication/css/user_communication.css' %}">
 {% endblock %}
 
-{% block extra_js %}
-{{ block.super }}
-<script src="{% static 'communication/js/user_communication.js' %}"></script>
-<script src="{% static 'communication/js/send_message.js' %}"></script>
+{% block content %}
+<!-- Sidebar Overlay -->
+<div id="sidebarOverlay" class="sidebar-overlay"></div>
+<!-- Chat Content -->
+<div class="chat-content">
+  <!-- User List -->
+  <div id="user-list" class="user-list">
+    <div class="user-list-search">
+      <div class="search-wrapper">
+        <i data-lucide="search" class="search-icon"></i>
+        <input type="text" id="user-search" placeholder="Search conversations..." class="search-input">
+      </div>
+    </div>
+    
+    <div class="users-container">
+      <!-- Users will be dynamically populated -->
+    </div>
+  </div>
+
+  <!-- Chat Messages -->
+  <div id="chat-messages" class="chat-messages hidden">
+    <div class="messages-container">
+      <div id="messages-list" class="messages-list">
+        <!-- Messages will be dynamically populated -->
+      </div>
+    </div>
+    
+    <!-- Message Input -->
+    <div class="message-input-container">
+      <form id="message-form" class="message-form">
+        <div class="input-wrapper">
+          <input type="text" id="message-input" placeholder="Type a message..." maxlength="1000" class="message-input">
+          <div class="input-actions">
+            <button type="button" class="input-btn">
+              <i data-lucide="paperclip"></i>
+            </button>
+            <button type="button" class="input-btn">
+              <i data-lucide="smile"></i>
+            </button>
+          </div>
+        </div>
+        <button type="submit" id="send-btn" class="send-btn">
+          <i data-lucide="send"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Welcome Screen -->
+  <div id="welcome-screen" class="welcome-screen">
+    <div class="welcome-content">
+      <div class="welcome-icon">
+        <i data-lucide="shield" class="welcome-shield-icon"></i>
+      </div>
+      <div class="welcome-text">
+        <h3>Welcome to VigiLink Communications</h3>
+        <p>Select a user to start a conversation</p>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
-{% block content %}
-<!-- Mobile Menu Button (Right Side) -->
-<div class="mobile-menu-container">
-    <button class="mobile-menu-btn">
-        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-        </svg>
-    </button>
-</div>
-
-<!-- Dashboard Header -->
-<div class="dashboard-header" style="margin-top: -60px; margin-bottom: 20px; position: relative; z-index: 10;">
-    <div class="dashboard-title">
-        <h1>Communication Center</h1>
-        <p>Manage your messages and communications</p>
-    </div>
-    <div class="header-actions">
-
-    </div>
-</div>
-
-<!-- Chat Interface Container -->
-<div class="chat-container">
-    <!-- Left Column - User List -->
-    <div class="chat-users-column">
-        <!-- New User Search Section -->
-        <div class="new-chat-section">
-            <h3>Start New Conversation</h3>
-            <div class="global-search-container">
-                <input type="text" id="globalUserSearch" placeholder="Search by name, username, or email...">
-                <button class="search-btn" id="globalSearchBtn">
-                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                    </svg>
-                </button>
-            </div>
-            <div id="globalSearchResults" class="global-search-results"></div>
-        </div>
-        
-        <div class="recent-messages-header" id="conversationsContainer">
-            {% if user_messages %}
-                <h3>Recent messages</h3>
-            {% else %}
-                <div class="no-conversations">
-                    <p>No conversations yet. Search for users above to start chatting.</p>
-                </div>
-            {% endif %}
-        </div>
-        <div class="chat-users-list">
-            {% if user_messages %}
-                {% regroup user_messages by get_other_user as grouped_messages %}
-                {% for user_group in grouped_messages %}
-                    <div class="chat-user-item" data-user-id="{{ user_group.grouper.id }}">
-                        <div class="chat-user-avatar">
-                            <img src="{{ user_group.grouper.profile_picture.url|default:'/static/accounts/images/profile.png' }}" alt="{{ user_group.grouper.full_name }}" onerror="this.src='/static/accounts/images/profile.png'">
-                            <span class="user-status online"></span>
-                        </div>
-                        <div class="chat-user-info">
-                            <div class="chat-user-name">{{ user_group.grouper.full_name|default:user_group.grouper.username }}</div>
-                            <div class="chat-last-message">{{ user_group.list.0.message|truncatechars:30 }}</div>
-                        </div>
-                        <div class="chat-user-meta">
-                            <div class="chat-time">{{ user_group.list.0.sent_at|date:"g:i a" }}</div>
-                            {% if user_group.list.0.unread_count > 0 %}
-                                <div class="unread-badge">{{ user_group.list.0.unread_count }}</div>
-                            {% endif %}
-                            <button class="remove-chat" title="Remove conversation">×</button>
-                        </div>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        </div>
-    </div>
-    
-    <!-- Right Column - Chat Messages -->
-    <div class="chat-messages-column">
-        <div class="chat-messages-header">
-            <div class="chat-with-user">
-                <div class="chat-with-avatar">
-                    <img src="/static/accounts/images/profile.png" alt="Select a conversation" id="chatWithAvatar">
-                </div>
-                <div class="chat-with-info">
-                    <div class="chat-with-name" id="chatWithName">Select a conversation</div>
-                    <div class="chat-with-status" id="chatWithStatus">No user selected</div>
-                </div>
-            </div>
-            <div class="back-to-users">
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                </svg>
-                Back to messages
-            </div>
-        </div>
-        
-        <div class="chat-messages-list" id="chatMessagesList">
-            <div class="no-chat-selected">
-                <div class="no-chat-icon">💬</div>
-                <h3>Select a conversation</h3>
-                <p>Choose a user from the list to view your conversation history</p>
-            </div>
-        </div>
-        
-        <div class="chat-input-container">
-            <form id="chatForm">
-                {% csrf_token %}
-                <input type="hidden" id="chatReceiverId" name="receiver">
-                <div class="chat-input-wrapper">
-                    <textarea id="chatMessageInput" placeholder="Type a message..." rows="1"></textarea>
-                    <button type="submit" class="send-message-btn">
-                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                        </svg>
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-
-<!-- Message Template for JS -->
-<template id="messageTemplate">
-    <div class="chat-message">
-        <div class="message-bubble">
-            <div class="message-text"></div>
-            <div class="message-time"></div>
-        </div>
-    </div>
-</template>
-
-<!-- Alert Container -->
-<div class="alert-container"></div>
-   
-    
+{% block extra_js %}
+<script src="{% static 'communication/js/user_communication.js' %}"></script>
 {% endblock %}
