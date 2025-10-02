@@ -51,6 +51,8 @@
     height: calc(100vh - 64px);
     overflow: hidden;
     background-color: hsl(var(--chat-background));
+    will-change: transform;
+    contain: layout size;
 }
 
 .user-list {
@@ -59,12 +61,15 @@
     border-right: 1px solid hsl(var(--border));
     display: flex;
     flex-direction: column;
+    transform: translateZ(0);
+    contain: content;
 }
 
 .users-container {
     flex: 1;
     overflow-y: auto;
     padding: 1rem;
+    contain: content;
 }
 
 .chat-messages {
@@ -72,19 +77,8 @@
     display: flex;
     flex-direction: column;
     min-width: 0; /* Prevent flex item from overflowing */
-}
-
-.messages-container {
-    flex: 1;
-    overflow-y: auto;
-    padding: 1rem;
-    margin-bottom: 0;
-}
-
-.chat-messages {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
+    transform: translateZ(0);
+    contain: layout style;
     height: 100%;
     background-color: hsl(var(--chat-background));
 }
@@ -93,6 +87,8 @@
     flex: 1;
     overflow-y: auto;
     padding: 1rem;
+    margin-bottom: 0;
+    contain: content;
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--primary)) transparent;
 }

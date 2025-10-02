@@ -48,11 +48,20 @@ class PostImage(models.Model):
     """Model to store multiple images for a post"""
     image_id = models.AutoField(primary_key=True)
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='post_images/')
+    image = models.ImageField(upload_to='post_images/', blank=True, null=True)
+    image_url = models.URLField(max_length=500, blank=True, null=True)  # For Dropbox URLs
     uploaded_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return f"Image {self.image_id} for post {self.post.post_id}"
+    
+    def get_image_url(self):
+        """Return the image URL (either from local storage or Dropbox)"""
+        if self.image_url:
+            return self.image_url
+        elif self.image:
+            return self.image.url
+        return None
     
     class Meta:
         ordering = ['uploaded_at']

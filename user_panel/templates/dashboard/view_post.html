@@ -22,7 +22,7 @@
     
     <div class="post-detail-card" data-post-id="{{ post.post_id }}">
         <div class="post-header">
-            <img src="{{ post.user.profile_picture|default:'https://via.placeholder.com/48' }}" alt="{{ post.user.username }}" class="post-avatar">
+            <img src="{% if post.user.profile_picture_url %}{{ post.user.profile_picture_url }}?{% now 'U' %}{% elif post.user.profile_picture %}{{ post.user.profile_picture.url }}?{% now 'U' %}{% else %}/static/accounts/images/profile.png{% endif %}" alt="{{ post.user.username }}" class="post-avatar" onerror="this.src='/static/accounts/images/profile.png'">
             <div class="post-info">
                 <div class="post-header-info">
                     <div class="post-author">{{ post.user.username }}</div>
@@ -90,7 +90,7 @@
             {% for reply in replies %}
                 <div class="reply-card" data-reply-id="{{ reply.reply_id }}">
                     <div class="reply-header">
-                        <img src="{{ reply.user.profile_picture|default:'https://via.placeholder.com/32' }}" alt="{{ reply.user.username }}" class="reply-avatar">
+                        <img src="{% if reply.user.profile_picture_url %}{{ reply.user.profile_picture_url }}?{% now 'U' %}{% elif reply.user.profile_picture %}{{ reply.user.profile_picture.url }}?{% now 'U' %}{% else %}/static/accounts/images/profile.png{% endif %}" alt="{{ reply.user.username }}" class="reply-avatar" onerror="this.src='/static/accounts/images/profile.png'">
                         <div class="reply-info">
                             <div class="reply-author">{{ reply.user.username }}</div>
                             <div class="reply-date">{{ reply.created_at|date:"F j, Y, g:i a" }}</div>
@@ -169,7 +169,7 @@
                         // Add reply content
                         replyCard.innerHTML = `
                             <div class="reply-header">
-                                <img src="${data.user_profile_picture || 'https://via.placeholder.com/32'}" alt="${data.user_name}" class="reply-avatar">
+                                <img src="${data.user_profile_picture || '/static/accounts/images/profile.png'}" alt="${data.user_name}" class="reply-avatar" onerror="this.src='/static/accounts/images/profile.png'">
                                 <div class="reply-info">
                                     <div class="reply-author">${data.user_name}</div>
                                     <div class="reply-date">${data.created_at}</div>

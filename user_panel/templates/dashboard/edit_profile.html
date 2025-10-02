@@ -171,8 +171,10 @@
             
             <div class="profile-picture-container">
                 <div class="profile-picture-preview">
-                    {% if user.profile_picture %}
-                        <img id="profile-image-preview" src="{{ user.profile_picture.url }}" alt="{{ user.full_name }}" onerror="this.src='/static/accounts/images/profile.png'">
+                    {% if user.profile_picture_url %}
+                        <img id="profile-image-preview" src="{{ user.profile_picture_url }}?{% now 'U' %}" alt="{{ user.full_name }}" onerror="this.src='/static/accounts/images/profile.png'">
+                    {% elif user.profile_picture %}
+                        <img id="profile-image-preview" src="{{ user.profile_picture.url }}?{% now 'U' %}" alt="{{ user.full_name }}" onerror="this.src='/static/accounts/images/profile.png'">
                     {% else %}
                         <img id="profile-image-preview" src="/static/accounts/images/profile.png" alt="{{ user.full_name }}">
                     {% endif %}

@@ -6,15 +6,19 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'communication/css/user_communication.css' %}">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="stylesheet" href="{% static 'communication/css/mobile_responsive.css' %}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" media="print" onload="this.media='all'">
 {% endblock %}
 
 {% block content %}
 {% csrf_token %}
 <!-- Chat Content -->
-<div class="chat-content" style="height: 100vh; display: flex; overflow: hidden;">
+<div class="chat-content">
   <!-- User List -->
   <div id="user-list" class="user-list">
+    <div class="user-list-header">
+      <h2>Conversations</h2>
+    </div>
     <div class="user-list-search">
       <div class="search-wrapper">
         <i data-lucide="search" class="search-icon"></i>
@@ -31,7 +35,22 @@
 
   <!-- Chat Messages -->
   <div id="chat-messages" class="chat-messages hidden">
-    <div class="messages-container" style="height: calc(100vh - 200px); overflow-y: auto;">
+    <!-- Chat Header with Back Button for Mobile -->
+    <div class="chat-header">
+      <button id="back-to-users" class="back-btn" aria-label="Back to users">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <div class="selected-user-info">
+        <div class="user-avatar-header">
+          <span class="avatar-text" id="selected-user-avatar"></span>
+        </div>
+        <div class="user-name-header">
+          <span id="selected-user-name"></span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="messages-container">
       <div id="messages-list" class="messages-list">
         <!-- Messages will be dynamically populated -->
       </div>
@@ -43,15 +62,15 @@
         <div class="input-wrapper">
           <input type="text" id="message-input" placeholder="Type a message..." maxlength="1000" class="message-input">
           <div class="input-actions">
-            <button type="button" class="input-btn">
+            <button type="button" class="input-btn" aria-label="Add image">
               <i class="fas fa-image"></i>
             </button>
-            <button type="button" class="input-btn">
+            <button type="button" class="input-btn" aria-label="Add emoji">
               <i class="far fa-smile"></i>
             </button>
           </div>
         </div>
-        <button type="submit" id="send-btn" class="send-btn">
+        <button type="submit" id="send-btn" class="send-btn" aria-label="Send message">
           <i class="fas fa-paper-plane"></i>
         </button>
       </form>
@@ -74,5 +93,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'communication/js/user_search.js' %}"></script>
+<script defer src="{% static 'communication/js/user_search.js' %}"></script>
+<script defer src="{% static 'communication/js/mobile_chat.js' %}"></script>
 {% endblock %}

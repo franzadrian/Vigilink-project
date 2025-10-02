@@ -114,7 +114,16 @@ class User(AbstractUser):
     is_verified = models.BooleanField(default=False)
     verification_code = models.CharField(max_length=6, blank=True, null=True)
     verification_code_created = models.DateTimeField(null=True, blank=True)
-    profile_picture = models.ImageField(upload_to='profile_pictures/', default='accounts/static/accounts/images/profile.png')
+    profile_picture = models.ImageField(upload_to='profile_pictures/', default='accounts/static/accounts/images/profile.png', blank=True, null=True)
+    profile_picture_url = models.URLField(max_length=500, blank=True, null=True)  # For Dropbox URLs
+    
+    def get_profile_picture_url(self):
+        """Return the profile picture URL (either from local storage or Dropbox)"""
+        if self.profile_picture_url:
+            return self.profile_picture_url
+        elif self.profile_picture:
+            return self.profile_picture.url
+        return '/static/accounts/images/profile.png'
     
     # Additional fields
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='guest')

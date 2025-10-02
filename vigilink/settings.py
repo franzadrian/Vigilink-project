@@ -76,12 +76,27 @@ WSGI_APPLICATION = 'vigilink.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+import os
+
+# Use PostgreSQL if DATABASE_URL environment variable is set, otherwise use SQLite
+if os.environ.get('USE_POSTGRES', False):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'vigilink_db',
+            'USER': 'vigilink_user',
+            'PASSWORD': 'vigilink',
+            'HOST': 'localhost',
+            'PORT': '5432',
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -177,7 +192,7 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'achives1@gmail.com'
-EMAIL_HOST_PASSWORD = 'zidk xrbw losf pbpi'  # App password for Gmail
+EMAIL_HOST_PASSWORD = 'wrry gbvd vhlk hqcb'  # App password for Gmail
 
 # Verification settings
 VERIFICATION_CODE_EXPIRY_MINUTES = 10

@@ -93,21 +93,24 @@ def chat_messages(request):
     except User.DoesNotExist:
         return JsonResponse({'error': 'User not found'}, status=404)
     
-    messages = Message.objects.filter(
-        (models.Q(sender=request.user) & models.Q(receiver=other_user)) |
-        (models.Q(sender=other_user) & models.Q(receiver=request.user))
-    ).order_by('sent_at')
-    
-    messages_data = [{
-        'id': msg.id,
-        'sender': msg.sender.id,
-        'sender_name': msg.sender.get_full_name() or msg.sender.username,
-        'content': msg.content,
-        'sent_at': msg.sent_at.isoformat(),
-        'is_own': msg.sender.id == request.user.id
-    } for msg in messages]
-    
-    return JsonResponse(messages_data, safe=False)
+    try:
+        messages = Message.objects.filter(
+            (models.Q(sender=request.user) & models.Q(receiver=other_user)) |
+            (models.Q(sender=other_user) & models.Q(receiver=request.user))
+        ).order_by('sent_at')
+        
+        messages_data = [{
+            'id': msg.message_id,
+            'sender': msg.sender.id,
+            'sender_name': msg.sender.get_full_name() or msg.sender.username,
+            'content': msg.message,
+            'sent_at': msg.sent_at.isoformat(),
+            'is_own': msg.sender.id == request.user.id
+        } for msg in messages]
+        
+        return JsonResponse(messages_data, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
 @require_POST
@@ -640,16 +643,30 @@ def create_post(request):
             image_count = 0
             
             if images:
+                from .dropbox_utils import upload_post_image
+                
                 for image in images:
                     # Limit to 20 images per post
                     if image_count >= 20:
                         break
                         
                     try:
-                        post_image = PostImage.objects.create(
-                            post=post,
-                            image=image
-                        )
+                        # Upload to Dropbox and get the URL
+                        dropbox_url = upload_post_image(image)
+                        
+                        if dropbox_url:
+                            # Create PostImage with Dropbox URL
+                            post_image = PostImage.objects.create(
+                                post=post,
+                                image_url=dropbox_url
+                            )
+                        else:
+                            # Fallback to local storage if Dropbox upload fails
+                            post_image = PostImage.objects.create(
+                                post=post,
+                                image=image
+                            )
+                            
                         image_count += 1
                         logger.info(f"Image uploaded for post {post.post_id}: {image.name}, ID: {post_image.image_id}")
                     except Exception as img_error:
@@ -861,8 +878,8 @@ def edit_profile(request):
                     context['username_error'] = 'Username can only contain letters and numbers.'
                     return render(request, 'dashboard/edit_profile.html', context)
                 
-                # Check if username already exists
-                if User.objects.filter(username=username).exists():
+                # Check if username already exists (excluding current user)
+                if User.objects.filter(username=username).exclude(id=request.user.id).exists():
                     context['username_error'] = 'This username is already taken. Please choose another one.'
                     return render(request, 'dashboard/edit_profile.html', context)
             
@@ -876,9 +893,18 @@ def edit_profile(request):
             user.lot = lot
             user.about = about
             
-            # Handle profile picture upload
+            # Handle profile picture upload to Dropbox
             if 'profile_picture' in request.FILES:
-                user.profile_picture = request.FILES['profile_picture']
+                from .dropbox_utils import upload_profile_picture
+                profile_pic = request.FILES['profile_picture']
+                
+                # Upload to Dropbox and get the URL
+                dropbox_url = upload_profile_picture(profile_pic)
+                if dropbox_url:
+                    user.profile_picture_url = dropbox_url  # Store the Dropbox URL
+                else:
+                    # Fallback to local storage if Dropbox upload fails
+                    user.profile_picture = profile_pic
                 
             user.save()
             

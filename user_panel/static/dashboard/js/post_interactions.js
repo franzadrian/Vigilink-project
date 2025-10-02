@@ -419,9 +419,13 @@ function createReplyElement(reply) {
     console.log(`Reply date: ${replyDate}, formatted: ${formattedDate}`);
     
     // Ensure profile picture has a default value
-    // Force default image if user_profile_picture is null, undefined, or empty string
-    const profilePicture = reply.user_profile_picture && reply.user_profile_picture !== '' ? 
-        reply.user_profile_picture : '/static/accounts/images/profile.png';
+    // Check for profile_picture_url first, then profile_picture, then default
+    let profilePicture = '/static/accounts/images/profile.png';
+    if (reply.user_profile_picture_url && reply.user_profile_picture_url !== '') {
+        profilePicture = `${reply.user_profile_picture_url}?t=${Date.now()}`;
+    } else if (reply.user_profile_picture && reply.user_profile_picture !== '') {
+        profilePicture = `${reply.user_profile_picture}?t=${Date.now()}`;
+    }
     console.log(`Profile picture: ${profilePicture}`);
     
     // Check if the current user is the author of this reply

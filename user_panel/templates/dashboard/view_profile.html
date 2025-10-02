@@ -11,9 +11,13 @@
             <!-- Profile Header -->
             <div class="profile-header">
                 <div class="profile-info">
-                    {% if user.profile_picture %}
+                    {% if user.profile_picture_url %}
                         <div class="profile-avatar">
-                            <img src="{{ user.profile_picture.url }}" alt="{{ user.full_name }}" class="avatar-img" onerror="this.src='/static/accounts/images/profile.png'">
+                            <img src="{{ user.profile_picture_url }}?{% now 'U' %}" alt="{{ user.full_name }}" class="avatar-img" onerror="this.src='/static/accounts/images/profile.png'">
+                        </div>
+                    {% elif user.profile_picture %}
+                        <div class="profile-avatar">
+                            <img src="{{ user.profile_picture.url }}?{% now 'U' %}" alt="{{ user.full_name }}" class="avatar-img" onerror="this.src='/static/accounts/images/profile.png'">
                         </div>
                     {% else %}
                         <div class="profile-avatar">

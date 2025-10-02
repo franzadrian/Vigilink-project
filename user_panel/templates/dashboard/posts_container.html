@@ -6,7 +6,7 @@
     {% for post in posts %}
     <div class="post-card">
         <div class="post-header">
-            <img src="{% if post.user.profile_picture %}{{ post.user.profile_picture.url }}{% else %}/static/accounts/images/profile.png{% endif %}" alt="{{ post.user.full_name }}" class="post-avatar" onerror="this.src='/static/accounts/images/profile.png'">
+            <img src="{% if post.user.profile_picture_url %}{{ post.user.profile_picture_url }}?{% now 'U' %}{% elif post.user.profile_picture %}{{ post.user.profile_picture.url }}?{% now 'U' %}{% else %}/static/accounts/images/profile.png{% endif %}" alt="{{ post.user.full_name }}" class="post-avatar" onerror="this.src='/static/accounts/images/profile.png'">
             <div class="post-info">
                 <div class="post-header-info">
                     <div class="post-author"><a href="{% url 'user_panel:view_user_profile' post.user.id %}" style="text-decoration: none; color: inherit;" class="author-link">{{ post.user.full_name }}</a></div>
@@ -33,7 +33,11 @@
                             {% with image_count=post.image_count %}
                                 {% for image in images|slice:":3" %}
                                     <div class="post-image-container {% if image_count == 1 %}single-image{% endif %}" data-index="{{ forloop.counter0 }}">
-                                        <img src="{{ image.image.url }}" alt="Post image" class="post-image">
+                                        {% if image.image_url %}
+                                            <img src="{{ image.image_url }}" alt="Post image" class="post-image">
+                                        {% else %}
+                                            <img src="{{ image.image.url }}" alt="Post image" class="post-image">
+                                        {% endif %}
                                     </div>
                                 {% endfor %}
                                 

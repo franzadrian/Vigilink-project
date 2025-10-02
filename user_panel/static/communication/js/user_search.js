@@ -106,8 +106,10 @@ function displayMessages(messages, append = false) {
 
     messagesList.appendChild(fragment);
 
-    // Scroll to the bottom of the messages
-    messagesList.scrollTop = messagesList.scrollHeight;
+    // Scroll to the bottom of the messages with a slight delay to ensure content is rendered
+    setTimeout(() => {
+        messagesList.scrollTop = messagesList.scrollHeight;
+    }, 100);
 }
 
 async function loadChatMessages(userId) {
@@ -145,12 +147,12 @@ async function loadChatMessages(userId) {
             }
             
             if (!response.ok) {
-                if (response.headers.get('content-type')?.includes('application/json')) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to load messages');
-                } else {
-                    throw new Error('Server error. Please try again.');
-                }
+                throw new Error('Server error. Please try again.');
+            }
+
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Invalid response format from server');
             }
 
             data = await response.json();
