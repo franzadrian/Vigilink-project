@@ -6,12 +6,11 @@
 
 {% block extra_js %}
 {{ block.super }}
-<script src="{% static 'dashboard/js/post_interactions.js' %}"></script>
-<script src="{% static 'dashboard/js/image_gallery.js' %}"></script>
+<script src="{% static 'dashboard/js/post_interactions.js' %}" defer></script>
+<script src="{% static 'dashboard/js/image_gallery.js' %}" defer></script>
 <script>
     // Global initialization functions that can be called after content updates
     function initPostInteractions() {
-        console.log('Reinitializing post interactions');
         setupReactionForms();
         setupReplyButtons();
         setupDropdownToggles();
@@ -22,23 +21,33 @@
     
     // Initialize image gallery functionality
     function initImageGallery() {
-        console.log('Reinitializing image gallery');
         // Add any image gallery initialization code here if needed
     }
     
+    // Debounce function to limit how often a function can be called
+    function debounce(func, wait) {
+        let timeout;
+        return function() {
+            const context = this;
+            const args = arguments;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), wait);
+        };
+    }
+    
     document.addEventListener('DOMContentLoaded', function() {
-        // Handle search form submission
+        // Cache DOM elements to avoid repeated queries
         const searchInput = document.querySelector('.search-input');
-        const searchForm = document.getElementById('search-form');
-        let searchTimeout = null;
+        const postsContainer = document.querySelector('.posts-container');
+        const locationFilter = document.getElementById('location-filter');
+        const locationFilterHidden = document.getElementById('location-filter-hidden');
         
         // Function to update URL without page refresh
-        function updateSearchParams() {
+        const updateSearchParams = debounce(function() {
             const searchValue = searchInput.value;
-            const locationValue = document.getElementById('location-filter-hidden').value;
+            const locationValue = locationFilterHidden.value;
             
             // Show loading indicator
-            const postsContainer = document.querySelector('.posts-container');
             if (postsContainer) {
                 postsContainer.innerHTML = '<div class="loading-indicator" style="text-align: center; padding: 20px;"><p>Loading results...</p></div>';
             }
@@ -57,52 +66,47 @@
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
-                .then(response => response.text())
-                .then(html => {
-                    console.log('AJAX response received:', html);
-                    // Directly update the posts container with the HTML response
-                    // Since the server is already sending just the posts_container.html content
-                    document.querySelector('.posts-container').innerHTML = html;
+            .then(response => response.text())
+            .then(html => {
+                // Directly update the posts container with the HTML response
+                if (postsContainer) {
+                    postsContainer.innerHTML = html;
                     
                     // Reinitialize any event listeners for the new content
-                    initPostInteractions();
-                    initImageGallery();
-                })
-                .catch(error => {
-                    console.error('Error fetching search results:', error);
-                    // Show error message if fetch fails
-                    const postsContainer = document.querySelector('.posts-container');
-                    if (postsContainer) {
-                        postsContainer.innerHTML = '<div class="error-message" style="text-align: center; padding: 20px; color: red;"><p>Error loading results. Please try again.</p></div>';
-                    }
-                });
-        }
+                    requestAnimationFrame(() => {
+                        initPostInteractions();
+                        initImageGallery();
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching search results:', error);
+                // Show error message if fetch fails
+                if (postsContainer) {
+                    postsContainer.innerHTML = '<div class="error-message" style="text-align: center; padding: 20px; color: red;"><p>Error loading results. Please try again.</p></div>';
+                }
+            });
+        }, 500); // 500ms delay to avoid too many requests
         
-        // Auto-search as user types with a small delay
-        searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(function() {
-                updateSearchParams();
-            }, 500); // 500ms delay to avoid too many requests
-        });
+        // Auto-search as user types
+        searchInput.addEventListener('input', updateSearchParams);
         
         // Still allow Enter key for immediate search
         searchInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                clearTimeout(searchTimeout);
+                updateSearchParams.flush && updateSearchParams.flush();
                 updateSearchParams();
             }
         });
         
         // Handle location filter changes
-        const locationFilter = document.getElementById('location-filter');
-        const locationFilterHidden = document.getElementById('location-filter-hidden');
-        
-        locationFilter.addEventListener('change', function() {
-            locationFilterHidden.value = this.value;
-            updateSearchParams();
-        });
+        if (locationFilter) {
+            locationFilter.addEventListener('change', function() {
+                locationFilterHidden.value = this.value;
+                updateSearchParams();
+            });
+        }
     });
 </script>
 {% endblock %}
@@ -122,7 +126,7 @@
                     Create Post
                 </a>
                 <a href="{% url 'user_panel:view_profile' %}" class="user-avatar">
-                    <img src="{% if request.user.profile_picture_url %}{{ request.user.profile_picture_url }}?{% now 'U' %}{% elif request.user.profile_picture %}{{ request.user.profile_picture.url }}?{% now 'U' %}{% else %}/static/accounts/images/profile.png{% endif %}" alt="{{ request.user.full_name }}" class="avatar-img" onerror="this.src='/static/accounts/images/profile.png'">
+                    <img src="{% if request.user.profile_picture_url %}{{ request.user.profile_picture_url }}{% elif request.user.profile_picture %}{{ request.user.profile_picture.url }}{% else %}/static/accounts/images/profile.png{% endif %}" alt="{{ request.user.full_name }}" class="avatar-img" loading="lazy" width="40" height="40" onerror="this.src='/static/accounts/images/profile.png'">
                 </a>
             </div>
         </div>
@@ -152,7 +156,7 @@
                             Create Post
                         </a>
                         <a href="{% url 'user_panel:view_profile' %}" class="user-avatar">
-                            <img src="{% if request.user.profile_picture_url %}{{ request.user.profile_picture_url }}?{% now 'U' %}{% elif request.user.profile_picture %}{{ request.user.profile_picture.url }}?{% now 'U' %}{% else %}/static/accounts/images/profile.png{% endif %}" alt="{{ request.user.full_name }}" class="avatar-img" onerror="this.src='/static/accounts/images/profile.png'">
+                            <img src="{% if request.user.profile_picture_url %}{{ request.user.profile_picture_url }}{% elif request.user.profile_picture %}{{ request.user.profile_picture.url }}{% else %}/static/accounts/images/profile.png{% endif %}" alt="{{ request.user.full_name }}" class="avatar-img" loading="lazy" width="40" height="40" onerror="this.src='/static/accounts/images/profile.png'">
                         </a>
                     </div>
                 </div>

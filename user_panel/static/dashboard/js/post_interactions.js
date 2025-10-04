@@ -421,10 +421,10 @@ function createReplyElement(reply) {
     // Ensure profile picture has a default value
     // Check for profile_picture_url first, then profile_picture, then default
     let profilePicture = '/static/accounts/images/profile.png';
-    if (reply.user_profile_picture_url && reply.user_profile_picture_url !== '') {
-        profilePicture = `${reply.user_profile_picture_url}?t=${Date.now()}`;
-    } else if (reply.user_profile_picture && reply.user_profile_picture !== '') {
-        profilePicture = `${reply.user_profile_picture}?t=${Date.now()}`;
+    if (reply.profile_picture_url && reply.profile_picture_url !== '') {
+        profilePicture = `${reply.profile_picture_url}?t=${Date.now()}`;
+    } else if (reply.profile_picture && reply.profile_picture !== '') {
+        profilePicture = `${reply.profile_picture}?t=${Date.now()}`;
     }
     console.log(`Profile picture: ${profilePicture}`);
     

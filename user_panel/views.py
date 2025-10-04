@@ -39,12 +39,21 @@ def communication(request):
         models.Q(sender=request.user) | models.Q(receiver=request.user)
     ).order_by('-sent_at')
     
-    # Get all users for the new message form
-    users = User.objects.exclude(id=request.user.id)
+    # Get distinct users the current user has communicated with
+    user_ids = set()
+    chat_users = []
+    
+    # Add users from messages
+    for msg in user_messages:
+        other_user = msg.sender if msg.sender != request.user else msg.receiver
+        # Filter out admin users
+        if other_user.id not in user_ids and other_user.role != 'admin' and not other_user.is_superuser:
+            user_ids.add(other_user.id)
+            chat_users.append(other_user)
     
     context = {
         'user_messages': user_messages,
-        'users': users
+        'users': chat_users
     }
     return render(request, 'communication/user_communications.html', context)
 
@@ -775,7 +784,9 @@ def get_post_replies(request, post_id):
         for reply in replies:
             # Ensure profile picture has a default value
             profile_picture_url = '/static/accounts/images/profile.png'  # Default image
-            if reply.user.profile_picture and hasattr(reply.user.profile_picture, 'url'):
+            if reply.user.profile_picture_url:
+                profile_picture_url = reply.user.profile_picture_url
+            elif reply.user.profile_picture and hasattr(reply.user.profile_picture, 'url'):
                 profile_picture_url = reply.user.profile_picture.url
             
             # Check if the current user is the author of this reply
@@ -785,7 +796,7 @@ def get_post_replies(request, post_id):
                 'reply_id': reply.reply_id,
                 'username': reply.user.username,
                 'full_name': reply.user.full_name,
-                'user_profile_picture': profile_picture_url,
+                'profile_picture_url': profile_picture_url,
                 'message': reply.message,
                 'created_at': reply.created_at.strftime('%Y-%m-%d %H:%M'),
                 'is_author': is_author
@@ -1099,17 +1110,27 @@ def search_users(request):
     search_term = request.GET.get('term', '').strip()
     
     if not search_term:
-        users = User.objects.exclude(id=request.user.id)
-    else:
-        users = User.objects.filter(
-            models.Q(full_name__icontains=search_term) | 
-            models.Q(username__icontains=search_term)
-        ).exclude(id=request.user.id)
+        return JsonResponse({
+            'status': 'success',
+            'users': []
+        })
+    
+    # Search for users excluding current user, admins, and superusers
+    users = User.objects.filter(
+        models.Q(full_name__icontains=search_term) | 
+        models.Q(username__icontains=search_term) |
+        models.Q(email__icontains=search_term)
+    ).exclude(
+        models.Q(id=request.user.id) | 
+        models.Q(role='admin') | 
+        models.Q(is_superuser=True)
+    )[:20]  # Limit to 20 results
     
     user_data = [{
         'id': user.id,
         'username': user.username,
         'full_name': user.full_name,
+        'email': user.email,
         'profile_picture': user.profile_picture.url if user.profile_picture else '/static/accounts/images/profile.png'
     } for user in users]
     

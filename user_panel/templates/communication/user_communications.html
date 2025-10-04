@@ -3,38 +3,73 @@
 {% block title %}Communications - VigiLink{% endblock %}
 
 {% load static %}
+{% load time_filters %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'communication/css/user_communication.css' %}">
 <link rel="stylesheet" href="{% static 'communication/css/mobile_responsive.css' %}">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 {% endblock %}
 
 {% block content %}
 {% csrf_token %}
 <!-- Chat Content -->
 <div class="chat-content">
-  <!-- User List -->
+  <!-- User List (Left Section) -->
   <div id="user-list" class="user-list">
     <div class="user-list-header">
       <h2>Conversations</h2>
     </div>
     <div class="user-list-search">
       <div class="search-wrapper">
-        <i data-lucide="search" class="search-icon"></i>
+        <i class="fas fa-search search-icon"></i>
         <input type="text" id="user-search" placeholder="Search users..." class="search-input">
       </div>
     </div>
     
     <div class="users-container">
       <div id="search-results">
-        <!-- Users and conversations will be populated here -->
+        <!-- Users with messages -->
+        {% for user in users %}
+        <div class="user-item" data-user-id="{{ user.id }}" 
+             data-username="{{ user.username }}" 
+             data-fullname="{{ user.full_name|default:'' }}" 
+             data-email="{{ user.email }}">
+          <div class="user-avatar">
+            <span class="avatar-text">{{ user.full_name|default:user.username|make_list|slice:":2"|join:""|upper }}</span>
+            <span class="status-indicator {% if user.is_active %}online{% else %}offline{% endif %}"></span>
+          </div>
+          <div class="user-info">
+            <div class="user-name">{{ user.full_name|default:user.username }}</div>
+            <div class="last-message">
+              {% with last_message=user.sent_messages.first|default:user.received_messages.first %}
+                {% if last_message %}
+                  {{ last_message.message|truncatechars:30 }}
+                {% else %}
+                  No messages yet
+                {% endif %}
+              {% endwith %}
+            </div>
+          </div>
+          <div class="message-time">
+            {% with last_message=user.sent_messages.first|default:user.received_messages.first %}
+              {% if last_message %}
+                {{ last_message.sent_at|friendly_timesince }}
+              {% endif %}
+            {% endwith %}
+          </div>
+        </div>
+        {% empty %}
+        <div class="no-users">
+          <p>No users available for messaging</p>
+        </div>
+        {% endfor %}
       </div>
     </div>
   </div>
 
-  <!-- Chat Messages -->
-  <div id="chat-messages" class="chat-messages hidden">
+  <!-- Chat Messages (Right Section) -->
+  <div id="chat-messages" class="chat-messages">
     <!-- Chat Header with Back Button for Mobile -->
     <div class="chat-header">
       <button id="back-to-users" class="back-btn" aria-label="Back to users">
@@ -42,17 +77,26 @@
       </button>
       <div class="selected-user-info">
         <div class="user-avatar-header">
-          <span class="avatar-text" id="selected-user-avatar"></span>
+          <span class="avatar-text" id="selected-user-avatar">U</span>
+          <span class="status-indicator online"></span>
         </div>
         <div class="user-name-header">
-          <span id="selected-user-name"></span>
+          <span id="selected-user-name">User</span>
         </div>
       </div>
     </div>
     
     <div class="messages-container">
       <div id="messages-list" class="messages-list">
-        <!-- Messages will be dynamically populated -->
+        <!-- Messages will be dynamically populated via JavaScript -->
+        <div class="no-messages-container">
+          <!-- Empty container for better layout -->
+        </div>
+      </div>
+      <div id="scroll-to-bottom" class="scroll-to-bottom">
+        <button type="button" aria-label="Scroll to bottom">
+          <i class="fas fa-arrow-down"></i>
+        </button>
       </div>
     </div>
     
@@ -77,11 +121,11 @@
     </div>
   </div>
 
-  <!-- Welcome Screen -->
-  <div id="welcome-screen" class="welcome-screen">
+  <!-- Welcome Screen (shown when no chat is selected) -->
+  <div id="welcome-screen" class="welcome-screen hidden">
     <div class="welcome-content">
       <div class="welcome-icon">
-        <i class="fas fa-comments welcome-shield-icon"></i>
+        <i class="fas fa-comments"></i>
       </div>
       <div class="welcome-text">
         <h3>Welcome to VigiLink Communications</h3>
@@ -93,6 +137,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script defer src="{% static 'communication/js/user_search.js' %}"></script>
-<script defer src="{% static 'communication/js/mobile_chat.js' %}"></script>
+<script defer src="{% static 'communication/js/user_communication.js' %}"></script>
 {% endblock %}
