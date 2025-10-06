@@ -112,9 +112,11 @@ def chat_messages(request):
             'id': msg.message_id,
             'sender': msg.sender.id,
             'sender_name': msg.sender.get_full_name() or msg.sender.username,
-            'content': msg.message,
+            'message': msg.message,
             'sent_at': msg.sent_at.isoformat(),
-            'is_own': msg.sender.id == request.user.id
+            'is_own': msg.sender.id == request.user.id,
+            'is_edited': msg.is_edited,
+            'is_deleted': msg.is_deleted
         } for msg in messages]
         
         return JsonResponse(messages_data, safe=False)
@@ -141,14 +143,14 @@ def send_message(request):
         message = Message.objects.create(
             sender=request.user,
             receiver=receiver,
-            content=message_content
+            message=message_content
         )
         
         return JsonResponse({
-            'id': message.id,
+            'id': message.message_id,
             'sender': request.user.id,
             'sender_name': request.user.get_full_name() or request.user.username,
-            'content': message.content,
+            'message': message.message,
             'sent_at': message.sent_at.isoformat(),
             'is_own': True
         })
@@ -219,9 +221,6 @@ def global_user_search(request):
 @require_POST
 def send_message(request):
     """Handle sending a new message"""
-    if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return JsonResponse({'error': 'AJAX request required'}, status=400)
-
     try:
         data = json.loads(request.body)
         receiver_id = data.get('receiver')
@@ -248,9 +247,76 @@ def send_message(request):
                 'sent_at': message.sent_at.isoformat(),
                 'is_own': True
             })
-            
         except User.DoesNotExist:
             return JsonResponse({'error': 'Receiver not found'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+@require_POST
+def edit_message(request):
+    """Handle editing a message"""
+    try:
+        data = json.loads(request.body)
+        message_id = data.get('message_id')
+        new_content = data.get('new_content')
+        
+        if not message_id or not new_content:
+            return JsonResponse({'error': 'Message ID and new content are required'}, status=400)
+        
+        try:
+            # Get the message and verify ownership
+            message = Message.objects.get(message_id=message_id)
+            
+            if message.sender != request.user:
+                return JsonResponse({'error': 'You can only edit your own messages'}, status=403)
+            
+            # Update the message
+            message.message = new_content
+            message.is_edited = True
+            message.save()
+            
+            return JsonResponse({
+                'success': True,
+                'id': message.message_id,
+                'message': message.message,
+                'is_edited': message.is_edited
+            })
+        except Message.DoesNotExist:
+            return JsonResponse({'error': 'Message not found'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+@login_required
+@require_POST
+def delete_message(request):
+    """Handle deleting a message"""
+    try:
+        data = json.loads(request.body)
+        message_id = data.get('message_id')
+        
+        if not message_id:
+            return JsonResponse({'error': 'Message ID is required'}, status=400)
+        
+        try:
+            # Get the message and verify ownership
+            message = Message.objects.get(message_id=message_id)
+            
+            if message.sender != request.user:
+                return JsonResponse({'error': 'You can only delete your own messages'}, status=403)
+            
+            # Mark the message as deleted
+            message.is_deleted = True
+            message.save()
+            
+            return JsonResponse({
+                'success': True,
+                'id': message.message_id
+            })
+        except Message.DoesNotExist:
+            return JsonResponse({'error': 'Message not found'}, status=404)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON data'}, status=400)
     except Exception as e:

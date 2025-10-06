@@ -12,6 +12,8 @@ class Message(models.Model):
     encrypted_message = models.TextField()
     sent_at = models.DateTimeField(default=timezone.now)
     is_read = models.BooleanField(default=False)
+    is_edited = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)
     
     def save(self, *args, **kwargs):
         # Encrypt the message before saving

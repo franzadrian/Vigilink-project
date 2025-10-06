@@ -36,8 +36,11 @@
              data-fullname="{{ user.full_name|default:'' }}" 
              data-email="{{ user.email }}">
           <div class="user-avatar">
-            <span class="avatar-text">{{ user.full_name|default:user.username|make_list|slice:":2"|join:""|upper }}</span>
-            <span class="status-indicator {% if user.is_active %}online{% else %}offline{% endif %}"></span>
+            {% if user.profile_picture or user.profile_picture_url %}
+              <img src="{{ user.get_profile_picture_url }}" alt="{{ user.username }}" class="avatar-image">
+            {% else %}
+              <span class="avatar-text">{{ user.full_name|default:user.username|make_list|slice:":2"|join:""|upper }}</span>
+            {% endif %}
           </div>
           <div class="user-info">
             <div class="user-name">{{ user.full_name|default:user.username }}</div>
@@ -77,6 +80,7 @@
       </button>
       <div class="selected-user-info">
         <div class="user-avatar-header">
+          <img src="" alt="User" class="avatar-image" id="selected-user-avatar-img" style="display: none;">
           <span class="avatar-text" id="selected-user-avatar">U</span>
           <span class="status-indicator online"></span>
         </div>
@@ -104,8 +108,9 @@
     <div class="message-input-container">
       <form id="message-form" class="message-form">
         <div class="input-wrapper">
-          <input type="text" id="message-input" placeholder="Type a message..." maxlength="1000" class="message-input">
+          <input type="text" id="message-input" placeholder="Type a message..." maxlength="500" class="message-input">
           <div class="input-actions">
+            <div id="char-count" class="char-count">500</div>
             <button type="button" class="input-btn" aria-label="Add image">
               <i class="fas fa-image"></i>
             </button>
