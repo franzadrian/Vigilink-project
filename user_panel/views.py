@@ -354,7 +354,8 @@ def search_users(request):
                 'id': user.id,
                 'full_name': user.full_name,
                 'username': user.username,
-                'email': user.email
+                'email': user.email,
+                'profile_picture_url': user.get_profile_picture_url()
             }
             for user in users
         ]

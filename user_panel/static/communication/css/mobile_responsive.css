@@ -35,4 +35,22 @@
     .message-content {
         max-width: 85%;
     }
+    
+    /* Fix for custom alert buttons in mobile view */
+    .custom-alert-footer {
+        justify-content: space-between;
+    }
+    
+    .custom-alert-btn {
+        flex: 1;
+        text-align: center;
+        min-width: 0;
+        padding: 10px;
+    }
+    
+    .custom-alert-btn.cancel-btn,
+    .custom-alert-btn.confirm-btn {
+        width: 48%;
+        max-width: none;
+    }
 }

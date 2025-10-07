@@ -312,6 +312,8 @@
     overflow-wrap: break-word;
     word-break: break-word;
     hyphens: auto;
+    box-sizing: border-box;
+    min-height: fit-content;
 }
 
 .message-item.sent .message-content {
@@ -344,8 +346,16 @@
     position: relative;
 }
 
+/* Show message actions on hover for desktop */
 .message-item:hover .message-actions {
     opacity: 1;
+}
+
+/* Always show message actions on mobile devices */
+@media (max-width: 768px) {
+    .message-actions {
+        opacity: 1;
+    }
 }
 
 .message-action-btn {
@@ -371,8 +381,9 @@
 
 .message-options-menu {
     position: absolute;
-    top: 100%;
-    right: 0;
+    top: 0;
+    right: 100%;
+    margin-right: 5px;
     background-color: hsl(var(--card));
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
@@ -390,7 +401,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 13px 16px;
     width: 100%;
     text-align: left;
     background: none;
@@ -399,6 +410,7 @@
     color: hsl(var(--foreground));
     font-size: 14px;
     transition: background-color 0.2s ease;
+    margin: 4px 0;
 }
 
 .message-option:hover {
@@ -413,11 +425,37 @@
 .edited-indicator {
     font-size: 11px;
     color: #6b7280;
-    margin-top: 2px;
-    display: block;
-    text-align: right;
     font-style: italic;
-    margin-bottom: 2px;
+    position: absolute;
+    top: -15px;
+    right: 5px;
+    background: transparent;
+    z-index: 10;
+}
+
+/* Toast notification */
+.toast-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #4CAF50;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+.toast-notification.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast-notification.error {
+    background-color: #f44336;
 }
 
 .edit-message-container {
@@ -557,7 +595,11 @@
     font-style: italic;
     background-color: white;
     font-size: 12px;
-    padding: 4px 8px;
+    padding: 8px 12px;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    position: relative;
+    top: 0;
 }
 
 .message-time {

@@ -214,17 +214,29 @@ function createUserItem(user) {
     const userAvatar = document.createElement('div');
     userAvatar.className = 'user-avatar';
     
-    const avatarText = document.createElement('span');
-    avatarText.className = 'avatar-text';
-    const initials = user.full_name ? 
-        user.full_name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : 
-        user.username.substring(0, 2).toUpperCase();
-    avatarText.textContent = initials;
+    // Check if user has a profile picture
+    if (user.profile_picture_url) {
+        const avatarImage = document.createElement('img');
+        avatarImage.className = 'avatar-image';
+        avatarImage.src = user.profile_picture_url;
+        avatarImage.alt = user.username;
+        userAvatar.appendChild(avatarImage);
+        
+        // Hide the avatar text when image is displayed
+        userAvatar.classList.add('has-image');
+    } else {
+        const avatarText = document.createElement('span');
+        avatarText.className = 'avatar-text';
+        const initials = user.full_name ? 
+            user.full_name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : 
+            user.username.substring(0, 2).toUpperCase();
+        avatarText.textContent = initials;
+        userAvatar.appendChild(avatarText);
+    }
     
     const statusIndicator = document.createElement('span');
     statusIndicator.className = 'status-indicator';
     
-    userAvatar.appendChild(avatarText);
     userAvatar.appendChild(statusIndicator);
     
     // Create user info
@@ -429,22 +441,21 @@ function saveMessageEdit(messageItem, messageId, newText, originalText) {
             // Update message in DOM
             const messageContent = messageItem.querySelector('.message-content');
             
+            // Add edited indicator outside the message content
+            if (!messageItem.querySelector('.edited-indicator')) {
+                const editedIndicator = document.createElement('div');
+                editedIndicator.className = 'edited-indicator';
+                editedIndicator.textContent = 'edited';
+                editedIndicator.style.position = 'absolute';
+                editedIndicator.style.top = '-15px';
+                editedIndicator.style.right = '5px';
+                editedIndicator.style.zIndex = '10';
+                messageItem.style.position = 'relative';
+                messageItem.appendChild(editedIndicator);
+            }
+            
             messageContent.innerHTML = `
                 <p>${newText}</p>
-                <span class="edited-indicator">edited</span>
-                <div class="message-actions">
-                    <button class="message-action-btn more-options-btn" title="More options">
-                        <i class="fas fa-ellipsis-v"></i>
-                    </button>
-                    <div class="message-options-menu hidden">
-                        <button class="message-option edit-btn" title="Edit message">
-                            <i class="fas fa-edit"></i> Edit
-                        </button>
-                        <button class="message-option delete-btn" title="Delete message">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                    </div>
-                </div>
             `;
             
             // Add event listeners for the new buttons
@@ -476,39 +487,27 @@ function saveMessageEdit(messageItem, messageId, newText, originalText) {
                 });
             }
             
-            // Show success alert
-            const alertOverlay = document.createElement('div');
-            alertOverlay.className = 'custom-alert-overlay';
-            alertOverlay.innerHTML = `
-                <div class="custom-alert success">
-                    <div class="custom-alert-header">
-                        <h3>Success</h3>
-                    </div>
-                    <div class="custom-alert-body">
-                        <p>Message edited successfully!</p>
-                    </div>
-                    <div class="custom-alert-footer">
-                        <button class="custom-alert-btn confirm-btn">OK</button>
-                    </div>
-                </div>
-            `;
+            // Show toast notification
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            toast.textContent = 'Message edited successfully!';
             
-            document.body.appendChild(alertOverlay);
+            document.body.appendChild(toast);
             
-            // Auto-dismiss after 2 seconds
+            // Show the toast with animation
             setTimeout(() => {
-                if (document.body.contains(alertOverlay)) {
-                    document.body.removeChild(alertOverlay);
-                }
-            }, 2000);
+                toast.classList.add('show');
+            }, 10);
             
-            // Add event listener for OK button
-            const okBtn = alertOverlay.querySelector('.confirm-btn');
-            okBtn.addEventListener('click', () => {
-                if (document.body.contains(alertOverlay)) {
-                    document.body.removeChild(alertOverlay);
-                }
-            });
+            // Auto-close after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    if (document.body.contains(toast)) {
+                        document.body.removeChild(toast);
+                    }
+                }, 300); // Wait for fade out animation
+            }, 3000);
             
             // Update message in memory
             const message = messages.find(m => m.id === messageId);
@@ -518,7 +517,27 @@ function saveMessageEdit(messageItem, messageId, newText, originalText) {
             }
         } else {
             // Show error and revert
-            alert('Failed to edit message: ' + (data.error || 'Unknown error'));
+            // Show error toast notification
+                const toast = document.createElement('div');
+                toast.className = 'toast-notification error';
+                toast.textContent = 'Failed to edit message: ' + (data.error || 'Unknown error');
+                
+                document.body.appendChild(toast);
+                
+                // Show the toast with animation
+                setTimeout(() => {
+                    toast.classList.add('show');
+                }, 10);
+                
+                // Auto-close after 3 seconds
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => {
+                        if (document.body.contains(toast)) {
+                            document.body.removeChild(toast);
+                        }
+                    }, 300); // Wait for fade out animation
+                }, 3000);
             cancelMessageEdit(messageItem, originalText);
         }
     })
@@ -537,49 +556,9 @@ function cancelMessageEdit(messageItem, originalText) {
     messageContent.innerHTML = `
          ${message && message.is_edited ? '<div class="edited-indicator">edited</div>' : ''}
         <p>${originalText}</p>
-        <div class="message-actions">
-            <button class="message-action-btn more-options-btn" title="More options">
-                <i class="fas fa-ellipsis-v"></i>
-            </button>
-            <div class="message-options-menu hidden">
-                <button class="message-option edit-btn" title="Edit message">
-                    <i class="fas fa-edit"></i> Edit
-                </button>
-                <button class="message-option delete-btn" title="Delete message">
-                    <i class="fas fa-trash"></i> Delete
-                </button>
-            </div>
-        </div>
     `;
     
-    // Add event listeners for the new buttons
-    const moreOptionsBtn = messageContent.querySelector('.more-options-btn');
-    const optionsMenu = messageContent.querySelector('.message-options-menu');
-    const editBtn = messageContent.querySelector('.edit-btn');
-    const deleteBtn = messageContent.querySelector('.delete-btn');
-    
-    if (moreOptionsBtn && optionsMenu) {
-        moreOptionsBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            optionsMenu.classList.toggle('hidden');
-        });
-    }
-    
-    if (editBtn) {
-        editBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            optionsMenu.classList.add('hidden');
-            startEditingMessage(messageItem, messageItem.dataset.messageId);
-        });
-    }
-    
-    if (deleteBtn) {
-        deleteBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            optionsMenu.classList.add('hidden');
-            deleteMessage(messageItem, messageItem.dataset.messageId);
-        });
-    }
+    // No need to add event listeners as we removed the action buttons
 }
 
 // Delete message
@@ -637,43 +616,37 @@ function deleteMessage(messageItem, messageId) {
                 // Update message in DOM
                 const messageContent = messageItem.querySelector('.message-content');
                 
-                // Show success alert
-                const successAlert = document.createElement('div');
-                successAlert.className = 'custom-alert-overlay';
-                successAlert.innerHTML = `
-                    <div class="custom-alert success">
-                        <div class="custom-alert-header">
-                            <h3>Success</h3>
-                        </div>
-                        <div class="custom-alert-body">
-                            <p>Message deleted successfully!</p>
-                        </div>
-                        <div class="custom-alert-footer">
-                            <button class="custom-alert-btn confirm-btn">OK</button>
-                        </div>
+                // Show toast notification
+                const toast = document.createElement('div');
+                toast.className = 'toast-notification';
+                toast.textContent = 'Message deleted successfully!';
+                
+                document.body.appendChild(toast);
+                
+                // Show the toast with animation
+                setTimeout(() => {
+                    toast.classList.add('show');
+                }, 10);
+                
+                // Auto-close after 3 seconds
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => {
+                        if (document.body.contains(toast)) {
+                            document.body.removeChild(toast);
+                        }
+                    }, 300); // Wait for fade out animation
+                }, 3000);
+                
+                // Replace the message content with just the deleted message text
+                messageItem.innerHTML = `
+                    <div style="display: flex; justify-content: flex-end; width: 100%; margin-top: 15px; margin-bottom: 15px;">
+                        <p class="deleted-message" style="color: #333; font-style: italic; padding: 8px 12px; text-align: center; margin: 5px 0; background-color: transparent; border: 1px solid #3b82f6; border-radius: 4px; display: inline-block;">This message has been deleted</p>
                     </div>
                 `;
                 
-                document.body.appendChild(successAlert);
-                
-                // Auto-dismiss after 2 seconds
-                setTimeout(() => {
-                    if (document.body.contains(successAlert)) {
-                        document.body.removeChild(successAlert);
-                    }
-                }, 2000);
-                
-                // Add event listener for OK button
-                const deleteSuccessBtn = successAlert.querySelector('.confirm-btn');
-                deleteSuccessBtn.addEventListener('click', () => {
-                    if (document.body.contains(successAlert)) {
-                        document.body.removeChild(successAlert);
-                    }
-                });
-                
-                messageContent.innerHTML = `
-                    <p class="deleted-message" style="color: #6b7280; font-style: italic; padding: 8px 12px; text-align: center; margin: 5px 0; background-color: white;">This message has been deleted</p>
-                `;
+                // Remove the message bubble styling
+                messageItem.classList.remove('sent', 'received');
                 
                 // Update message in memory
                 const message = messages.find(m => m.id === messageId);
@@ -804,6 +777,7 @@ function fetchMessages(userId) {
     })
     .then(response => response.json())
     .then(data => {
+        // Keep all messages, including deleted ones
         messages = data;
         renderMessages();
     })
@@ -877,32 +851,45 @@ function appendNewMessage(message) {
     // Check if message is deleted
     if (message.is_deleted) {
         messageItem.innerHTML = `
-            <div class="message-content">
-                <p class="deleted-message" style="background-color: white;">This message has been deleted</p>
+            <div style="display: flex; justify-content: flex-end; width: 100%;">
+                <p class="deleted-message" style="background-color: transparent; padding: 8px 12px; color: #333; font-style: italic; text-align: center; margin: 5px 0; border: 1px solid #3b82f6; border-radius: 4px; display: inline-block;">This message has been deleted</p>
             </div>
         `;
+        // Remove the message bubble styling for deleted messages
+        messageItem.classList.remove('sent', 'received');
         // No need to add any action buttons for deleted messages
     } else if (message.is_own) {
         // Format the message content with more options menu for own messages
         messageItem.innerHTML = `
-            <div class="message-content">
-                ${message.is_edited ? '<div class="edited-indicator">edited</div>' : ''}
-                <p>${message.message || message.content}</p>
-                <div class="message-actions">
-                    <button class="message-action-btn more-options-btn" title="More options">
-                        <i class="fas fa-ellipsis-v"></i>
+            <div class="message-actions">
+                <button class="message-action-btn more-options-btn" title="More options">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+                <div class="message-options-menu hidden">
+                    <button class="message-option edit-btn" title="Edit message">
+                        <i class="fas fa-edit"></i> Edit
                     </button>
-                    <div class="message-options-menu hidden">
-                        <button class="message-option edit-btn" title="Edit message">
-                            <i class="fas fa-edit"></i> Edit
-                        </button>
-                        <button class="message-option delete-btn" title="Delete message">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                    </div>
+                    <button class="message-option delete-btn" title="Delete message">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
                 </div>
             </div>
-        `;
+            <div class="message-content">
+                <p>${message.message || message.content}</p>
+            </div>`;
+            
+        // Add edited indicator outside the message content if needed
+        if (message.is_edited) {
+            const editedIndicator = document.createElement('div');
+            editedIndicator.className = 'edited-indicator';
+            editedIndicator.textContent = 'edited';
+            editedIndicator.style.position = 'absolute';
+            editedIndicator.style.top = '-15px';
+            editedIndicator.style.right = '5px';
+            editedIndicator.style.zIndex = '10';
+            messageItem.style.position = 'relative';
+            messageItem.appendChild(editedIndicator);
+        }
         
         // Add event listener for more options button
         setTimeout(() => {
@@ -924,10 +911,22 @@ function appendNewMessage(message) {
     } else {
         messageItem.innerHTML = `
             <div class="message-content">
-                ${message.is_edited ? '<div style="text-align: right; margin-bottom: 2px;"><span class="edited-indicator" style="color: #6b7280; font-size: 11px; font-style: italic;">edited</span></div>' : ''}
                 <p>${message.message || message.content}</p>
             </div>
         `;
+        
+        // Add edited indicator for received messages
+        if (message.is_edited) {
+            const editedIndicator = document.createElement('div');
+            editedIndicator.className = 'edited-indicator';
+            editedIndicator.textContent = 'edited';
+            editedIndicator.style.position = 'absolute';
+            editedIndicator.style.top = '-15px';
+            editedIndicator.style.right = '5px';
+            editedIndicator.style.zIndex = '10';
+            messageItem.style.position = 'relative';
+            messageItem.appendChild(editedIndicator);
+        }
     }
     
     // Ensure long messages don't break layout
@@ -993,32 +992,55 @@ function renderMessages() {
         
         // Create the message item
         const messageItem = document.createElement('div');
-        messageItem.className = `message-item ${message.is_own ? 'sent' : 'received'}`;
         messageItem.dataset.messageId = message.id || 'temp-' + Date.now();
 
-        // Format the message content with more options menu for own messages
-        if (message.is_own) {
+        // Check if message is deleted
+        if (message.is_deleted) {
+            // For deleted messages, show a simple "This message has been deleted" text
             messageItem.innerHTML = `
-                <div class="message-options-container">
-                    ${message.is_edited ? '<div class="edited-indicator" style="color: #6b7280; font-size: 11px; font-style: italic; text-align: right; margin-bottom: 2px; position: absolute; top: 0; right: 10px;">edited</div>' : ''}
-                    <div class="message-actions">
-                        <button class="message-action-btn more-options-btn" title="More options">
-                            <i class="fas fa-ellipsis-v"></i>
-                        </button>
-                        <div class="message-options-menu hidden">
-                            <button class="message-option edit-btn" title="Edit message">
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                            <button class="message-option delete-btn" title="Delete message">
-                                <i class="fas fa-trash"></i> Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div class="message-content">
-                    <p>${message.message || message.content}</p>
+                <div style="display: flex; justify-content: ${message.is_own ? 'flex-end' : 'flex-start'}; width: 100%;">
+                    <p class="deleted-message" style="color: #333; font-style: italic; padding: 8px 12px; text-align: center; margin: 5px 0; background-color: transparent; border: 1px solid #3b82f6; border-radius: 4px; display: inline-block;">This message has been deleted</p>
                 </div>
             `;
+        } else {
+            // For normal messages, use the regular styling
+            messageItem.className = `message-item ${message.is_own ? 'sent' : 'received'}`;
+            
+            // Format the message content with more options menu for own messages
+            if (message.is_own) {
+                messageItem.innerHTML = `
+                    <div class="message-options-container">
+                        <div class="message-actions">
+                            <button class="message-action-btn more-options-btn" title="More options">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <div class="message-options-menu hidden">
+                                <button class="message-option edit-btn" title="Edit message">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button class="message-option delete-btn" title="Delete message">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="message-content">
+                        <p>${message.message || message.content}</p>
+                    </div>
+                `;
+            
+            // Add edited indicator outside the message content if needed
+            if (message.is_edited) {
+                const editedIndicator = document.createElement('div');
+                editedIndicator.className = 'edited-indicator';
+                editedIndicator.textContent = 'edited';
+                editedIndicator.style.position = 'absolute';
+                editedIndicator.style.top = '-15px';
+                editedIndicator.style.right = '5px';
+                editedIndicator.style.zIndex = '10';
+                messageItem.style.position = 'relative';
+                messageItem.appendChild(editedIndicator);
+            }
             
             // Add event listener for more options button
             const moreOptionsBtn = messageItem.querySelector('.more-options-btn');
@@ -1050,14 +1072,14 @@ function renderMessages() {
                     deleteMessage(messageItem, message.id);
                 });
             }
-        }
-        else {
+        } else {
             messageItem.innerHTML = `
                 <div class="message-content">
                     <p>${message.message || message.content}</p>
                     ${message.is_edited ? '<span class="edited-indicator">edited</span>' : ''}
                 </div>
             `;
+        }
         }
         
         // Ensure long messages don't break layout
