@@ -1,14 +1,75 @@
-// Global state
+﻿// Global state
 let selectedUser = null;
 let messages = [];
+let pollTimer = null;
 let isMobile = window.innerWidth < 768;
 let csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+// Editing state to avoid conflicts with polling/rerenders
+let isEditing = false;
+let editingMessageId = null;
+// Track when any per-message options menu (three dots) is open
+let isOptionsMenuOpen = false;
+let optionsMenuForMessageId = null;
+// Anchor state: when user scrolls up, avoid auto-scrolling/re-render jumps
+let userAnchored = false;
+let initStickTimers = [];
+// Track 'Sent' labels that must persist across renders
+let lastSentMessageId = null;
+let lastFetchedMessages = [];
+let pendingMessagesCount = 0;
+let userListPollTimer = null;
+let relativeTimeTimer = null;
+let hiddenChatUserIds = new Set();
+let selectedUserMeta = { id: null, full_name: '', username: '', profile_picture_url: '' };
+// hidden manager metadata removed
+
+// CSS.escape fallback for broader browser support
+const cssEscape = (window.CSS && CSS.escape) ? CSS.escape : function(str) {
+    return String(str).replace(/[^a-zA-Z0-9_\-]/g, '\\$&');
+};
+
+function loadHiddenChatIds() {
+    try {
+        const raw = localStorage.getItem('vl_hidden_chat_users');
+        const arr = raw ? JSON.parse(raw) : [];
+        hiddenChatUserIds = new Set((arr || []).map(String));
+    } catch (e) {
+        hiddenChatUserIds = new Set();
+    }
+}
+
+function saveHiddenChatIds() {
+    try {
+        localStorage.setItem('vl_hidden_chat_users', JSON.stringify(Array.from(hiddenChatUserIds)));
+    } catch (e) {}
+}
+
+function hideChatUser(userId) {
+    if (!userId) return;
+    const id = String(userId);
+    hiddenChatUserIds.add(id);
+    saveHiddenChatIds();
+    const row = document.querySelector(`#search-results .user-item[data-user-id="${cssEscape(id)}"]`);
+    if (row) row.remove();
+}
+
+function unhideChatUser(userId) {
+    if (!userId) return;
+    const id = String(userId);
+    if (hiddenChatUserIds.has(id)) {
+        hiddenChatUserIds.delete(id);
+        saveHiddenChatIds();
+    }
+}
+
+function openHiddenManager() { /* removed per request */ }
 
 // DOM elements
 const userList = document.querySelector('.user-list');
 const userItems = document.querySelectorAll('.user-item');
 const searchInput = document.querySelector('#user-search');
 const messagesList = document.querySelector('#messages-list');
+const messagesContainer = document.querySelector('.messages-container');
 const messageInput = document.querySelector('#message-input');
 const sendButton = document.querySelector('#send-btn');
 const welcomeScreen = document.querySelector('#welcome-screen');
@@ -16,36 +77,339 @@ const chatMessages = document.querySelector('#chat-messages');
 const backButton = document.querySelector('#back-to-users');
 const messageForm = document.querySelector('#message-form');
 const scrollToBottomBtn = document.querySelector('#scroll-to-bottom');
+let imageFileInput = null;
 
+// Persist last "Sent" message per conversation so the status survives refresh
+function setLastSentFor(userId, messageId) {
+    try { localStorage.setItem('vl_last_sent_' + String(userId), String(messageId)); } catch (e) {}
+    lastSentMessageId = String(messageId);
+}
+function getLastSentFor(userId) {
+    try { return localStorage.getItem('vl_last_sent_' + String(userId)); } catch (e) { return null; }
+}
+function clearLastSentFor(userId) {
+    try { localStorage.removeItem('vl_last_sent_' + String(userId)); } catch (e) {}
+    if (String(selectedUser) === String(userId)) {
+        lastSentMessageId = null;
+    }
+}
+
+// Scrolling helpers
+function isNearBottom(threshold = 10) {
+    const el = messagesContainer || messagesList;
+    if (!el) return true;
+    // Treat bottom as the natural end of the scroll area
+    const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
+    return remaining <= threshold;
+}
+
+function scrollToBottom(force = false) {
+    const el = messagesContainer || messagesList;
+    if (!el) return;
+    if (force || isNearBottom()) {
+        el.scrollTop = el.scrollHeight;
+        // Account for layout/paint timing
+        requestAnimationFrame(() => {
+            el.scrollTop = el.scrollHeight;
+        });
+        setTimeout(() => {
+            el.scrollTop = el.scrollHeight;
+        }, 100);
+    }
+}
+
+// Preserve scroll position helpers when re-rendering
+function captureScrollAnchor() {
+    const container = messagesContainer || messagesList;
+    if (!container || !messagesList) return null;
+    const contRect = container.getBoundingClientRect();
+    // Find the first message item visible near the top edge
+    const items = Array.from(messagesList.querySelectorAll('.message-item'));
+    let anchorEl = null;
+    for (const it of items) {
+        const r = it.getBoundingClientRect();
+        if (r.bottom > contRect.top) { // element at or below the top edge
+            anchorEl = it;
+            break;
+        }
+    }
+    if (!anchorEl) return null;
+    const rect = anchorEl.getBoundingClientRect();
+    return {
+        id: anchorEl.dataset.messageId || null,
+        offsetTop: rect.top - contRect.top
+    };
+}
+
+function restoreScrollAnchor(anchor) {
+    if (!anchor) return;
+    const container = messagesContainer || messagesList;
+    if (!container || !messagesList) return;
+    const target = messagesList.querySelector(`.message-item[data-message-id="${anchor.id}"]`);
+    if (!target) return;
+    const contRect = container.getBoundingClientRect();
+    const rect = target.getBoundingClientRect();
+    const delta = (rect.top - contRect.top) - anchor.offsetTop;
+    container.scrollTop += delta;
+}
+
+// Input helpers
+function updateSendButton() {
+    if (!sendButton || !messageInput) return;
+    const disabled = !messageInput.value.trim();
+    sendButton.disabled = disabled;
+    sendButton.classList.toggle('disabled', disabled);
+}
+
+// Update the last message preview and time in the user list
+function getDisplayNameForUser(userId) {
+    const item = document.querySelector(`.user-item[data-user-id="${userId}"]`);
+    if (!item) return '';
+    const bad = ['none','null','undefined','n/a','na'];
+    const normalize = (s) => (s || '').toString().trim();
+    const pickToken = (s) => {
+        const toks = normalize(s).split(/\s+/).filter(Boolean);
+        for (const t of toks) { if (!bad.includes(t.toLowerCase())) return t; }
+        if (toks.length) {
+            const last = toks[toks.length - 1];
+            if (!bad.includes(last.toLowerCase())) return last;
+        }
+        return '';
+    };
+    const fullAttr = normalize(item.getAttribute('data-fullname'));
+    const headerName = normalize((item.querySelector('.user-name') || {}).textContent);
+    const username = normalize(item.getAttribute('data-username'));
+    return pickToken(fullAttr) || pickToken(headerName) || pickToken(username);
+}
+
+function updateLastMessage(userId, messageText, isOwn = false, updateTime = true, reorder = true, otherName = null) {
+    const userItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
+    if (!userItem) return;
+
+    const lastMsgEl = userItem.querySelector('.last-message');
+    if (lastMsgEl) {
+        let prefix = '';
+        if (isOwn && messageText) {
+            prefix = 'You: ';
+        } else if (!isOwn && messageText) {
+            // Sanitize name and fall back to list display name if needed
+            const bad = ['none','null','undefined','n/a','na'];
+            const normalize = (s) => (s || '').toString().trim();
+            const pickToken = (s) => {
+                const toks = normalize(s).split(/\s+/).filter(Boolean);
+                for (const t of toks) { if (!bad.includes(t.toLowerCase())) return t; }
+                if (toks.length) {
+                    const last = toks[toks.length - 1];
+                    if (!bad.includes(last.toLowerCase())) return last;
+                }
+                return '';
+            };
+            let name = pickToken(otherName);
+            if (!name) name = getDisplayNameForUser(userId);
+            if (!name) name = pickToken(userItem.getAttribute('data-fullname')) || pickToken(userItem.getAttribute('data-username'));
+            prefix = name ? `${name}: ` : '';
+        }
+        lastMsgEl.textContent = (messageText ? `${prefix}${messageText}` : '');
+    }
+
+    const timeEl = userItem.querySelector('.message-time');
+    if (timeEl && updateTime) {
+        const nowIso = new Date().toISOString();
+        timeEl.dataset.timestamp = nowIso;
+        timeEl.textContent = formatRelativeTime(nowIso);
+        userItem.dataset.lastMessageTime = nowIso;
+    }
+
+    // Move this user to the top of the list only if requested
+    if (reorder) {
+        const parent = userItem.parentElement;
+        if (parent && parent.firstElementChild !== userItem) {
+            parent.prepend(userItem);
+        }
+    }
+}
+
+function updateCharCount() {
+    const counter = document.getElementById('char-count');
+    if (!counter || !messageInput) return;
+    const maxAttr = messageInput.getAttribute('maxlength');
+    const max = maxAttr ? parseInt(maxAttr, 10) : 500;
+    const used = messageInput.value.length;
+    const remaining = Math.max(0, max - used);
+    counter.textContent = remaining;
+    counter.classList.remove('warning', 'danger');
+    if (remaining <= 100) counter.classList.add('warning');
+    if (remaining <= 50) counter.classList.add('danger');
+}
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    // Load hidden conversation IDs and remove any matching server-rendered entries
+    loadHiddenChatIds();
+    document.querySelectorAll('#search-results .user-item').forEach((it) => {
+        const id = it.getAttribute('data-user-id');
+        if (id && hiddenChatUserIds.has(String(id))) {
+            it.remove();
+        }
+    });
     // If messages list exists, scroll to bottom on page load
     if (messagesList) {
-        scrollToBottom();
-        // Multiple delayed scrolls to ensure it works with any dynamic content
-        setTimeout(scrollToBottom, 100);
-        setTimeout(scrollToBottom, 300);
-        setTimeout(scrollToBottom, 500);
-        setTimeout(scrollToBottom, 1000);
+        scrollToBottom(true);
+        setTimeout(() => scrollToBottom(true), 100);
         
-        // Add event delegation for edit and delete buttons
+        // Event delegation for message actions (more/edit/delete)
         messagesList.addEventListener('click', function(e) {
-            // Check if edit button was clicked
-            if (e.target.closest('.edit-btn')) {
+            const moreBtn = e.target.closest('.more-options-btn');
+            if (moreBtn) {
+                e.stopPropagation();
+                const item = moreBtn.closest('.message-item');
+                const menu = item ? item.querySelector('.message-options-menu') : null;
+                const actions = moreBtn.closest('.message-actions');
+                if (menu) {
+                    // Toggle visibility
+                    const willShow = menu.classList.contains('hidden');
+                    menu.classList.toggle('hidden');
+                    if (actions) {
+                        actions.classList.toggle('show', willShow);
+                    }
+                    // Track open/close state to pause polling-driven re-renders
+                    const item = e.target.closest('.message-item');
+                    if (willShow) {
+                        isOptionsMenuOpen = true;
+                        optionsMenuForMessageId = item ? item.dataset.messageId : null;
+                    } else {
+                        isOptionsMenuOpen = false;
+                        optionsMenuForMessageId = null;
+                        // If updates piled up while menu was open, flush them now
+                        if (pendingMessagesCount > 0 && Array.isArray(lastFetchedMessages) && lastFetchedMessages.length) {
+                            messages = lastFetchedMessages;
+                            pendingMessagesCount = 0;
+                            renderMessages();
+                        }
+                    }
+                    if (willShow) {
+                        // Measure space relative to messages container
+                        const container = document.querySelector('.messages-container');
+                        const contRect = container ? container.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+                        const rect = menu.getBoundingClientRect();
+
+                        const spaceBelow = contRect.bottom - rect.bottom;
+                        const spaceAbove = rect.top - contRect.top;
+                        const minNeeded = 120; // approx space for two options comfortably
+
+                        // Flip up if not enough room below but more room above
+                        if (spaceBelow < minNeeded && spaceAbove > spaceBelow) {
+                            menu.classList.add('flip-up');
+                        } else {
+                            menu.classList.remove('flip-up');
+                        }
+
+                        // Re-measure after potential flip
+                        const finalRect = menu.getBoundingClientRect();
+                        const finalSpaceBelow = contRect.bottom - finalRect.bottom;
+                        const finalSpaceAbove = finalRect.top - contRect.top;
+
+                        // Constrain height and enable scroll if still tight
+                        if (!menu.classList.contains('flip-up') && finalSpaceBelow < minNeeded) {
+                            menu.style.maxHeight = Math.max(80, finalSpaceBelow - 8) + 'px';
+                            menu.style.overflowY = 'auto';
+                        } else if (menu.classList.contains('flip-up') && finalSpaceAbove < minNeeded) {
+                            menu.style.maxHeight = Math.max(80, finalSpaceAbove - 8) + 'px';
+                            menu.style.overflowY = 'auto';
+                        } else {
+                            menu.style.maxHeight = '';
+                            menu.style.overflowY = '';
+                        }
+
+                        // Final fallback: fixed overlay positioning if still cramped
+                        const stillTight = (!menu.classList.contains('flip-up') && finalSpaceBelow < 90) || (menu.classList.contains('flip-up') && finalSpaceAbove < 90);
+                        if (stillTight) {
+                            const mRect = menu.getBoundingClientRect();
+                            menu.dataset._absPos = '1';
+                            menu.style.position = 'fixed';
+                            menu.style.left = mRect.left + 'px';
+                            if (menu.classList.contains('flip-up')) {
+                                // place above
+                                const topPos = Math.max(10, mRect.bottom - mRect.height - 6);
+                                menu.style.top = topPos + 'px';
+                            } else {
+                                // place below
+                                const topPos = Math.min(window.innerHeight - 100, mRect.top);
+                                menu.style.top = topPos + 'px';
+                            }
+                            menu.style.right = 'auto';
+                            menu.style.bottom = 'auto';
+                        }
+
+                        // Close on outside click: hide and reset any fixed styles
+                        const closeOnOutside = (ev) => {
+                            if (!menu.contains(ev.target) && !moreBtn.contains(ev.target)) {
+                                menu.classList.add('hidden');
+                                if (actions) actions.classList.remove('show');
+                                if (menu.dataset._absPos === '1') {
+                                    menu.style.position = '';
+                                    menu.style.left = '';
+                                    menu.style.top = '';
+                                    menu.style.right = '';
+                                    menu.style.bottom = '';
+                                    delete menu.dataset._absPos;
+                                }
+                                // Reset menu-open state and flush pending updates if any
+                                isOptionsMenuOpen = false;
+                                optionsMenuForMessageId = null;
+                                if (pendingMessagesCount > 0 && Array.isArray(lastFetchedMessages) && lastFetchedMessages.length) {
+                                    messages = lastFetchedMessages;
+                                    pendingMessagesCount = 0;
+                                    // Avoid interrupting edits
+                                    if (!isEditing) {
+                                        renderMessages();
+                                    }
+                                }
+                                document.removeEventListener('click', closeOnOutside, true);
+                            }
+                        };
+                        // Delay registration to avoid immediately catching this click
+                        setTimeout(() => document.addEventListener('click', closeOnOutside, true), 0);
+                    }
+                }
+                return;
+            }
+
+            const editBtn = e.target.closest('.edit-btn');
+            if (editBtn) {
                 const messageItem = e.target.closest('.message-item');
+                // Close any open menus before entering edit state
+                const openMenus = messagesList.querySelectorAll('.message-options-menu:not(.hidden)');
+                openMenus.forEach((m) => {
+                    m.classList.add('hidden');
+                    const ac = m.closest('.message-actions');
+                    if (ac) ac.classList.remove('show');
+                });
+                isOptionsMenuOpen = false;
+                optionsMenuForMessageId = null;
                 if (messageItem) {
                     const messageId = messageItem.dataset.messageId;
                     startEditingMessage(messageItem, messageId);
                 }
+                return;
             }
-            
-            // Check if delete button was clicked
-            if (e.target.closest('.delete-btn')) {
+
+            const deleteBtn = e.target.closest('.delete-btn');
+            if (deleteBtn) {
                 const messageItem = e.target.closest('.message-item');
+                // Close any open menus before confirming delete
+                const openMenus = messagesList.querySelectorAll('.message-options-menu:not(.hidden)');
+                openMenus.forEach((m) => {
+                    m.classList.add('hidden');
+                    const ac = m.closest('.message-actions');
+                    if (ac) ac.classList.remove('show');
+                });
+                isOptionsMenuOpen = false;
+                optionsMenuForMessageId = null;
                 if (messageItem) {
                     const messageId = messageItem.dataset.messageId;
                     deleteMessage(messageItem, messageId);
                 }
+                return;
             }
         });
     }
@@ -54,7 +418,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (searchInput) {
         searchInput.addEventListener('input', handleSearch);
     }
-
     if (messageForm) {
         messageForm.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -72,41 +435,139 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize character counter
         updateCharCount();
     }
-
-    if (backButton) {
-        backButton.addEventListener('click', deselectUser);
-    }
-
-    if (scrollToBottomBtn) {
-        scrollToBottomBtn.addEventListener('click', scrollToBottom);
-    }
-    
-    // Add scroll event listener to messages list to show/hide scroll-to-bottom button
-    if (messagesList) {
-        messagesList.addEventListener('scroll', () => {
-            // Show button when not at bottom
-            const isAtBottom = messagesList.scrollHeight - messagesList.scrollTop <= messagesList.clientHeight + 100;
-            if (scrollToBottomBtn) {
-                scrollToBottomBtn.classList.toggle('visible', !isAtBottom);
+    // Hook up image upload button
+    const imageBtn = document.querySelector('.input-btn[aria-label="Add image"]');
+    if (imageBtn) {
+        // Create a hidden file input once
+        imageFileInput = document.createElement('input');
+        imageFileInput.type = 'file';
+        imageFileInput.accept = 'image/*';
+        imageFileInput.multiple = true;
+        imageFileInput.style.display = 'none';
+        document.body.appendChild(imageFileInput);
+        imageBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (imageFileInput) imageFileInput.click();
+        });
+        imageFileInput.addEventListener('change', () => {
+            if (!imageFileInput || !imageFileInput.files || !imageFileInput.files.length) return;
+            const files = Array.from(imageFileInput.files);
+            imageFileInput.value = '';
+            if (files.length === 1) {
+                sendImageMessage(files[0]);
+            } else {
+                sendImagesMessage(files);
             }
         });
     }
 
-    // Add click event to user items
+    // Image lightbox for viewing sent/received pictures in-page
+    ensureImageLightbox();
+    if (messagesList) {
+        messagesList.addEventListener('click', (e) => {
+            const link = e.target.closest('.message-image-link');
+            const img = e.target.closest('.message-image');
+            if (link || img) {
+                e.preventDefault();
+                const url = (link && link.getAttribute('href')) || (img && img.getAttribute('src'));
+                if (url) openImageLightbox(url);
+            }
+        });
+    }
+    if (backButton) {
+        backButton.addEventListener('click', deselectUser);
+    }
+    // Hidden manager button removed
+    // Remove (X) button handler via delegation on the list container
+    if (userList) {
+        userList.addEventListener('click', (e) => {
+            const btn = e.target.closest('.remove-user-btn');
+            if (!btn) return;
+            e.stopPropagation();
+            const item = btn.closest('.user-item');
+            if (!item) return;
+            const id = item.getAttribute('data-user-id');
+            if (!id) return;
+            hideChatUser(id);
+        });
+    }
+    if (scrollToBottomBtn) {
+        scrollToBottomBtn.addEventListener('click', () => {
+            // Avoid disrupting menus or edits; if safe, apply pending updates
+            if (!isEditing && !isOptionsMenuOpen && Array.isArray(lastFetchedMessages) && lastFetchedMessages.length) {
+                messages = lastFetchedMessages;
+                renderMessages();
+            }
+            pendingMessagesCount = 0;
+            userAnchored = false;
+            if (!pollTimer && selectedUser) startPollingMessages();
+            scrollToBottom(true);
+            scrollToBottomBtn.classList.remove('visible');
+        });
+    }
+    
+    // Add scroll event listener to show/hide scroll-to-bottom button
+    const scrollEl = messagesContainer || messagesList;
+    if (scrollEl) {
+        scrollEl.addEventListener('scroll', () => {
+            const nearBottom = isNearBottom();
+            userAnchored = !nearBottom;
+            if (scrollToBottomBtn) {
+                scrollToBottomBtn.classList.toggle('visible', !nearBottom);
+            }
+            // If user anchored, cancel any initial stick timers
+            if (userAnchored && initStickTimers.length) {
+                initStickTimers.forEach(id => clearTimeout(id));
+                initStickTimers = [];
+            }
+        });
+        // Initialize button visibility on load
+        if (scrollToBottomBtn) {
+            scrollToBottomBtn.classList.toggle('visible', !isNearBottom());
+        }
+    }
+
+    // Add click event to user items; ignore clicks on the remove button
     userItems.forEach(item => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', (e) => {
+            if (e && e.target && e.target.closest && e.target.closest('.remove-user-btn')) return;
             const userId = parseInt(item.dataset.userId);
             selectUser(userId);
         });
     });
-
     // Handle window resize
     window.addEventListener('resize', () => {
         isMobile = window.innerWidth < 768;
     });
-
     // Initialize send button state
     updateSendButton();
+
+    // Capture-phase guard: prevent remove-button clicks from bubbling to user item
+    document.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest && e.target.closest('.remove-user-btn');
+        if (!btn) return;
+        e.stopPropagation();
+        // Perform removal here as well to ensure it always triggers
+        const item = btn.closest('.user-item');
+        const id = item ? item.getAttribute('data-user-id') : null;
+        if (id) hideChatUser(id);
+    }, true);
+
+    // Seed initial timestamps from server-rendered data attributes (if present)
+    document.querySelectorAll('.user-item').forEach((item) => {
+        const timeEl = item.querySelector('.message-time');
+        const iso = item.getAttribute('data-last-message-time');
+        if (timeEl && iso && !timeEl.dataset.timestamp) {
+            timeEl.dataset.timestamp = iso;
+            timeEl.textContent = formatRelativeTime(iso);
+        }
+    });
+
+    // Kick off periodic relative time updates
+    tickRelativeTimes();
+    if (relativeTimeTimer) clearInterval(relativeTimeTimer);
+    relativeTimeTimer = setInterval(tickRelativeTimes, 5000);
+    window.addEventListener('focus', tickRelativeTimes);
     
     // Show welcome screen by default on desktop
     if (!isMobile) {
@@ -129,7 +590,271 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+// ---- Search helpers ----
+function clearDynamicResults() {
+    const container = document.getElementById('search-results');
+    if (!container) return;
+    const nodes = container.querySelectorAll('.search-result-item, .no-users-search');
+    nodes.forEach(n => n.remove());
+}
 
+// Friendly relative time formatter
+function formatRelativeTime(input) {
+    if (!input) return '';
+    const d = (input instanceof Date) ? input : new Date(input);
+    if (isNaN(d)) return '';
+    const now = Date.now();
+    const diffSec = Math.max(0, Math.floor((now - d.getTime()) / 1000));
+    if (diffSec < 5) return 'Just now';
+    if (diffSec < 60) return `${diffSec} seconds ago`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin === 1) return '1 minute ago';
+    if (diffMin < 60) return `${diffMin} minutes ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr === 1) return '1 hour ago';
+    if (diffHr < 24) return `${diffHr} hours ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffDay === 1) return 'Yesterday';
+    return `${diffDay} days ago`;
+}
+
+function tickRelativeTimes() {
+    const items = document.querySelectorAll('.user-item');
+    items.forEach((item) => {
+        const timeEl = item.querySelector('.message-time');
+        if (!timeEl) return;
+        const ts = timeEl.dataset.timestamp || item.getAttribute('data-last-message-time');
+        if (!ts) return;
+        const text = formatRelativeTime(ts);
+        if (text && timeEl.textContent !== text) {
+            timeEl.textContent = text;
+        }
+    });
+}
+
+// Track which messages we have already marked as read to avoid duplicate calls
+const _readMarkedIds = new Set();
+
+// Mark all messages from the other user in the open conversation as read
+function markConversationRead(userId, msgs) {
+    if (!Array.isArray(msgs) || !userId) return;
+    const idsToMark = [];
+    for (const m of msgs) {
+        const mid = m.id || m.message_id;
+        if (!m || !mid) continue;
+        if (m.is_own) continue; // only mark incoming messages
+        if (m.is_deleted) continue;
+        if (_readMarkedIds.has(String(mid))) continue;
+        idsToMark.push(String(mid));
+    }
+    if (!idsToMark.length) return;
+    idsToMark.forEach((mid) => {
+        _readMarkedIds.add(mid);
+        fetch(`/user/mark-read/${mid}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+            }
+        }).catch(() => {});
+    });
+}
+
+function showNoUsers(container) {
+    if (!container) return;
+    // Remove any previous message first
+    const prev = container.querySelector('.no-users-search');
+    if (prev) prev.remove();
+    const wrap = document.createElement('div');
+    wrap.className = 'no-users-search';
+    wrap.innerHTML = `
+        <div class="no-users-icon"><i class="fas fa-user-slash"></i></div>
+        <div class="no-users-text"><p>No users found</p></div>
+    `;
+    container.appendChild(wrap);
+}
+
+function hideNoUsers() {
+    const container = document.getElementById('search-results');
+    if (!container) return;
+    const el = container.querySelector('.no-users-search');
+    if (el) el.remove();
+}
+
+function createUserItem(user) {
+    const el = document.createElement('div');
+    el.className = 'user-item';
+    if (user && typeof user.id !== 'undefined') el.dataset.userId = String(user.id);
+    if (user && user.username) el.dataset.username = user.username;
+    if (user && (user.full_name || user.fullname)) el.dataset.fullname = user.full_name || user.fullname;
+    if (user && user.email) el.dataset.email = user.email;
+
+    // Avatar
+    const avatar = document.createElement('div');
+    avatar.className = 'user-avatar';
+    let avatarImg = null;
+    // Accept either `profile_picture_url` or `profile_picture` (string or object with .url)
+    let imgUrl = null;
+    if (user) {
+        if (typeof user.profile_picture_url === 'string' && user.profile_picture_url.trim() !== '') {
+            imgUrl = user.profile_picture_url;
+        } else if (typeof user.profile_picture === 'string' && user.profile_picture.trim() !== '') {
+            imgUrl = user.profile_picture;
+        } else if (user.profile_picture && typeof user.profile_picture.url === 'string') {
+            imgUrl = user.profile_picture.url;
+        }
+    }
+    if (imgUrl) {
+        avatarImg = document.createElement('img');
+        avatarImg.className = 'avatar-image';
+        // Add a cache-busting timestamp to ensure latest avatar appears
+        try {
+            const withTs = imgUrl + (imgUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+            avatarImg.src = withTs;
+        } catch (e) {
+            avatarImg.src = imgUrl;
+        }
+        avatarImg.alt = user.full_name || user.fullname || user.username || 'User';
+        avatarImg.onerror = function() { this.onerror = null; this.src = '/static/accounts/images/profile.png'; };
+        avatar.appendChild(avatarImg);
+    } else {
+        const initials = document.createElement('span');
+        initials.className = 'avatar-text';
+        const name = (user && (user.full_name || user.fullname || user.username)) || 'U';
+        const letters = name.toString().trim().split(/\s+/).map(s => s[0]).slice(0,2).join('').toUpperCase();
+        initials.textContent = letters || 'U';
+        avatar.appendChild(initials);
+    }
+
+    // Info
+    const info = document.createElement('div');
+    info.className = 'user-info';
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'user-name';
+    const rawFull = (user && (user.full_name || user.fullname)) ? String(user.full_name || user.fullname).trim() : '';
+    const displayName = rawFull && rawFull.toLowerCase() !== 'none' ? rawFull : ((user && user.username) || 'User');
+    nameDiv.textContent = displayName;
+    const lastMsg = document.createElement('div');
+    lastMsg.className = 'last-message';
+    lastMsg.textContent = '';
+    info.appendChild(nameDiv);
+    info.appendChild(lastMsg);
+
+    // Time
+    const time = document.createElement('div');
+    time.className = 'message-time';
+    time.textContent = '';
+
+    el.appendChild(avatar);
+    el.appendChild(info);
+    el.appendChild(time);
+
+    // Mark as dynamic search result
+    el.classList.add('search-result-item');
+
+    // Click to select user
+    el.addEventListener('click', () => {
+        const id = user && user.id;
+        if (typeof id !== 'undefined') {
+            selectUser(parseInt(id));
+        }
+    });
+
+    return el;
+}
+
+// Create a persistent user-list item (not a search result)
+function createListUserItem(user) {
+    const el = document.createElement('div');
+    el.className = 'user-item';
+    const idVal = (user && (user.id || user.user_id))
+        ? String(user.id || user.user_id)
+        : '';
+    if (idVal) el.dataset.userId = idVal;
+    if (user && user.username) el.dataset.username = user.username;
+    if (user && (user.full_name || user.fullname)) el.dataset.fullname = user.full_name || user.fullname;
+    if (user && user.email) el.dataset.email = user.email;
+
+    // Avatar
+    const avatar = document.createElement('div');
+    avatar.className = 'user-avatar';
+    let avatarImg = null;
+    let imgUrl = null;
+    if (user) {
+        if (typeof user.profile_picture_url === 'string' && user.profile_picture_url.trim() !== '') {
+            imgUrl = user.profile_picture_url;
+        } else if (typeof user.profile_picture === 'string' && user.profile_picture.trim() !== '') {
+            imgUrl = user.profile_picture;
+        } else if (user.profile_picture && typeof user.profile_picture.url === 'string') {
+            imgUrl = user.profile_picture.url;
+        }
+    }
+    if (imgUrl) {
+        avatarImg = document.createElement('img');
+        avatarImg.className = 'avatar-image';
+        try {
+            const withTs = imgUrl + (imgUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+            avatarImg.src = withTs;
+        } catch (e) {
+            avatarImg.src = imgUrl;
+        }
+        avatarImg.alt = (user && (user.full_name || user.fullname || user.username)) || 'User';
+        avatarImg.onerror = function() { this.onerror = null; this.src = '/static/accounts/images/profile.png'; };
+        avatar.appendChild(avatarImg);
+    } else {
+        const initials = document.createElement('span');
+        initials.className = 'avatar-text';
+        const name = (user && (user.full_name || user.fullname || user.username)) || 'U';
+        const letters = name.toString().trim().split(/\s+/).map(s => s[0]).slice(0,2).join('').toUpperCase();
+        initials.textContent = letters || 'U';
+        avatar.appendChild(initials);
+    }
+
+    // Info
+    const info = document.createElement('div');
+    info.className = 'user-info';
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'user-name';
+    const rawFull = (user && (user.full_name || user.fullname)) ? String(user.full_name || user.fullname).trim() : '';
+    const displayName = rawFull && rawFull.toLowerCase() !== 'none' ? rawFull : ((user && user.username) || 'User');
+    nameDiv.textContent = displayName;
+    const lastMsg = document.createElement('div');
+    lastMsg.className = 'last-message';
+    lastMsg.textContent = '';
+    info.appendChild(nameDiv);
+    info.appendChild(lastMsg);
+
+    // Time
+    const time = document.createElement('div');
+    time.className = 'message-time';
+    if (user && user.last_message_time) {
+        time.dataset.timestamp = user.last_message_time;
+        time.textContent = formatRelativeTime(user.last_message_time);
+    }
+
+    el.appendChild(avatar);
+    el.appendChild(info);
+    el.appendChild(time);
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-user-btn';
+    removeBtn.title = 'Remove';
+    removeBtn.setAttribute('aria-label', 'Remove conversation');
+    removeBtn.textContent = 'Ã—';
+    removeBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const uid = el.dataset.userId;
+        if (uid) hideChatUser(uid);
+    });
+    el.appendChild(removeBtn);
+
+    // Click to select user
+    el.addEventListener('click', (e) => {
+        if (e && e.target && e.target.closest && e.target.closest('.remove-user-btn')) return;
+        const id = el.dataset.userId ? parseInt(el.dataset.userId) : null;
+        if (id) selectUser(id);
+    });
+
+    return el;
+}
 // Handle search
 function handleSearch() {
     const searchTerm = searchInput.value.toLowerCase();
@@ -138,19 +863,14 @@ function handleSearch() {
     if (searchTerm.length < 2) {
         // If search term is too short, restore original user list
         // First, hide any dynamically created search results
-        const dynamicResults = document.querySelectorAll('.search-result-item');
-        dynamicResults.forEach(item => item.remove());
-        
+        clearDynamicResults();
+
         // Show original user items
-        userItems.forEach(item => {
+        Array.from(document.querySelectorAll('#search-results .user-item:not(.search-result-item)')).forEach(item => {
             item.style.display = 'flex';
         });
-        
-        // Hide no results message
-        const noResultsElement = document.querySelector('.no-users');
-        if (noResultsElement) {
-            noResultsElement.style.display = 'none';
-        }
+        // Hide no-results message
+        hideNoUsers();
         return;
     }
     
@@ -158,41 +878,22 @@ function handleSearch() {
     fetch(`/user/search-users/?term=${encodeURIComponent(searchTerm)}`)
         .then(response => response.json())
         .then(data => {
-            if (data.status === 'success' && data.users) {
-                // First, hide all original user items
-                userItems.forEach(item => {
+            if (Array.isArray(data.users)) {
+                // Hide original user items (all persistent items)
+                Array.from(document.querySelectorAll('#search-results .user-item:not(.search-result-item)')).forEach(item => {
                     item.style.display = 'none';
                 });
-                
-                // Remove any previous search result items
-                const dynamicResults = document.querySelectorAll('.search-result-item');
-                dynamicResults.forEach(item => item.remove());
-                
-                // Add users to search results
+                // Clear previous dynamic items and no-results
+                clearDynamicResults();
                 if (data.users.length > 0) {
                     data.users.forEach(user => {
                         const userItem = createUserItem(user);
-                        userItem.classList.add('search-result-item'); // Mark as search result
+                        userItem.classList.add('search-result-item');
                         searchResults.appendChild(userItem);
                     });
-                    
-                    // Hide no results message
-                    const noUsersElement = document.querySelector('.no-users');
-                    if (noUsersElement) {
-                        noUsersElement.style.display = 'none';
-                    }
+                    hideNoUsers();
                 } else {
-                    // Show no results message
-                    let noUsersElement = document.querySelector('.no-users');
-                    if (noUsersElement) {
-                        noUsersElement.style.display = 'block';
-                        noUsersElement.textContent = 'No users found matching your search';
-                    } else {
-                        noUsersElement = document.createElement('div');
-                        noUsersElement.className = 'no-users';
-                        noUsersElement.textContent = 'No users found matching your search';
-                        searchResults.appendChild(noUsersElement);
-                    }
+                    showNoUsers(searchResults);
                 }
             }
         })
@@ -201,349 +902,451 @@ function handleSearch() {
         });
 }
 
-// Create user item element
-function createUserItem(user) {
-    const userItem = document.createElement('div');
-    userItem.className = 'user-item';
-    userItem.dataset.userId = user.id;
-    userItem.dataset.username = user.username;
-    userItem.dataset.fullname = user.full_name || '';
-    userItem.dataset.email = user.email || '';
-    
-    // Create avatar
-    const userAvatar = document.createElement('div');
-    userAvatar.className = 'user-avatar';
-    
-    // Check if user has a profile picture
-    if (user.profile_picture_url) {
-        const avatarImage = document.createElement('img');
-        avatarImage.className = 'avatar-image';
-        avatarImage.src = user.profile_picture_url;
-        avatarImage.alt = user.username;
-        userAvatar.appendChild(avatarImage);
-        
-        // Hide the avatar text when image is displayed
-        userAvatar.classList.add('has-image');
-    } else {
-        const avatarText = document.createElement('span');
-        avatarText.className = 'avatar-text';
-        const initials = user.full_name ? 
-            user.full_name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : 
-            user.username.substring(0, 2).toUpperCase();
-        avatarText.textContent = initials;
-        userAvatar.appendChild(avatarText);
-    }
-    
-    const statusIndicator = document.createElement('span');
-    statusIndicator.className = 'status-indicator';
-    
-    userAvatar.appendChild(statusIndicator);
-    
-    // Create user info
-    const userInfo = document.createElement('div');
-    userInfo.className = 'user-info';
-    
-    const userName = document.createElement('div');
-    userName.className = 'user-name';
-    userName.textContent = user.full_name || user.username;
-    
-    const lastMessage = document.createElement('div');
-    lastMessage.className = 'last-message';
-    lastMessage.textContent = 'No messages yet';
-    
-    userInfo.appendChild(userName);
-    userInfo.appendChild(lastMessage);
-    
-    // Create message time
-    const messageTime = document.createElement('div');
-    messageTime.className = 'message-time';
-    
-    // Assemble user item
-    userItem.appendChild(userAvatar);
-    userItem.appendChild(userInfo);
-    userItem.appendChild(messageTime);
-    
-    // Add click event
-    userItem.addEventListener('click', () => {
-        selectUser(user.id);
+// Select a user and open chat
+function selectUser(userId) {
+    selectedUser = userId;
+    // Reset minimal meta for selected user
+    selectedUserMeta = { id: userId, full_name: '', username: '', profile_picture_url: '' };
+    // Load last sent marker for this conversation so 'Sent' appears after reload
+    const lastSaved = getLastSentFor(userId);
+    lastSentMessageId = lastSaved ? String(lastSaved) : null;
+
+    // Highlight active in the user list
+    document.querySelectorAll('.user-item').forEach(item => {
+        const id = parseInt(item.dataset.userId);
+        item.classList.toggle('active', id === userId);
     });
-    
-    return userItem;
+    // Clear unread highlight for this user upon opening the conversation
+    const selectedItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
+    if (selectedItem) selectedItem.classList.remove('unread');
+
+    // Update header name and avatar
+    let selectedUserItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
+    if (!selectedUserItem) {
+        // Fallback: search result entry
+        selectedUserItem = document.querySelector(`#search-results .search-result-item[data-user-id="${userId}"]`);
+    }
+    if (selectedUserItem) {
+        const userName = (selectedUserItem.querySelector('.user-name') || {}).textContent || '';
+        const userAvatarImg = selectedUserItem.querySelector('.avatar-image');
+        const userInitials = selectedUserItem.querySelector('.avatar-text');
+        const userNameHeader = document.querySelector('#selected-user-name');
+        if (userNameHeader) userNameHeader.textContent = userName;
+        selectedUserMeta.full_name = userName;
+
+        const userAvatarHeader = document.querySelector('#selected-user-avatar');
+        const userAvatarHeaderImg = document.querySelector('#selected-user-avatar-img');
+        if (userAvatarImg && userAvatarImg.getAttribute('src')) {
+            if (userAvatarHeaderImg) {
+                userAvatarHeaderImg.src = userAvatarImg.src;
+                userAvatarHeaderImg.style.display = 'block';
+            }
+            if (userAvatarHeader) userAvatarHeader.style.display = 'none';
+            selectedUserMeta.profile_picture_url = userAvatarImg.src;
+        } else {
+            if (userAvatarHeaderImg) userAvatarHeaderImg.style.display = 'none';
+            if (userAvatarHeader && userInitials) {
+                userAvatarHeader.textContent = userInitials.textContent;
+                userAvatarHeader.style.display = 'block';
+            }
+        }
+    } else {
+        // As a last resort, read the header info if present
+        const userNameHeader = document.querySelector('#selected-user-name');
+        if (userNameHeader) selectedUserMeta.full_name = (userNameHeader.textContent || '').trim();
+        const userAvatarHeaderImg = document.querySelector('#selected-user-avatar-img');
+        if (userAvatarHeaderImg && userAvatarHeaderImg.style.display !== 'none' && userAvatarHeaderImg.src) {
+            selectedUserMeta.profile_picture_url = userAvatarHeaderImg.src;
+        }
+    }
+
+    // Show chat, hide welcome; on mobile hide user list
+    if (welcomeScreen) welcomeScreen.classList.add('hidden');
+    if (chatMessages) chatMessages.classList.remove('hidden');
+    if (isMobile && userList) userList.classList.add('hidden');
+
+    // Stop previous polling, fetch and start polling
+    stopPollingMessages();
+    fetchMessages(userId);
+    startPollingMessages();
+
+    // Focus and gently stick to bottom unless user scrolls
+    if (messageInput) messageInput.focus();
+    [300, 500, 1000, 1500, 2000].forEach(delay => {
+        const id = setTimeout(() => {
+            if (!userAnchored && isNearBottom()) scrollToBottom(false);
+        }, delay);
+        initStickTimers.push(id);
+    });
 }
 
-// Scroll to bottom of messages
-function scrollToBottom() {
-    if (messagesList) {
-        // Force layout recalculation to get accurate scrollHeight
-        const scrollHeight = messagesList.scrollHeight;
-        messagesList.scrollTop = scrollHeight;
-        
-        // Force scroll to bottom with multiple attempts
-        // Try immediately
-        requestAnimationFrame(() => {
-            messagesList.scrollTop = messagesList.scrollHeight;
-        });
-        
-        // Try with increasing delays to ensure it works
-        setTimeout(() => {
-            messagesList.scrollTop = messagesList.scrollHeight;
-        }, 50);
-        
-        setTimeout(() => {
-            messagesList.scrollTop = messagesList.scrollHeight;
-        }, 100);
-        
-        // Add more aggressive attempts with longer delays
-        setTimeout(() => {
-            messagesList.scrollTop = messagesList.scrollHeight;
-        }, 200);
-        
-        setTimeout(() => {
-            messagesList.scrollTop = messagesList.scrollHeight;
-        }, 300);
+// Deselect user and go back to list
+function deselectUser() {
+    selectedUser = null;
+    document.querySelectorAll('.user-item').forEach(item => item.classList.remove('active'));
+    if (welcomeScreen) welcomeScreen.classList.remove('hidden');
+    if (chatMessages) chatMessages.classList.add('hidden');
+    stopPollingMessages();
+    if (isMobile && userList) userList.classList.remove('hidden');
+}
+
+// --- Recent chats polling: update unread counts and previews ---
+function startPollingUserList(intervalMs = 5000) {
+    if (userListPollTimer) {
+        clearInterval(userListPollTimer);
+        userListPollTimer = null;
+    }
+    userListPollTimer = setInterval(refreshUserList, intervalMs);
+    // Initial tick
+    setTimeout(refreshUserList, 300);
+}
+
+function stopPollingUserList() {
+    if (userListPollTimer) {
+        clearInterval(userListPollTimer);
+        userListPollTimer = null;
     }
 }
 
-// Update last message in user list
-function updateLastMessage(userId, message) {
-    const userItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
-    if (userItem) {
-        const lastMessageElement = userItem.querySelector('.last-message');
-        if (lastMessageElement) {
-            lastMessageElement.textContent = message;
-        }
-        
-        const lastMessageTimeElement = userItem.querySelector('.message-time');
-        if (lastMessageTimeElement) {
-            lastMessageTimeElement.textContent = 'Just now';
-        }
-        
-        // Move user to top of list
-        const parent = userItem.parentNode;
-        if (parent) {
-            parent.prepend(userItem);
-        }
-    }
+function refreshUserList(force = false) {
+    // Skip if search overlay is active unless forced
+    if (!force && searchInput && searchInput.value && searchInput.value.length >= 2) return;
+    fetch('/user/communication/recent-chats/', {
+        method: 'GET',
+        headers: { 'X-CSRFToken': csrfToken }
+    })
+    .then(r => r.json())
+    .then(data => {
+        const list = (data && (data.users || data)) || [];
+        if (!Array.isArray(list)) return;
+        applyRecentChats(list);
+    })
+    .catch(() => {});
 }
 
-// Update send button state
-function updateSendButton() {
-    if (sendButton) {
-        sendButton.disabled = !messageInput.value.trim();
-        sendButton.classList.toggle('disabled', !messageInput.value.trim());
-    }
+function applyRecentChats(chats) {
+    const container = document.getElementById('search-results');
+    if (!container) return;
+    const bad = ['none','null','undefined','n/a','na'];
+    const normalize = (s) => (s || '').toString().trim();
+    const pickToken = (s) => {
+        const toks = normalize(s).split(/\s+/).filter(Boolean);
+        for (const t of toks) { if (!bad.includes(t.toLowerCase())) return t; }
+        if (toks.length) {
+            const last = toks[toks.length - 1];
+            if (!bad.includes(last.toLowerCase())) return last;
+        }
+        return '';
+    };
+    const truncate = (s, n = 30) => {
+        const str = (s || '').toString();
+        return str.length > n ? (str.slice(0, n - 1) + 'â€¦') : str;
+    };
+
+    let totalUnread = 0;
+    chats.forEach(chat => {
+        const id = chat.id || chat.user_id;
+        const unread = parseInt(chat.unread_count || 0, 10) || 0;
+        totalUnread += unread;
+        if (id && hiddenChatUserIds.has(String(id))) {
+            return; // keep hidden until user sends a new message (we unhide on send)
+        }
+        let el = container.querySelector(`.user-item[data-user-id="${id}"]`);
+        if (!el) {
+            // Create a new persistent list item for this chat
+            el = createListUserItem(chat);
+            if (chat && chat.last_message_time) {
+                el.dataset.lastMessageTime = chat.last_message_time;
+            }
+        }
+
+        el.classList.toggle('unread', unread > 0);
+
+        const lastEl = el.querySelector('.last-message');
+        if (lastEl) {
+            if (unread >= 2) {
+                const label = unread > 9 ? '9+ new message' : `${unread} new message`;
+                lastEl.textContent = label;
+            } else {
+                const isOwn = !!chat.last_message_is_own;
+                let prefix = '';
+                if (isOwn) {
+                    prefix = 'You: ';
+                } else {
+                    const name = pickToken(chat.first_name) || pickToken(chat.last_name) || pickToken(chat.full_name) || pickToken(chat.username) || '';
+                    prefix = name ? `${name}: ` : '';
+                }
+                lastEl.textContent = `${prefix}${truncate(chat.last_message)}`;
+            }
+        }
+        // Update time with friendly label and persist timestamp
+        const timeEl = el.querySelector('.message-time');
+        if (timeEl && chat.last_message_time) {
+            timeEl.dataset.timestamp = chat.last_message_time;
+            timeEl.textContent = formatRelativeTime(chat.last_message_time);
+            el.dataset.lastMessageTime = chat.last_message_time;
+        }
+        // Reorder by recency: append in server-provided order
+        container.appendChild(el);
+    });
+    // Update global communication unread badge with animation cues
+    try {
+        const badge = document.getElementById('comm-unread-badge');
+        if (badge) {
+            const prev = parseInt(badge.getAttribute('data-count') || '0', 10) || 0;
+            if (totalUnread > 0) {
+                const label = totalUnread > 99 ? '99+' : String(totalUnread);
+                const wasHidden = (badge.style.display === 'none' || badge.style.display === '');
+                badge.textContent = label;
+                badge.setAttribute('data-count', String(totalUnread));
+                badge.style.display = 'inline-flex';
+                // Animate on appear and on increase
+                if (wasHidden) {
+                    badge.classList.remove('bump');
+                    void badge.offsetWidth; // reflow
+                    badge.classList.add('anim-in');
+                    setTimeout(() => badge.classList.remove('anim-in'), 220);
+                } else if (totalUnread > prev) {
+                    badge.classList.remove('anim-in', 'bump');
+                    void badge.offsetWidth;
+                    badge.classList.add('bump');
+                    setTimeout(() => badge.classList.remove('bump'), 260);
+                }
+            } else {
+                badge.style.display = 'none';
+                badge.removeAttribute('data-count');
+            }
+        }
+    } catch (e) {}
 }
 
-// Update character count
-function updateCharCount() {
-    const charCount = document.getElementById('char-count');
-    if (charCount && messageInput) {
-        const currentLength = messageInput.value.length;
-        const maxLength = messageInput.getAttribute('maxlength');
-        const remainingChars = maxLength - currentLength;
-        charCount.textContent = remainingChars;
-        
-        // Change color when approaching the limit
-        charCount.classList.remove('warning', 'danger');
-        if (remainingChars <= 100) {
-            charCount.classList.add('warning');
-        }
-        if (remainingChars <= 50) {
-            charCount.classList.add('danger');
-        }
-    }
-}
+// Fetch messages from server for a given user
+function fetchMessages(userId, options = {}) {
+    const { silent = false } = options;
+    if (!userId) return;
 
-// Format time
-function formatTime(date) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (!silent && messagesList) {
+        messagesList.innerHTML = '<div class="loading-messages">Loading messages...</div>';
+    }
+
+    fetch(`/user/communication/messages/?user_id=${userId}`, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!Array.isArray(data)) return;
+        lastFetchedMessages = data;
+        // Ensure 'Sent' status persists: prefer saved marker; otherwise infer from latest own message
+        const savedSent = getLastSentFor(userId);
+        if (savedSent) {
+            lastSentMessageId = String(savedSent);
+        } else {
+            try {
+        const own = data.filter(m => m && m.is_own && !m.is_deleted);
+                if (own && own.length) {
+                    const latestOwn = own.reduce((acc, m) => {
+                        return (!acc || new Date(m.sent_at) > new Date(acc.sent_at)) ? m : acc;
+                    }, null);
+                    if (latestOwn && (latestOwn.id || latestOwn.message_id)) {
+                        lastSentMessageId = String(latestOwn.id || latestOwn.message_id);
+                    }
+                }
+            } catch (e) {}
+        }
+        const near = isNearBottom();
+        if (scrollToBottomBtn) scrollToBottomBtn.classList.toggle('visible', !near);
+        // Do not disrupt active edits or open menus; defer update
+        if (isEditing || isOptionsMenuOpen) {
+            pendingMessagesCount = Math.max(pendingMessagesCount, 1);
+            return;
+        }
+        // If user has scrolled up, defer update until they opt in
+        if (userAnchored) {
+            pendingMessagesCount = Math.max(pendingMessagesCount, 1);
+            return;
+        }
+        messages = data;
+        renderMessages();
+        // If this conversation is open, mark incoming messages as read and normalize user list preview
+        if (String(selectedUser) === String(userId)) {
+            markConversationRead(userId, data);
+            const latest = [...data].sort((a,b) => new Date(b.sent_at) - new Date(a.sent_at))[0];
+            if (latest) {
+                let name = null;
+                if (!latest.is_own) {
+                    let sname = (latest.sender_name || '').toString().trim();
+                    const bad = ['none','null','undefined','n/a','na'];
+                    if (!sname || bad.includes(sname.toLowerCase())) {
+                        sname = '';
+                    }
+                    if (sname) {
+                        const tokens = sname.split(/\s+/).filter(Boolean);
+                        // Prefer first name; if invalid or short, try last name
+                        name = tokens.length ? tokens[0] : null;
+                        if (!name || bad.includes(name.toLowerCase())) {
+                            name = tokens.length ? tokens[tokens.length - 1] : null;
+                        }
+                    }
+                }
+                updateLastMessage(userId, latest.message || latest.content || '', !!latest.is_own, false, false, name);
+                // Also refresh the time using latest.sent_at
+                const selectedItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
+                if (selectedItem) {
+                    const timeEl = selectedItem.querySelector('.message-time');
+                    const iso = latest.sent_at;
+                    if (timeEl && iso) {
+                        timeEl.dataset.timestamp = iso;
+                        selectedItem.dataset.lastMessageTime = iso;
+                        timeEl.textContent = formatRelativeTime(iso);
+                    }
+                }
+            }
+            // Ensure unread styling is removed for this user
+            const selectedItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
+            if (selectedItem) selectedItem.classList.remove('unread');
+        }
+    })
+    .catch(error => {
+        console.error('Error fetching messages:', error);
+        if (!silent && messagesList) {
+            messagesList.innerHTML = `
+                <div class="error-container">
+                    <div class="error-icon"><i class="fas fa-exclamation-circle"></i></div>
+                    <div class="error-text">Failed to load messages</div>
+                </div>
+            `;
+        }
+    });
 }
 
 // Start editing a message
 function startEditingMessage(messageItem, messageId) {
-    // Don't allow editing temporary messages
-    if (messageId.toString().startsWith('temp-')) {
-        return;
-    }
-    
-    // Get the message content
-    const messageContent = messageItem.querySelector('.message-content');
-    const messageParagraph = messageContent.querySelector('p');
-    const originalText = messageParagraph.textContent;
-    
-    // Create edit form
-    const editContainer = document.createElement('div');
-    editContainer.className = 'edit-message-container';
-    editContainer.innerHTML = `
-        <textarea class="edit-message-input">${originalText}</textarea>
+    if (!messageItem || !messageId) return;
+    // Do not allow editing temporary messages
+    if (String(messageId).startsWith('temp-')) return;
+
+    const content = messageItem.querySelector('.message-content');
+    if (!content) return;
+    const p = content.querySelector('p');
+    const originalText = p ? p.textContent : '';
+
+    // Mark editing state
+    isEditing = true;
+    editingMessageId = messageId;
+    // Add editing class to tweak visuals and hide overlays
+    messageItem.classList.add('editing');
+    const actionsBar = messageItem.querySelector('.message-actions');
+    if (actionsBar) actionsBar.style.display = 'none';
+    // Hide any existing edited indicator while editing
+    const existingBadge = content.querySelector('.edited-indicator');
+    if (existingBadge) existingBadge.style.display = 'none';
+    // Lock current visual width so bubble doesn't shrink while editing
+    try {
+        const rect = content.getBoundingClientRect();
+        if (rect && rect.width) {
+            content.style.minWidth = Math.ceil(rect.width) + 'px';
+        }
+    } catch (e) {}
+
+
+    // Build edit UI
+    const editWrap = document.createElement('div');
+    editWrap.className = 'edit-message-container';
+    editWrap.innerHTML = `
+        <textarea class="edit-message-input" rows="3">${originalText}</textarea>
         <div class="edit-message-actions">
             <button class="edit-message-btn save-edit-btn">Save</button>
             <button class="edit-message-btn cancel-edit-btn">Cancel</button>
         </div>
     `;
-    
-    // Replace message content with edit form
-    messageContent.innerHTML = '';
-    messageContent.appendChild(editContainer);
-    
-    // Focus on textarea
-    const textarea = editContainer.querySelector('.edit-message-input');
-    textarea.focus();
-    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-    
-    // Add event listeners for save and cancel buttons
-    const saveBtn = editContainer.querySelector('.save-edit-btn');
-    const cancelBtn = editContainer.querySelector('.cancel-edit-btn');
-    
-    saveBtn.addEventListener('click', () => {
-        saveMessageEdit(messageItem, messageId, textarea.value.trim(), originalText);
+    content.innerHTML = '';
+    content.appendChild(editWrap);
+
+    const textarea = editWrap.querySelector('.edit-message-input');
+    const saveBtn = editWrap.querySelector('.save-edit-btn');
+    const cancelBtn = editWrap.querySelector('.cancel-edit-btn');
+    if (textarea) {
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                saveMessageEdit(messageItem, messageId, textarea.value.trim(), originalText);
+            } else if (e.key === 'Escape') {
+                cancelMessageEdit(messageItem, originalText);
+            }
+        });
+        // Auto-grow textarea to fit content
+        const autoResize = () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        };
+        textarea.addEventListener('input', autoResize);
+        autoResize();
+    }
+    if (saveBtn) saveBtn.addEventListener('click', () => {
+        saveMessageEdit(messageItem, messageId, textarea ? textarea.value.trim() : '', originalText);
     });
-    
-    cancelBtn.addEventListener('click', () => {
+    if (cancelBtn) cancelBtn.addEventListener('click', () => {
         cancelMessageEdit(messageItem, originalText);
-    });
-    
-    // Add event listener for Enter key
-    textarea.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            saveMessageEdit(messageItem, messageId, textarea.value.trim(), originalText);
-        }
-        if (e.key === 'Escape') {
-            cancelMessageEdit(messageItem, originalText);
-        }
     });
 }
 
-// Save message edit
+// Save edited message
 function saveMessageEdit(messageItem, messageId, newText, originalText) {
-    // Don't save if text is empty or unchanged
     if (!newText || newText === originalText) {
         cancelMessageEdit(messageItem, originalText);
         return;
     }
-    
-    // Send edit to server
     fetch('/user/communication/edit-message/', {
         method: 'POST',
         headers: {
             'X-CSRFToken': csrfToken,
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-            message_id: messageId,
-            new_content: newText
-        })
+        body: JSON.stringify({ message_id: messageId, new_content: newText })
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
-        if (data.success) {
-            // Update message in DOM
-            const messageContent = messageItem.querySelector('.message-content');
-            
-            // Add edited indicator outside the message content
-            if (!messageItem.querySelector('.edited-indicator')) {
-                const editedIndicator = document.createElement('div');
-                editedIndicator.className = 'edited-indicator';
-                editedIndicator.textContent = 'edited';
-                editedIndicator.style.position = 'absolute';
-                editedIndicator.style.top = '-15px';
-                editedIndicator.style.right = '5px';
-                editedIndicator.style.zIndex = '10';
-                messageItem.style.position = 'relative';
-                messageItem.appendChild(editedIndicator);
+        if (data && data.success) {
+            const content = messageItem.querySelector('.message-content');
+            if (content) {
+                content.innerHTML = `<p>${newText}</p>`;
+                // Unfreeze bubble width back to auto sizing
+                content.style.minWidth = '';
+                // Ensure edited indicator is present in bubble and spacing class on item
+                const bubble = content;
+                if (!bubble.querySelector('.edited-indicator')) {
+                    const badge = document.createElement('div');
+                    badge.className = 'edited-indicator';
+                    badge.textContent = 'edited';
+                    bubble.appendChild(badge);
+                }
+                messageItem.classList.add('has-edited');
             }
-            
-            messageContent.innerHTML = `
-                <p>${newText}</p>
-            `;
-            
-            // Add event listeners for the new buttons
-            const moreOptionsBtn = messageContent.querySelector('.more-options-btn');
-            const optionsMenu = messageContent.querySelector('.message-options-menu');
-            const editBtn = messageContent.querySelector('.edit-btn');
-            const deleteBtn = messageContent.querySelector('.delete-btn');
-            
-            if (moreOptionsBtn && optionsMenu) {
-                moreOptionsBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    optionsMenu.classList.toggle('hidden');
-                });
+            // Update in memory list if present
+            const msg = messages.find(m => m.id === messageId);
+            if (msg) {
+                msg.message = newText;
+                msg.is_edited = true;
             }
-            
-            if (editBtn) {
-                editBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    optionsMenu.classList.add('hidden');
-                    startEditingMessage(messageItem, messageId);
-                });
-            }
-            
-            if (deleteBtn) {
-                deleteBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    optionsMenu.classList.add('hidden');
-                    deleteMessage(messageItem, messageId);
-                });
-            }
-            
-            // Show toast notification
-            const toast = document.createElement('div');
-            toast.className = 'toast-notification';
-            toast.textContent = 'Message edited successfully!';
-            
-            document.body.appendChild(toast);
-            
-            // Show the toast with animation
-            setTimeout(() => {
-                toast.classList.add('show');
-            }, 10);
-            
-            // Auto-close after 3 seconds
-            setTimeout(() => {
-                toast.classList.remove('show');
-                setTimeout(() => {
-                    if (document.body.contains(toast)) {
-                        document.body.removeChild(toast);
-                    }
-                }, 300); // Wait for fade out animation
-            }, 3000);
-            
-            // Update message in memory
-            const message = messages.find(m => m.id === messageId);
-            if (message) {
-                message.message = newText;
-                message.is_edited = true;
-            }
+            isEditing = false;
+            editingMessageId = null;
+            // Restore actions and visuals
+            messageItem.classList.remove('editing');
+            const actionsBar = messageItem.querySelector('.message-actions');
+            if (actionsBar) actionsBar.style.display = '';
         } else {
-            // Show error and revert
-            // Show error toast notification
-                const toast = document.createElement('div');
-                toast.className = 'toast-notification error';
-                toast.textContent = 'Failed to edit message: ' + (data.error || 'Unknown error');
-                
-                document.body.appendChild(toast);
-                
-                // Show the toast with animation
-                setTimeout(() => {
-                    toast.classList.add('show');
-                }, 10);
-                
-                // Auto-close after 3 seconds
-                setTimeout(() => {
-                    toast.classList.remove('show');
-                    setTimeout(() => {
-                        if (document.body.contains(toast)) {
-                            document.body.removeChild(toast);
-                        }
-                    }, 300); // Wait for fade out animation
-                }, 3000);
+            console.error('Edit failed:', data && data.error);
             cancelMessageEdit(messageItem, originalText);
         }
     })
-    .catch(error => {
-        console.error('Error editing message:', error);
-        alert('Failed to edit message. Please try again.');
+    .catch(err => {
+        console.error('Error editing message:', err);
         cancelMessageEdit(messageItem, originalText);
     });
 }
@@ -557,9 +1360,22 @@ function cancelMessageEdit(messageItem, originalText) {
          ${message && message.is_edited ? '<div class="edited-indicator">edited</div>' : ''}
         <p>${originalText}</p>
     `;
+    // Unfreeze bubble width back to auto sizing
+    if (messageContent && messageContent.style) {
+        messageContent.style.minWidth = '';
+    }
     
-    // No need to add event listeners as we removed the action buttons
-}
+    // Leave editing state
+    isEditing = false;
+    editingMessageId = null;
+    // Restore actions and visuals
+    messageItem.classList.remove('editing');
+    const actionsBar = messageItem.querySelector('.message-actions');
+    if (actionsBar) actionsBar.style.display = '';
+    // Re-show edited indicator if present
+    const badge = messageContent.querySelector('.edited-indicator');
+    if (badge) badge.style.display = '';
+    }
 
 // Delete message
 function deleteMessage(messageItem, messageId) {
@@ -612,191 +1428,64 @@ function deleteMessage(messageItem, messageId) {
         })
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                // Update message in DOM
-                const messageContent = messageItem.querySelector('.message-content');
-                
-                // Show toast notification
-                const toast = document.createElement('div');
-                toast.className = 'toast-notification';
-                toast.textContent = 'Message deleted successfully!';
-                
-                document.body.appendChild(toast);
-                
-                // Show the toast with animation
-                setTimeout(() => {
-                    toast.classList.add('show');
-                }, 10);
-                
-                // Auto-close after 3 seconds
-                setTimeout(() => {
-                    toast.classList.remove('show');
-                    setTimeout(() => {
-                        if (document.body.contains(toast)) {
-                            document.body.removeChild(toast);
-                        }
-                    }, 300); // Wait for fade out animation
-                }, 3000);
-                
-                // Replace the message content with just the deleted message text
+            if (data && data.success) {
+                // Replace entire message content to match final render style (no blue bubble)
+                const wasSent = messageItem.classList.contains('sent');
+                // Remove alignment classes so bubble styles don't apply
+                messageItem.classList.remove('sent', 'received', 'has-edited');
+                // Remove any status label
+                const status = messageItem.querySelector('.message-status');
+                if (status) status.remove();
+                // Replace inner HTML with a small inline deleted chip
                 messageItem.innerHTML = `
-                    <div style="display: flex; justify-content: flex-end; width: 100%; margin-top: 15px; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: ${wasSent ? 'flex-end' : 'flex-start'}; width: 100%;">
                         <p class="deleted-message" style="color: #333; font-style: italic; padding: 8px 12px; text-align: center; margin: 5px 0; background-color: transparent; border: 1px solid #3b82f6; border-radius: 4px; display: inline-block;">This message has been deleted</p>
                     </div>
                 `;
-                
-                // Remove the message bubble styling
-                messageItem.classList.remove('sent', 'received');
-                
-                // Update message in memory
-                const message = messages.find(m => m.id === messageId);
-                if (message) {
-                    message.is_deleted = true;
-                    // Keep the message content for reference but mark as deleted
-                    // This ensures the deleted state persists after refresh
+                // Update in-memory list
+                const msg = messages.find(m => m.id === messageId);
+                if (msg) msg.is_deleted = true;
+                // If this was the last 'Sent' message, clear the marker so it won't reapply
+                if (lastSentMessageId && String(lastSentMessageId) === String(messageId)) {
+                    clearLastSentFor(selectedUser);
                 }
             } else {
-                // Show error
-                alert('Failed to delete message: ' + (data.error || 'Unknown error'));
+                console.error('Failed to delete message:', data && data.error);
+                alert('Failed to delete message. Please try again.');
             }
         })
         .catch(error => {
-            console.error('Error deleting message:', error);
+            console.error('Error fetching messages:', error);
             alert('Failed to delete message. Please try again.');
         });
     });
 }
 
-// Select user
-function selectUser(userId) {
-    selectedUser = userId;
-    
-    // Update UI
-    document.querySelectorAll('.user-item').forEach(item => {
-        item.classList.toggle('active', parseInt(item.dataset.userId) === userId);
-    });
-
-    // Update header
-    const selectedUserItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
-    if (selectedUserItem) {
-        const userName = selectedUserItem.querySelector('.user-name').textContent;
-        const userAvatarImg = selectedUserItem.querySelector('.avatar-image');
-        const userInitials = selectedUserItem.querySelector('.avatar-text');
-        const isOnline = false; // Status indicators were removed from user list
-        
-        const userNameHeader = document.querySelector('#selected-user-name');
-        if (userNameHeader) {
-            userNameHeader.textContent = userName;
-        }
-        
-        const userAvatarHeader = document.querySelector('#selected-user-avatar');
-        const userAvatarHeaderImg = document.querySelector('#selected-user-avatar-img');
-        
-        if (userAvatarImg) {
-            // User has a profile picture
-            if (userAvatarHeaderImg) {
-                userAvatarHeaderImg.src = userAvatarImg.src;
-                userAvatarHeaderImg.style.display = 'block';
-                if (userAvatarHeader) {
-                    userAvatarHeader.style.display = 'none';
-                }
-            }
-        } else {
-            // User has no profile picture, show initials
-            if (userAvatarHeaderImg) {
-                userAvatarHeaderImg.style.display = 'none';
-            }
-            if (userAvatarHeader && userInitials) {
-                userAvatarHeader.textContent = userInitials.textContent;
-                userAvatarHeader.style.display = 'block';
-            }
-        }
-        
-        const statusIndicator = document.querySelector('.status-indicator');
-        if (statusIndicator) {
-            statusIndicator.className = `status-indicator ${isOnline ? 'online' : 'offline'}`;
-        }
+// Start polling for new messages for the selected user
+function startPollingMessages(intervalMs = 3000) {
+    if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
     }
-
-    // Show chat and hide welcome screen
-    if (welcomeScreen) welcomeScreen.classList.add('hidden');
-    if (chatMessages) chatMessages.classList.remove('hidden');
-
-    // On mobile, hide user list
-    if (isMobile && userList) {
-        userList.classList.add('hidden');
-    }
-
-    // Fetch and render messages
-    fetchMessages(userId);
-    
-    // Focus on message input
-    if (messageInput) messageInput.focus();
-    
-    // Ensure we scroll to bottom after selecting a user
-    setTimeout(scrollToBottom, 300);
-    setTimeout(scrollToBottom, 500);
-    setTimeout(scrollToBottom, 1000);
-    setTimeout(scrollToBottom, 1500);
-    setTimeout(scrollToBottom, 2000);
+    if (!selectedUser) return;
+    pollTimer = setInterval(() => {
+        // Do a silent refresh to avoid flicker
+        fetchMessages(selectedUser, { silent: true });
+    }, intervalMs);
 }
 
-// Deselect user
-function deselectUser() {
-    selectedUser = null;
-    
-    // Update UI
-    document.querySelectorAll('.user-item').forEach(item => {
-        item.classList.remove('active');
-    });
-
-    // Show welcome screen and hide chat
-    if (welcomeScreen) welcomeScreen.classList.remove('hidden');
-    if (chatMessages) chatMessages.classList.add('hidden');
-
-    // On mobile, show user list
-    if (isMobile && userList) {
-        userList.classList.remove('hidden');
+// Stop polling
+function stopPollingMessages() {
+    if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
     }
-}
-
-// Fetch messages from server
-function fetchMessages(userId) {
-    if (!userId) return;
-    
-    // Show loading indicator
-    messagesList.innerHTML = '<div class="loading-messages">Loading messages...</div>';
-    
-    // Fetch messages from server
-    fetch(`/user/communication/messages/?user_id=${userId}`, {
-        method: 'GET',
-        headers: {
-            'X-CSRFToken': csrfToken,
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Keep all messages, including deleted ones
-        messages = data;
-        renderMessages();
-    })
-    .catch(error => {
-        console.error('Error fetching messages:', error);
-        messagesList.innerHTML = `
-            <div class="error-container">
-                <div class="error-icon">
-                    <i class="fas fa-exclamation-circle"></i>
-                </div>
-                <div class="error-text">Failed to load messages</div>
-            </div>
-        `;
-    });
 }
 
 // Function to append a single new message to the DOM without re-rendering everything
 function appendNewMessage(message) {
     if (!messagesList) return;
+    if (!Array.isArray(messages)) messages = [];
     
     // Initialize messages list if it's empty
     if (messages.length === 1) { // This is the first message
@@ -843,108 +1532,224 @@ function appendNewMessage(message) {
         messagesList.appendChild(timestampDivider);
     }
     
-    // Create the message item
-    const messageItem = document.createElement('div');
-    messageItem.className = `message-item ${message.is_own ? 'sent' : 'received'}`;
-    messageItem.dataset.messageId = message.id || 'temp-' + Date.now();
-
-    // Check if message is deleted
-    if (message.is_deleted) {
-        messageItem.innerHTML = `
-            <div style="display: flex; justify-content: flex-end; width: 100%;">
-                <p class="deleted-message" style="background-color: transparent; padding: 8px 12px; color: #333; font-style: italic; text-align: center; margin: 5px 0; border: 1px solid #3b82f6; border-radius: 4px; display: inline-block;">This message has been deleted</p>
-            </div>
-        `;
-        // Remove the message bubble styling for deleted messages
-        messageItem.classList.remove('sent', 'received');
-        // No need to add any action buttons for deleted messages
-    } else if (message.is_own) {
-        // Format the message content with more options menu for own messages
-        messageItem.innerHTML = `
-            <div class="message-actions">
-                <button class="message-action-btn more-options-btn" title="More options">
-                    <i class="fas fa-ellipsis-v"></i>
-                </button>
-                <div class="message-options-menu hidden">
-                    <button class="message-option edit-btn" title="Edit message">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="message-option delete-btn" title="Delete message">
-                        <i class="fas fa-trash"></i> Delete
-                    </button>
-                </div>
-            </div>
-            <div class="message-content">
-                <p>${message.message || message.content}</p>
-            </div>`;
-            
-        // Add edited indicator outside the message content if needed
-        if (message.is_edited) {
-            const editedIndicator = document.createElement('div');
-            editedIndicator.className = 'edited-indicator';
-            editedIndicator.textContent = 'edited';
-            editedIndicator.style.position = 'absolute';
-            editedIndicator.style.top = '-15px';
-            editedIndicator.style.right = '5px';
-            editedIndicator.style.zIndex = '10';
-            messageItem.style.position = 'relative';
-            messageItem.appendChild(editedIndicator);
-        }
-        
-        // Add event listener for more options button
-        setTimeout(() => {
-            const moreOptionsBtn = messageItem.querySelector('.more-options-btn');
-            const optionsMenu = messageItem.querySelector('.message-options-menu');
-            
-            if (moreOptionsBtn && optionsMenu) {
-                moreOptionsBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    optionsMenu.classList.toggle('hidden');
-                });
-                
-                // Close menu when clicking outside
-                document.addEventListener('click', () => {
-                    optionsMenu.classList.add('hidden');
-                });
-            }
-        }, 0);
-    } else {
-        messageItem.innerHTML = `
-            <div class="message-content">
-                <p>${message.message || message.content}</p>
-            </div>
-        `;
-        
-        // Add edited indicator for received messages
-        if (message.is_edited) {
-            const editedIndicator = document.createElement('div');
-            editedIndicator.className = 'edited-indicator';
-            editedIndicator.textContent = 'edited';
-            editedIndicator.style.position = 'absolute';
-            editedIndicator.style.top = '-15px';
-            editedIndicator.style.right = '5px';
-            editedIndicator.style.zIndex = '10';
-            messageItem.style.position = 'relative';
-            messageItem.appendChild(editedIndicator);
-        }
-    }
-    
-    // Ensure long messages don't break layout
-    const messageContent = messageItem.querySelector('.message-content p');
-    if (messageContent && messageContent.textContent.length > 100) {
-        messageContent.style.overflowWrap = 'break-word';
-        messageContent.style.wordBreak = 'break-word';
-    }
-
+    // Build and append
+    const messageItem = buildMessageItem(message);
     messagesList.appendChild(messageItem);
 }
 
+// Unified message DOM builder using the new scoped design
+function buildMessageItem(message) {
+    const item = document.createElement('div');
+    item.classList.add('message-item');
+    item.classList.add('vl-msg');
+    item.classList.add(message.is_own ? 'sent' : 'received');
+    item.dataset.messageId = message.id || message.message_id || 'temp-' + Date.now();
+
+    if (message.is_deleted) {
+        item.classList.remove('sent', 'received');
+        item.innerHTML = `
+            <div style="display:flex;justify-content:${message.is_own ? 'flex-end' : 'flex-start'};width:100%;">
+                <p class="deleted-message">This message has been deleted</p>
+            </div>
+        `;
+        return item;
+    }
+
+    let actionsHtml = '';
+    if (message.is_own) {
+        actionsHtml = `
+          <div class="message-options-container">
+            <div class="message-actions">
+              <button class="message-action-btn more-options-btn" title="More options">
+                <i class="fas fa-ellipsis-v"></i>
+              </button>
+              <div class="message-options-menu hidden">
+                <button class="message-option delete-btn" title="Delete"><i class="fas fa-trash"></i></button>
+                <button class="message-option edit-btn" title="Edit"><i class="fas fa-edit"></i></button>
+              </div>
+            </div>
+          </div>`;
+    }
+
+    const text = message.message || message.content || '';
+    const imgUrl = message.image_url || null;
+    const editedChip = message.is_edited ? '<div class="edited-indicator">edited</div>' : '';
+    const imgUrls = Array.isArray(message.image_urls) ? message.image_urls : null;
+    if (imgUrls && imgUrls.length) {
+        const shown = imgUrls.slice(0, 3);
+        const extra = imgUrls.length - shown.length;
+        let tiles = '';
+        shown.forEach((u, idx) => {
+            const overlay = (idx === shown.length - 1 && extra > 0) ? `<div class="gallery-overlay">+${extra}</div>` : '';
+            tiles += `
+                <div class="gallery-item">
+                    <a href="${u}" class="message-image-link"><img src="${u}" class="message-image"/></a>
+                    ${overlay}
+                </div>`;
+        });
+        item.innerHTML = `
+            ${actionsHtml}
+            <div class="message-content vl-bubble">
+                ${editedChip}
+                <div class="message-gallery">${tiles}</div>
+            </div>
+        `;
+    } else if (imgUrl) {
+        item.innerHTML = `
+            ${actionsHtml}
+            <div class="message-content vl-bubble">
+                ${editedChip}
+                <a href="${imgUrl}" class="message-image-link">
+                    <img src="${imgUrl}" alt="Image" class="message-image"/>
+                </a>
+            </div>
+        `;
+    } else {
+        item.innerHTML = `
+            ${actionsHtml}
+            <div class="message-content vl-bubble">
+                ${editedChip}
+                <p>${text}</p>
+            </div>
+        `;
+    }
+
+    if (message.is_edited) item.classList.add('has-edited');
+    return item;
+}
+
+// Upload and send an image message
+function sendImageMessage(file) {
+    if (!file) return;
+    if (!selectedUser) {
+        alert('Please select a conversation before sending an image.');
+        return;
+    }
+    // Basic client-side checks
+    try {
+        const maxBytes = 10 * 1024 * 1024; // 10 MB
+        if (file.size && file.size > maxBytes) {
+            alert('Image is too large (max 10 MB).');
+            return;
+        }
+        if (file.type && !file.type.startsWith('image/')) {
+            alert('Please select a valid image file.');
+            return;
+        }
+    } catch (e) {}
+    const formData = new FormData();
+    formData.append('receiver', String(selectedUser));
+    formData.append('image', file);
+    fetch('/user/communication/send-image/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken },
+        body: formData
+    })
+    .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data || data.error) {
+            const msg = (data && data.error) ? data.error : 'Failed to upload image.';
+            alert(msg);
+            return;
+        }
+        if (data && data.id) {
+            const msgObj = { id: data.id, is_own: true, sent_at: data.sent_at, message: data.message, image_url: data.image_url };
+            appendNewMessage(msgObj);
+            updateLastMessage(selectedUser, 'Sent a photo', true);
+            scrollToBottom(true);
+            fetchMessages(selectedUser, { silent: true });
+        }
+    })
+    .catch((e) => { console.error('Image upload error', e); alert('Failed to upload image.'); });
+}
+
+// Send multiple images (up to 10) as a single gallery message
+function sendImagesMessage(files) {
+    const list = Array.from(files || []).filter(Boolean).slice(0, 10);
+    if (!list.length) return;
+    if (!selectedUser) { alert('Please select a conversation before sending images.'); return; }
+    const formData = new FormData();
+    formData.append('receiver', String(selectedUser));
+    list.forEach(f => formData.append('images', f));
+    fetch('/user/communication/send-image/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken },
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data && data.id && Array.isArray(data.image_urls) && data.image_urls.length) {
+            const msgObj = { id: data.id, is_own: true, sent_at: data.sent_at, message: data.message, image_urls: data.image_urls };
+            appendNewMessage(msgObj);
+            updateLastMessage(selectedUser, 'Sent photos', true);
+            scrollToBottom(true);
+            fetchMessages(selectedUser, { silent: true });
+        } else if (data && data.image_url) {
+            // Fallback for single
+            const msgObj = { id: data.id, is_own: true, sent_at: data.sent_at, message: data.message, image_url: data.image_url };
+            appendNewMessage(msgObj);
+            updateLastMessage(selectedUser, 'Sent photos', true);
+            scrollToBottom(true);
+            fetchMessages(selectedUser, { silent: true });
+        } else if (data && data.error) {
+            alert(data.error);
+        }
+    })
+    .catch((e) => { console.error('Images upload error', e); alert('Failed to upload images.'); });
+}
+
+// ---------- Image Lightbox Helpers ----------
+function ensureImageLightbox() {
+    if (document.getElementById('chat-image-lightbox')) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'chat-image-lightbox';
+    wrap.className = 'chat-image-lightbox hidden';
+    wrap.innerHTML = `
+        <div class="cil-backdrop" data-cil-close="1"></div>
+        <div class="cil-content">
+            <button class="cil-close" aria-label="Close" data-cil-close="1">&times;</button>
+            <img class="cil-image" src="" alt="Image"/>
+        </div>
+    `;
+    document.body.appendChild(wrap);
+    wrap.addEventListener('click', (e) => {
+        if (e.target && e.target.getAttribute('data-cil-close') === '1') closeImageLightbox();
+    });
+    document.addEventListener('keydown', (e) => {
+        const overlay = document.getElementById('chat-image-lightbox');
+        if (!overlay || overlay.classList.contains('hidden')) return;
+        if (e.key === 'Escape') closeImageLightbox();
+    });
+}
+
+function openImageLightbox(url) {
+    const overlay = document.getElementById('chat-image-lightbox');
+    if (!overlay) return;
+    const img = overlay.querySelector('.cil-image');
+    img.src = url;
+    overlay.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeImageLightbox() {
+    const overlay = document.getElementById('chat-image-lightbox');
+    if (!overlay) return;
+    overlay.classList.add('hidden');
+    const img = overlay.querySelector('.cil-image');
+    img.src = '';
+    document.body.style.overflow = '';
+}
 // Render messages
 function renderMessages() {
+    // Remember if user was near bottom before re-render
+    const shouldStickToBottom = isNearBottom();
+    // If user scrolled up, capture an anchor to preserve position
+    const preserve = !shouldStickToBottom;
+    const anchor = preserve ? captureScrollAnchor() : null;
     if (!messagesList) return;
+    if (!Array.isArray(messages)) messages = [];
     
     messagesList.innerHTML = '';
-
     if (messages.length === 0) {
         messagesList.innerHTML = `
             <div class="no-messages-container">
@@ -956,16 +1761,13 @@ function renderMessages() {
         `;
         return;
     }
-
     // Sort messages by timestamp (oldest first, since we're using column-reverse layout)
     const sortedMessages = [...messages].sort((a, b) => {
         const dateA = new Date(a.sent_at);
         const dateB = new Date(b.sent_at);
         return dateA - dateB; // Oldest first for column-reverse layout
     });
-
     let lastMessageDate = null;
-
     sortedMessages.forEach((message, index) => {
         const currentMessageDate = new Date(message.sent_at);
         
@@ -990,97 +1792,8 @@ function renderMessages() {
             messagesList.appendChild(timestampDivider);
         }
         
-        // Create the message item
-        const messageItem = document.createElement('div');
-        messageItem.dataset.messageId = message.id || 'temp-' + Date.now();
-
-        // Check if message is deleted
-        if (message.is_deleted) {
-            // For deleted messages, show a simple "This message has been deleted" text
-            messageItem.innerHTML = `
-                <div style="display: flex; justify-content: ${message.is_own ? 'flex-end' : 'flex-start'}; width: 100%;">
-                    <p class="deleted-message" style="color: #333; font-style: italic; padding: 8px 12px; text-align: center; margin: 5px 0; background-color: transparent; border: 1px solid #3b82f6; border-radius: 4px; display: inline-block;">This message has been deleted</p>
-                </div>
-            `;
-        } else {
-            // For normal messages, use the regular styling
-            messageItem.className = `message-item ${message.is_own ? 'sent' : 'received'}`;
-            
-            // Format the message content with more options menu for own messages
-            if (message.is_own) {
-                messageItem.innerHTML = `
-                    <div class="message-options-container">
-                        <div class="message-actions">
-                            <button class="message-action-btn more-options-btn" title="More options">
-                                <i class="fas fa-ellipsis-v"></i>
-                            </button>
-                            <div class="message-options-menu hidden">
-                                <button class="message-option edit-btn" title="Edit message">
-                                    <i class="fas fa-edit"></i> Edit
-                                </button>
-                                <button class="message-option delete-btn" title="Delete message">
-                                    <i class="fas fa-trash"></i> Delete
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="message-content">
-                        <p>${message.message || message.content}</p>
-                    </div>
-                `;
-            
-            // Add edited indicator outside the message content if needed
-            if (message.is_edited) {
-                const editedIndicator = document.createElement('div');
-                editedIndicator.className = 'edited-indicator';
-                editedIndicator.textContent = 'edited';
-                editedIndicator.style.position = 'absolute';
-                editedIndicator.style.top = '-15px';
-                editedIndicator.style.right = '5px';
-                editedIndicator.style.zIndex = '10';
-                messageItem.style.position = 'relative';
-                messageItem.appendChild(editedIndicator);
-            }
-            
-            // Add event listener for more options button
-            const moreOptionsBtn = messageItem.querySelector('.more-options-btn');
-            const optionsMenu = messageItem.querySelector('.message-options-menu');
-            
-            if (moreOptionsBtn && optionsMenu) {
-                moreOptionsBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    optionsMenu.classList.toggle('hidden');
-                });
-            }
-            
-            // Add event listeners for edit and delete buttons
-            const editBtn = messageItem.querySelector('.edit-btn');
-            const deleteBtn = messageItem.querySelector('.delete-btn');
-            
-            if (editBtn) {
-                editBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    optionsMenu.classList.add('hidden');
-                    startEditingMessage(messageItem, message.id);
-                });
-            }
-            
-            if (deleteBtn) {
-                deleteBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    optionsMenu.classList.add('hidden');
-                    deleteMessage(messageItem, message.id);
-                });
-            }
-        } else {
-            messageItem.innerHTML = `
-                <div class="message-content">
-                    <p>${message.message || message.content}</p>
-                    ${message.is_edited ? '<span class="edited-indicator">edited</span>' : ''}
-                </div>
-            `;
-        }
-        }
+        // Create the message item using the unified builder (supports images)
+        const messageItem = buildMessageItem(message);
         
         // Ensure long messages don't break layout
         const messageContent = messageItem.querySelector('.message-content p');
@@ -1088,29 +1801,34 @@ function renderMessages() {
             messageContent.style.overflowWrap = 'break-word';
             messageContent.style.wordBreak = 'break-word';
         }
-
         messagesList.appendChild(messageItem);
+        // Persist 'Sent' status outside the bubble for own, non-deleted messages
+        const mid = message.id || message.message_id;
+        if (message.is_own && !message.is_deleted && mid && String(mid) === String(lastSentMessageId)) {
+            addOrUpdateMessageStatus(messageItem, 'Sent');
+        }
         
         // Update the last message date
         lastMessageDate = currentMessageDate;
     });
-
-    // With column-reverse layout, scrolling is automatic, but we'll still call these
-    // to ensure compatibility with any JavaScript that might affect scrolling
-    scrollToBottom();
-    setTimeout(scrollToBottom, 100);
+    // If user was anchored, restore the position relative to anchor
+    if (preserve && anchor) {
+        restoreScrollAnchor(anchor);
+    }
+    // Only auto-scroll if user was near the bottom before render
+    if (shouldStickToBottom) {
+        scrollToBottom(false);
+        setTimeout(() => scrollToBottom(false), 100);
+    }
 }
-
 // Send message
 function sendMessage() {
     const message = messageInput.value.trim();
     if (!message || !selectedUser) return;
-
     // Clear input
     messageInput.value = '';
     updateSendButton();
     updateCharCount();
-
     // Show temporary message
     const tempMessage = {
         message: message,
@@ -1121,7 +1839,28 @@ function sendMessage() {
     
     // Add the message directly to the DOM instead of re-rendering everything
     appendNewMessage(tempMessage);
-
+    // Optimistically ensure the user appears in the list immediately and update preview
+    (function ensureUserVisibleNow() {
+        const container = document.getElementById('search-results');
+        if (!container) return;
+        let el = container.querySelector(`.user-item[data-user-id="${selectedUser}"]`);
+        if (!el) {
+            const u = {
+                id: selectedUser,
+                username: selectedUserMeta.username || '',
+                full_name: selectedUserMeta.full_name || '',
+                profile_picture_url: selectedUserMeta.profile_picture_url || ''
+            };
+            try {
+                el = createListUserItem(u);
+                container.prepend(el);
+            } catch (e) {}
+        }
+        // Update preview and move to top
+        updateLastMessage(selectedUser, message, true, true, true);
+        // If previously hidden, unhide now
+        unhideChatUser(selectedUser);
+    })();
     // Send to server
     fetch('/user/communication/send/', {
         method: 'POST',
@@ -1136,11 +1875,57 @@ function sendMessage() {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.id) {
-            // Update last message in user list
-            updateLastMessage(selectedUser, message);
-            // A single scroll call is sufficient
-            setTimeout(scrollToBottom, 100);
+        if (data && data.id) {
+            // Promote the latest temp message node to real ID and wire actions structure
+            const tempNode = Array.from(messagesList.querySelectorAll('.message-item'))
+                .reverse()
+                .find(n => (n.dataset.messageId || '').startsWith('temp-'));
+            if (tempNode) {
+                tempNode.dataset.messageId = data.id;
+                tempNode.classList.add('sent');
+                // Ensure content contains actions for own messages
+                const content = tempNode.querySelector('.message-content');
+                if (content) {
+                    // Only keep the message text inside the bubble; the outer three-dot menu remains
+                    content.innerHTML = `<p>${data.message}</p>`;
+                }
+                // Persist last sent id and add 'Sent' status indicator at bottom-right
+                setLastSentFor(selectedUser, data.id);
+                setSentBadgeOn(tempNode);
+            } else {
+                // Fallback: attach status to the last sent item
+                const lastOwn = Array.from((messagesList || document).querySelectorAll('.message-item.sent')).pop();
+                if (lastOwn) {
+                    setLastSentFor(selectedUser, data.id);
+                    setSentBadgeOn(lastOwn);
+                }
+            }
+            // Ensure this user exists in the list immediately
+            (function ensureUserInList() {
+                const container = document.getElementById('search-results');
+                if (!container) return;
+                let el = container.querySelector(`.user-item[data-user-id="${selectedUser}"]`);
+                if (!el) {
+                    const u = {
+                        id: selectedUser,
+                        username: selectedUserMeta.username || '',
+                        full_name: selectedUserMeta.full_name || '',
+                        profile_picture_url: selectedUserMeta.profile_picture_url || ''
+                    };
+                    try {
+                        el = createListUserItem(u);
+                        container.prepend(el);
+                    } catch (e) {}
+                }
+            })();
+            // Update last message in user list (prefix with You: for own)
+            updateLastMessage(selectedUser, data.message || message, true);
+            // Unhide this user if previously removed, since we just sent a new message
+            unhideChatUser(selectedUser);
+            // Force-refresh recent chats so new conversations appear immediately
+            try { refreshUserList(true); } catch (e) {}
+            // Scroll a bit later to account for DOM paint (force scroll for own message)
+            setTimeout(() => scrollToBottom(true), 100);
         } else {
             console.error('Failed to send message:', data.error);
         }
@@ -1149,3 +1934,56 @@ function sendMessage() {
         console.error('Error sending message:', error);
     });
 }
+
+// Add or update a small status text at bottom-right of a message item
+function addOrUpdateMessageStatus(messageItem, text) {
+    if (!messageItem) return;
+    // Remove any stray status inside the bubble
+    const bubbleStatus = messageItem.querySelector('.message-content .message-status');
+    if (bubbleStatus) bubbleStatus.remove();
+    // Ensure a single status element directly under the message item
+    let status = Array.from(messageItem.children).find(el => el.classList && el.classList.contains('message-status'));
+    if (!status) {
+        status = document.createElement('span');
+        status.className = 'message-status';
+        messageItem.appendChild(status);
+    }
+    status.textContent = text || '';
+}
+
+// Ensure only one message shows the 'Sent' badge at a time
+function setSentBadgeOn(messageItem) {
+    try {
+        const container = messagesList || document;
+        const existing = container.querySelectorAll('.message-status');
+        existing.forEach(el => el.remove());
+    } catch (e) {}
+    addOrUpdateMessageStatus(messageItem, 'Sent');
+}
+
+// Kick off user list polling once the page is fully loaded
+window.addEventListener('load', () => {
+    startPollingUserList();
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

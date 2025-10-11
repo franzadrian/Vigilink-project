@@ -59,6 +59,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize gallery click events
     initializeGallery();
+    // Expose a global re-init function so dynamically replaced content can rebind listeners
+    try { window.VL_initImageGallery = initializeGallery; } catch (e) {}
     
     /**
      * Initialize gallery click events

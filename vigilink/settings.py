@@ -196,3 +196,7 @@ EMAIL_HOST_PASSWORD = 'wrry gbvd vhlk hqcb'  # App password for Gmail
 
 # Verification settings
 VERIFICATION_CODE_EXPIRY_MINUTES = 10
+
+# Dropbox access token (prefer environment variable)
+DROPBOX_ACCESS_TOKEN = os.environ.get('DROPBOX_ACCESS_TOKEN', '')
+DROPBOX_TOKEN_FILE = BASE_DIR / 'dropbox_token.txt'

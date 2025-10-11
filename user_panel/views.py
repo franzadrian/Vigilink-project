@@ -34,58 +34,179 @@ def about(request):
 @login_required
 def communication(request):
     """Communication page view"""
-    # Get all messages for the current user (sent or received)
-    user_messages = Message.objects.filter(
-        models.Q(sender=request.user) | models.Q(receiver=request.user)
-    ).order_by('-sent_at')
-    
-    # Get distinct users the current user has communicated with
-    user_ids = set()
-    chat_users = []
-    
-    # Add users from messages
+    # Aggregate unread counts once to avoid N+1 queries
+    unread_map = {
+        row['sender_id']: row['c']
+        for row in (
+            Message.objects
+            .filter(receiver=request.user, is_read=False)
+            .values('sender_id')
+            .annotate(c=models.Count('message_id'))
+        )
+    }
+
+    # Get all messages for the current user (sent or received), newest first
+    user_messages = (
+        Message.objects
+        .filter(models.Q(sender=request.user) | models.Q(receiver=request.user))
+        .select_related('sender', 'receiver')
+        .order_by('-sent_at')
+    )
+
+    # Build recent chat users with last message preview data (cap results)
+    seen = set()
+    chat_summaries = []
+    MAX_USERS = 50
     for msg in user_messages:
-        other_user = msg.sender if msg.sender != request.user else msg.receiver
-        # Filter out admin users
-        if other_user.id not in user_ids and other_user.role != 'admin' and not other_user.is_superuser:
-            user_ids.add(other_user.id)
-            chat_users.append(other_user)
-    
+        other = msg.sender if msg.sender != request.user else msg.receiver
+        if other.id in seen:
+            continue
+        # Skip admin/superusers
+        if other.role == 'admin' or other.is_superuser:
+            continue
+        seen.add(other.id)
+        # Resolve profile picture URL robustly
+        try:
+            pic_url = other.get_profile_picture_url() if hasattr(other, 'get_profile_picture_url') else None
+        except Exception:
+            pic_url = None
+        if not pic_url:
+            try:
+                pic_url = other.profile_picture.url if getattr(other, 'profile_picture', None) else None
+            except Exception:
+                pic_url = None
+
+        # Derive safe first/last names (avoid strings like 'None')
+        raw_full = (other.full_name or '').strip()
+        if not raw_full or raw_full.lower() in ('none', 'null', 'undefined', 'n/a', 'na'):
+            raw_full = ''
+        raw_user = (other.username or '').strip()
+        base_name = raw_full or raw_user or 'User'
+        try:
+            first_name = base_name.split()[0]
+        except Exception:
+            first_name = base_name or 'User'
+        # Compute last name from full name if available
+        last_name = ''
+        try:
+            if raw_full:
+                parts = raw_full.split()
+                if parts:
+                    last_name = parts[-1]
+        except Exception:
+            last_name = ''
+
+        # Display-friendly last message text (treat image placeholders nicely)
+        last_preview = msg.message or ''
+        try:
+            if isinstance(last_preview, str):
+                if last_preview.startswith('[img]'):
+                    last_preview = 'Sent a photo'
+                elif last_preview.startswith('[imgs]'):
+                    last_preview = 'Sent photos'
+        except Exception:
+            pass
+
+        chat_summaries.append({
+            'id': other.id,
+            'username': other.username,
+            'full_name': other.full_name,
+            'first_name': first_name,
+            'last_name': last_name,
+            'email': other.email,
+            'profile_picture_url': pic_url,
+            'last_message': last_preview,
+            'last_message_time': msg.sent_at,
+            'last_message_is_own': (msg.sender == request.user),
+            'unread_count': unread_map.get(other.id, 0),
+        })
+        if len(chat_summaries) >= MAX_USERS:
+            break
+
     context = {
-        'user_messages': user_messages,
-        'users': chat_users
+        'user_messages': None,
+        'users': chat_summaries,
     }
     return render(request, 'communication/user_communications.html', context)
 
 @login_required
 def get_recent_chats(request):
     """Get list of users the current user has recently chatted with"""
-    # Get distinct users from recent messages (both sent and received)
-    recent_messages = Message.objects.filter(
-        models.Q(sender=request.user) | models.Q(receiver=request.user)
-    ).select_related('sender', 'receiver').order_by('-sent_at')
+    recent_messages = (
+        Message.objects
+        .filter(models.Q(sender=request.user) | models.Q(receiver=request.user))
+        .select_related('sender', 'receiver')
+        .order_by('-sent_at')
+    )
 
-    # Get unique users from recent messages
+    # Aggregate unread counts once
+    unread_map = {
+        row['sender_id']: row['c']
+        for row in (
+            Message.objects
+            .filter(receiver=request.user, is_read=False)
+            .values('sender_id')
+            .annotate(c=models.Count('message_id'))
+        )
+    }
+
     seen_users = set()
     recent_users = []
-    
-    for message in recent_messages:
-        other_user = message.receiver if message.sender == request.user else message.sender
-        if other_user.id not in seen_users:
-            seen_users.add(other_user.id)
-            recent_users.append({
-                'id': other_user.id,
-                'name': other_user.full_name or other_user.username,
-                'username': other_user.username,
-                'email': other_user.email,
-                'avatar': other_user.profile_picture.url if other_user.profile_picture else None,
-                'last_message': message.message,
-                'last_message_time': message.sent_at.isoformat()
-            })
-            if len(recent_users) >= 10:  # Limit to 10 recent chats
-                break
 
-    return JsonResponse(recent_users, safe=False)
+    for m in recent_messages:
+        other = m.receiver if m.sender == request.user else m.sender
+        if other.id in seen_users:
+            continue
+        seen_users.add(other.id)
+
+        # Resolve profile picture url safely
+        try:
+            pic_url = other.get_profile_picture_url() if hasattr(other, 'get_profile_picture_url') else None
+        except Exception:
+            pic_url = None
+        if not pic_url:
+            try:
+                pic_url = other.profile_picture.url if getattr(other, 'profile_picture', None) else None
+            except Exception:
+                pic_url = None
+
+        # Safe name parts
+        raw_full = (other.full_name or '').strip()
+        bad = ('none', 'null', 'undefined', 'n/a', 'na')
+        if not raw_full or raw_full.lower() in bad:
+            raw_full = ''
+        raw_user = (other.username or '').strip()
+        tokens = raw_full.split() if raw_full else []
+        first_name = tokens[0] if tokens else (raw_user.split()[0] if raw_user else '')
+        last_name = tokens[-1] if tokens else ''
+
+        # Display-friendly last message text (treat image placeholders)
+        last_preview = m.message or ''
+        try:
+            if isinstance(last_preview, str):
+                if last_preview.startswith('[img]'):
+                    last_preview = 'Sent a photo'
+                elif last_preview.startswith('[imgs]'):
+                    last_preview = 'Sent photos'
+        except Exception:
+            pass
+
+        recent_users.append({
+            'id': other.id,
+            'username': other.username,
+            'full_name': other.full_name,
+            'first_name': first_name,
+            'last_name': last_name,
+            'profile_picture_url': pic_url,
+            'last_message': last_preview,
+            'last_message_time': m.sent_at.isoformat(),
+            'last_message_is_own': (m.sender == request.user),
+            'unread_count': unread_map.get(other.id, 0),
+        })
+        if len(recent_users) >= 20:
+            break
+
+    return JsonResponse({'status': 'success', 'users': recent_users})
 
 @login_required
 def chat_messages(request):
@@ -107,17 +228,40 @@ def chat_messages(request):
             (models.Q(sender=request.user) & models.Q(receiver=other_user)) |
             (models.Q(sender=other_user) & models.Q(receiver=request.user))
         ).order_by('sent_at')
-        
-        messages_data = [{
-            'id': msg.message_id,
-            'sender': msg.sender.id,
-            'sender_name': msg.sender.get_full_name() or msg.sender.username,
-            'message': msg.message,
-            'sent_at': msg.sent_at.isoformat(),
-            'is_own': msg.sender.id == request.user.id,
-            'is_edited': msg.is_edited,
-            'is_deleted': msg.is_deleted
-        } for msg in messages]
+
+        # Mark all incoming (from other_user) unread messages as read now that the thread is opened
+        Message.objects.filter(sender=other_user, receiver=request.user, is_read=False).update(is_read=True)
+
+        messages_data = []
+        for msg in messages:
+            # Compute a safe sender name that avoids literal 'None'
+            sname = msg.sender.get_full_name()
+            if not sname or str(sname).strip().lower() in ('none', 'null', 'undefined', 'n/a', 'na'):
+                sname = msg.sender.username
+            # Extract image placeholder if present
+            image_url = None
+            image_urls = None
+            try:
+                if isinstance(msg.message, str):
+                    if msg.message.startswith('[img]'):
+                        image_url = msg.message[5:]
+                    elif msg.message.startswith('[imgs]'):
+                        payload = msg.message[6:]
+                        image_urls = [u for u in payload.split('|') if u]
+            except Exception:
+                image_url = None
+            messages_data.append({
+                'id': msg.message_id,
+                'sender': msg.sender.id,
+                'sender_name': sname,
+                'message': msg.message,
+                'image_url': image_url,
+                'image_urls': image_urls,
+                'sent_at': msg.sent_at.isoformat(),
+                'is_own': msg.sender.id == request.user.id,
+                'is_edited': msg.is_edited,
+                'is_deleted': msg.is_deleted
+            })
         
         return JsonResponse(messages_data, safe=False)
     except Exception as e:
@@ -157,6 +301,74 @@ def send_message(request):
         
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+@require_POST
+def send_image_message(request):
+    """Handle sending one or more images in chat via multipart form-data.
+    Expects: receiver (int), images (list of files) OR image (single file).
+    Creates a single Message with placeholder '[img]URL' for single, or '[imgs]URL|URL|...' for multiple.
+    """
+    try:
+        receiver_id = request.POST.get('receiver')
+        files = request.FILES.getlist('images')
+        if not files:
+            single = request.FILES.get('image')
+            if single:
+                files = [single]
+        if not receiver_id or not files:
+            return JsonResponse({'error': 'Receiver and at least one image are required'}, status=400)
+
+        try:
+            receiver = User.objects.get(id=receiver_id)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'Receiver not found'}, status=404)
+
+        # Upload to Dropbox chat images folder (no local fallback)
+        from .dropbox_utils import upload_chat_image, get_dropbox_client
+        # Proactively check Dropbox auth so we can return a helpful error
+        try:
+            if not get_dropbox_client():
+                return JsonResponse({'error': 'Dropbox authentication failed. Please configure a valid DROPBOX_ACCESS_TOKEN.'}, status=500)
+        except Exception:
+            return JsonResponse({'error': 'Dropbox client initialization failed.'}, status=500)
+
+        # Enforce max 10 images
+        files = files[:10]
+        urls = []
+        for f in files:
+            url = upload_chat_image(f)
+            if not url:
+                return JsonResponse({'error': 'Image upload failed. Please check Dropbox app token/scopes and try again.'}, status=500)
+            urls.append(url)
+
+        if len(urls) == 1:
+            placeholder = '[img]' + urls[0]
+            m = Message.objects.create(sender=request.user, receiver=receiver, message=placeholder)
+            return JsonResponse({
+                'id': m.message_id,
+                'sender': request.user.id,
+                'sender_name': request.user.get_full_name() or request.user.username,
+                'message': m.message,
+                'image_url': urls[0],
+                'image_urls': urls,
+                'sent_at': m.sent_at.isoformat(),
+                'is_own': True
+            })
+        else:
+            placeholder = '[imgs]' + '|'.join(urls)
+            m = Message.objects.create(sender=request.user, receiver=receiver, message=placeholder)
+            return JsonResponse({
+                'id': m.message_id,
+                'sender': request.user.id,
+                'sender_name': request.user.get_full_name() or request.user.username,
+                'message': m.message,
+                'image_urls': urls,
+                'sent_at': m.sent_at.isoformat(),
+                'is_own': True
+            })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -641,8 +853,19 @@ def dashboard(request):
         search_query = request.GET.get('search', '')
         location_filter = request.GET.get('location', 'everyone')
         
-        # Start with all posts
-        posts_query = Post.objects.all()
+        # Start with all posts and join user to avoid extra queries
+        user_reacted_subq = models.Exists(
+            PostReaction.objects.filter(post=models.OuterRef('pk'), user=request.user)
+        )
+        posts_query = (
+            Post.objects
+            .select_related('user')
+            .annotate(
+                reaction_count=models.Count('reactions', distinct=True),
+                reply_count=models.Count('replies', distinct=True),
+                user_reacted=user_reacted_subq,
+            )
+        )
         
         # Apply search filter if provided
         if search_query:
@@ -660,17 +883,10 @@ def dashboard(request):
                 user__district=request.user.district
             )
         
-        # Order by most recent first
-        posts = posts_query.order_by('-uploaded_at')
+        # Order by most recent first and cap initial results for faster render
+        posts = posts_query.order_by('-uploaded_at')[:50]
         
-        # Enhance posts with reaction and reply data
-        for post in posts:
-            # Check if user has reacted to this post
-            post.user_reacted = post.reactions.filter(user=request.user).exists()
-            # Count reactions and replies
-            post.reaction_count = post.reactions.count()
-            post.reply_count = post.replies.count()
-            # share_count removed
+        # Counts and user_reacted are already annotated above
         
         # Check if search returned no results
         no_results = False
@@ -737,11 +953,9 @@ def create_post(request):
                                 image_url=dropbox_url
                             )
                         else:
-                            # Fallback to local storage if Dropbox upload fails
-                            post_image = PostImage.objects.create(
-                                post=post,
-                                image=image
-                            )
+                            # Skip this image if Dropbox upload fails (no local fallback)
+                            logger.error(f"Dropbox upload failed for image {image.name} in post {post.post_id}")
+                            continue
                             
                         image_count += 1
                         logger.info(f"Image uploaded for post {post.post_id}: {image.name}, ID: {post_image.image_id}")
@@ -861,6 +1075,7 @@ def get_post_replies(request, post_id):
                 
             replies_data.append({
                 'reply_id': reply.reply_id,
+                'user_id': reply.user.id,
                 'username': reply.user.username,
                 'full_name': reply.user.full_name,
                 'profile_picture_url': profile_picture_url,

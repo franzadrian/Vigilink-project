@@ -55,10 +55,13 @@
             <h1 class="signup-title">Create Account</h1>
             {% if messages %}
             <div class="messages">
+                {# On the register page, only show error-level messages to avoid cross-page success toasts #}
                 {% for message in messages %}
-                <div class="message {% if message.tags %}{{ message.tags }}{% endif %}">
-                    {{ message }}
-                </div>
+                    {% if 'error' in message.tags %}
+                        <div class="message {{ message.tags }}">
+                            {{ message }}
+                        </div>
+                    {% endif %}
                 {% endfor %}
             </div>
             {% endif %}

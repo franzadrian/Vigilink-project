@@ -19,9 +19,11 @@
         initializeReplyCount();
     }
     
-    // Initialize image gallery functionality
+    // Initialize image gallery functionality for dynamically loaded posts
     function initImageGallery() {
-        // Add any image gallery initialization code here if needed
+        if (window.VL_initImageGallery) {
+            try { window.VL_initImageGallery(); } catch (e) {}
+        }
     }
     
     // Debounce function to limit how often a function can be called

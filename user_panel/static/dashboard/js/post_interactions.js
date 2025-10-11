@@ -450,11 +450,12 @@ function createReplyElement(reply) {
         `;
     }
     
+    const profileUrl = reply.user_id ? `/user/profile/${reply.user_id}/` : '#';
     replyItem.innerHTML = `
         <div class="reply-header">
             <img src="${profilePicture}" alt="${authorName}" class="reply-avatar" onerror="this.src='/static/accounts/images/profile.png'">
             <div class="reply-header-content">
-                <div class="reply-author">${authorName}</div>
+                <div class="reply-author"><a href="${profileUrl}" class="reply-author-link">${authorName}</a></div>
                 <div class="reply-date">${formattedDate}</div>
             </div>
             ${actionsHtml}

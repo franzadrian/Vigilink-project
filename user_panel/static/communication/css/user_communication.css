@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     /* Colors */
     --background: 240 10% 98%;
     --foreground: 240 10% 3.9%;
@@ -109,6 +109,8 @@
     border-bottom: 1px solid hsl(var(--border));
     cursor: pointer;
     transition: background-color 0.2s;
+    position: relative;
+    padding-right: 2.5rem; /* reserve space for top-right remove button */
 }
 
 .user-item:hover {
@@ -117,6 +119,16 @@
 
 .user-item.active {
     background-color: hsl(var(--chat-active));
+}
+
+/* Highlight conversations with unread messages */
+.user-item.unread {
+    background-color: hsla(var(--primary), 0.08);
+    border-left: 3px solid hsl(var(--primary));
+}
+.user-item.unread .last-message {
+    font-weight: 600;
+    color: hsl(var(--foreground));
 }
 
 .user-avatar {
@@ -188,12 +200,125 @@
     margin-left: 0.5rem;
 }
 
+/* Remove conversation button */
+.remove-user-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    line-height: 1;
+    border: 1px solid transparent;
+    border-radius: 9999px;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+    z-index: 1;
+}
+.user-item:hover .remove-user-btn { opacity: 1; }
+.remove-user-btn:hover {
+    background-color: #ef4444; /* red */
+    border-color: #ef4444;
+    color: #ffffff;
+    box-shadow: 0 4px 10px rgba(239, 68, 68, 0.25);
+}
+.remove-user-btn:active { transform: scale(0.96); }
+.remove-user-btn:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+}
+@media (max-width: 768px) {
+    /* Make the X visible and slightly larger on touch devices */
+    .remove-user-btn {
+        opacity: 1;
+        width: 32px;
+        height: 32px;
+        top: 6px;
+        right: 6px;
+    }
+}
+
 /* Chat Messages (Right Section) */
 .chat-messages {
     flex: 1;
     display: flex;
     flex-direction: column;
     background-color: hsl(var(--card));
+}
+
+/* Ensure message option menus are not clipped near the input */
+.messages-container {
+    flex: 1;                     /* fill available height */
+    overflow-y: auto;            /* vertical scroll only */
+    overflow-x: hidden;          /* prevent horizontal scrollbars */
+    padding: 1rem;
+    display: flex;
+    flex-direction: column-reverse; /* keep newest at visual bottom */
+    width: 100%;
+    box-sizing: border-box;
+    scroll-behavior: smooth;
+    position: relative;
+}
+
+.messages-list {
+    flex: 1;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;      /* messages stack topâ†’bottom, container is column-reverse */
+    overflow: visible;           /* allow menus to extend outside list bounds */
+}
+
+.message-options-container {
+    position: relative;
+    z-index: 15; /* sits above input container */
+}
+
+.message-options-menu {
+    z-index: 20; /* ensure menu appears over input area */
+}
+
+.message-input-container {
+    position: relative;
+    z-index: 10; /* keep below menus so they aren't hidden */
+}
+
+/* Centered scroll-to-bottom button */
+.scroll-to-bottom {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 25;
+}
+.scroll-to-bottom.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.scroll-to-bottom button {
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  border: none;
+  background: #2563eb; /* blue */
+  color: white;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.scroll-to-bottom button:hover {
+  background: #1e40af; /* darker */
 }
 
 .chat-header {
@@ -255,17 +380,7 @@
 }
 
 .messages-container {
-    flex: 1;
-    overflow-y: auto;
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    box-sizing: border-box;
-    scroll-behavior: smooth;
-    /* Force scrolling to bottom by default */
-    display: flex;
-    flex-direction: column-reverse;
+    position: relative;    
 }
 
 .timestamp-divider {
@@ -287,12 +402,7 @@
 }
 
 .messages-list {
-    flex: 1;
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
+    overflow: visible; /* allow menus to extend outside list bounds */
 }
 
 .message-item {
@@ -320,12 +430,14 @@
     background-color: hsl(var(--message-bubble));
     color: hsl(var(--message-bubble-foreground));
     border-bottom-right-radius: 0;
+    border: 1px solid hsla(var(--primary), 0.55);
 }
 
 .message-item.received .message-content {
     background-color: hsl(var(--message-received));
     color: hsl(var(--message-received-foreground));
     border-bottom-left-radius: 0;
+     border: 1px solid hsla(var(--primary), 0.45);
 }
 
 .message-content p {
@@ -336,27 +448,99 @@
     overflow-wrap: break-word;
 }
 
+/* Image message styling */
+.message-content .message-image {
+    display: block;
+    max-width: 260px;
+    max-height: 260px;
+    width: auto;
+    height: auto;
+    border-radius: 10px;
+    border: 1px solid hsl(var(--border));
+    cursor: zoom-in;
+}
+
+.message-content .message-image-link {
+    display: inline-block;
+    max-width: 260px;
+}
+
+/* Chat image lightbox */
+.chat-image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+.chat-image-lightbox.hidden { display: none; }
+.chat-image-lightbox .cil-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+}
+.chat-image-lightbox .cil-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 92vw;
+  max-height: 92vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chat-image-lightbox .cil-image {
+  max-width: 92vw;
+  max-height: 92vh;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+.chat-image-lightbox .cil-close {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
 .message-actions {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
     margin-top: 4px;
-    opacity: 0;
-    transition: opacity 0.2s ease;
     position: relative;
 }
 
-/* Show message actions on hover for desktop */
-.message-item:hover .message-actions {
+/* By default, keep actions row non-intrusive; only reveal button */
+.message-action-btn {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+/* Desktop: show three-dot button on hover */
+.message-item:hover .message-action-btn {
     opacity: 1;
 }
 
-/* Always show message actions on mobile devices */
+/* Mobile: always show three-dot button */
 @media (max-width: 768px) {
-    .message-actions {
+    .message-action-btn {
         opacity: 1;
     }
 }
+
+/* Menu visibility controlled via JS; do not auto-show on hover */
+.message-options-menu.hidden { display: none; }
 
 .message-action-btn {
     background: none;
@@ -388,9 +572,15 @@
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    z-index: 10;
-    min-width: 120px;
+    z-index: 20; /* above input */
     overflow: hidden;
+}
+
+.message-options-menu.flip-up {
+    top: auto;
+    bottom: 100%;
+    margin-top: 0;
+    margin-bottom: 6px;
 }
 
 .message-options-menu.hidden {
@@ -398,24 +588,36 @@
 }
 
 .message-option {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 13px 16px;
-    width: 100%;
-    text-align: left;
+    justify-content: center;
+    padding: 8px;
+    width: auto;
     background: none;
     border: none;
     cursor: pointer;
     color: hsl(var(--foreground));
     font-size: 14px;
+    line-height: 1;
+    min-height: 32px;
     transition: background-color 0.2s ease;
-    margin: 4px 0;
+    margin: 0;
 }
 
-.message-option:hover {
-    background-color: hsl(var(--chat-hover));
+/* Horizontal icon-only menu inside chat */
+.vl-chat .message-options-menu.hidden { display: none !important; }
+.vl-chat .message-options-menu:not(.hidden) {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
 }
+
+.message-option:hover { background-color: hsl(var(--chat-hover)); }
+.vl-chat .message-option { border-radius: 6px; }
+.vl-chat .message-option.delete-btn:hover { background: rgba(239,68,68,0.12); color: #ef4444; }
+.vl-chat .message-option.edit-btn:hover { background: rgba(59,130,246,0.12); color: #3b82f6; }
 
 .message-option i {
     font-size: 12px;
@@ -423,15 +625,20 @@
 }
 
 .edited-indicator {
-    font-size: 11px;
-    color: #6b7280;
-    font-style: italic;
-    position: absolute;
-    top: -15px;
-    right: 5px;
-    background: transparent;
-    z-index: 10;
+  position: absolute;
+  top: -10px; /* sits over the top border like a legend */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  font-size: 11px;
+  color: #6b7280;
+  font-style: italic;
+  background: hsl(var(--card)); /* mask the border line under text */
+  padding: 0 6px;
+  line-height: 1;
+  white-space: nowrap;
 }
+\n
 
 /* Toast notification */
 .toast-notification {
@@ -461,19 +668,33 @@
 .edit-message-container {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     width: 100%;
+    margin: 0;
 }
 
 .edit-message-input {
     width: 100%;
-    padding: 8px;
-    border: 1px solid hsl(var(--border));
-    border-radius: var(--radius);
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
-    font-size: 14px;
+    /* Blend into the existing bubble */
+    padding: 0;
+    border: none;
+    background-color: transparent;
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    resize: vertical;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-height: 2.25em;
+    max-height: 40vh;
+    overflow-y: auto;
+    outline: none;
 }
+
+/* While editing, keep bubble shape and hide overlays */
+.vl-chat .vl-msg.editing .message-actions { display: none !important; }
+.vl-chat .vl-msg.editing .edited-indicator { display: none !important; }
 
 .custom-alert-overlay {
     position: fixed;
@@ -593,13 +814,17 @@
 .deleted-message {
     color: hsl(var(--muted-foreground));
     font-style: italic;
-    background-color: white;
+    background-color: transparent;
     font-size: 12px;
     padding: 8px 12px;
     margin-top: 8px;
     margin-bottom: 8px;
     position: relative;
     top: 0;
+    display: inline-block;
+    border: 1px solid hsl(var(--primary)); /* blue border */
+    border-radius: 6px;
+    text-align: center;
 }
 
 .message-time {
@@ -786,13 +1011,14 @@
     right: 0;
     bottom: 0;
     margin: auto;
-    transform: translateX(250px); /* Shift more to the right to center properly */
+    /* Center naturally within container; avoid shifting which causes horizontal overflow */
+    transform: none;
 }
 
 /* Media query to adjust no-messages-container positioning for mobile screens */
 @media (max-width: 768px) {
     .no-messages-container {
-        transform: translateX(0); /* Reset transform for mobile screens */
+        transform: none; /* ensure no horizontal shift on small screens */
     }
 }
 
@@ -808,4 +1034,369 @@
     font-weight: 500;
     color: hsl(var(--muted-foreground));
     text-align: center;
+}
+/* Centered no-results state for user search */
+.no-users-search {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 160px;
+  text-align: center;
+  color: #666;
+}
+
+.no-users-search .no-users-icon {
+  font-size: 32px;
+  color: #888;
+}
+
+.no-users-search .no-users-text h4 {
+  margin: 6px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #444;
+}
+
+.no-users-search .no-users-text p {
+  margin: 0;
+  font-size: 13px;
+  color: #777;
+}
+
+
+/* Consistent spacing and edited badge fixes */
+.messages-list {
+    overflow: visible; /* allow menus to extend outside list bounds */
+}
+
+.message-item {
+    position: relative;
+    margin: 0;
+    padding-top: 4px;
+    padding-bottom: 18px; /* reserve space for status label below bubble */
+}
+
+.timestamp-divider {
+  margin: 6px 0;
+  text-align: center;
+  opacity: 0.7;
+}
+
+.deleted-message {
+    display: inline-block;
+    margin: 0;
+    line-height: 1.25;
+}
+
+/* Sent status indicator inside message item */
+.message-status {
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  font-size: 11px;
+  color: #6b7280; /* slate-500 */
+  opacity: 0.9;
+}
+
+/* Ensure own message bubble doesn't overlap the status label */
+.message-item.sent .message-content {
+  margin-bottom: 12px;
+}
+
+.edited-indicator {
+  position: absolute;
+  top: -10px; /* sits over the top border like a legend */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  font-size: 11px;
+  color: #6b7280;
+  font-style: italic;
+  background: hsl(var(--card)); /* mask the border line under text */
+  padding: 0 6px;
+  line-height: 1;
+  white-space: nowrap;
+}
+\n
+
+
+/* Add spacing when edited badge present */
+.message-item.has-edited .message-content {
+  margin-top: 10px;
+}
+
+/* Edited badge: clean appearance and spacing */
+.edited-indicator {
+  position: absolute;
+  top: -10px; /* sits over the top border like a legend */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  font-size: 11px;
+  color: #6b7280;
+  font-style: italic;
+  background: hsl(var(--card)); /* mask the border line under text */
+  padding: 0 6px;
+  line-height: 1;
+  white-space: nowrap;
+}
+\n
+
+.message-item.has-edited .message-content {
+  margin-top: 18px; /* reserve space for the badge */
+}
+
+.message-item.has-edited + .message-item {
+  margin-top: 6px; /* add a bit more separation from next bubble */
+}
+
+
+
+/* Finalized legend-style edited label and spacing */
+.message-item.has-edited .message-content {
+  position: relative;
+  margin-top: 18px; /* reserve space for legend */
+  padding-top: 10px; /* space between border and text */
+  border-top: 1px solid hsl(var(--border));
+}
+
+.message-content .edited-indicator {
+  position: absolute;
+  top: -10px; /* sits on the top border like a legend */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  font-size: 11px;
+  color: #6b7280;
+  font-style: italic;
+  background: hsl(var(--card)); /* mask the border under text */
+  padding: 0 6px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.message-item.has-edited + .message-item {
+  margin-top: 6px; /* extra buffer below edited messages */
+}
+/* Edited indicator â€” Option 1: subtle inline tag (top-right inside bubble) */
+.message-item.has-edited .message-content {
+  position: relative;
+  padding-top: 4px; /* room for inline tag */
+}
+
+.message-content .edited-indicator {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 11px;
+  color: #6b7280;
+  font-style: italic;
+  background: transparent;
+  padding: 0;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+/* Message bubble: consistent size and wrapping */
+.message-content {
+  position: relative;
+  max-width: 72ch; /* readable width */
+  padding: 10px 12px 10px 12px;
+  border-radius: var(--radius);
+  overflow-wrap: anywhere; /* robust wrapping */
+  word-break: break-word;
+  box-sizing: border-box;
+}
+
+/* Keep existing color variants with stable corners */
+.message-item.sent .message-content {
+  background-color: hsl(var(--message-bubble));
+  color: hsl(var(--message-bubble-foreground));
+  border-bottom-right-radius: 0;
+}
+.message-item.received .message-content {
+  background-color: hsl(var(--message-received));
+  color: hsl(var(--message-received-foreground));
+  border-bottom-left-radius: 0;
+}
+
+/* Reserve room for edited tag without changing width */
+.message-item.has-edited .message-content {
+  padding-top: 16px; /* room for inline tag */
+}
+
+/* Edited indicator: inline tag at top-right inside bubble */
+.message-content .edited-indicator {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-size: 11px;
+  color: #6b7280;
+  font-style: italic;
+  background: transparent;
+  padding: 0;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0.9;
+  pointer-events: none; /* never blocks clicks */
+}
+/* ===== VigiLink Chat: Redesigned bubbles and edited indicator (scoped) ===== */
+.vl-chat .messages-list {
+    overflow: visible; /* allow menus to extend outside list bounds */
+}
+
+.vl-chat .vl-msg {
+  display: flex;
+  align-items: flex-start;
+  position: relative; /* anchor for status label without adding height */
+}
+.vl-chat .vl-msg.sent { justify-content: flex-end; }
+.vl-chat .vl-msg.received { justify-content: flex-start; }
+
+/* Bubble visuals */
+.vl-chat .vl-bubble {
+  position: relative;
+  max-width: min(80%, 42rem);
+  padding: 12px 14px;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.5;
+  box-sizing: border-box;
+  /* Add subtle blue border for visual structure */
+  border: 1px solid hsla(var(--primary), 0.35);
+}
+
+/* When editing, allow a wider bubble so the editor feels roomier */
+.vl-chat .vl-msg.editing .vl-bubble {
+  max-width: min(92%, 56rem);
+}
+.vl-chat .vl-bubble > p { margin: 0; }
+
+/* Colors for sides */
+.vl-chat .vl-msg.sent .vl-bubble {
+  /* Match primary (blue) bubble used elsewhere */
+  background: hsl(var(--message-bubble));
+  color: hsl(var(--message-bubble-foreground));
+  border-bottom-right-radius: 6px;
+  /* Slightly stronger border on sent side for contrast */
+  border-color: hsla(var(--primary), 0.55);
+}
+.vl-chat .vl-msg.received .vl-bubble {
+  background: #e5f2ff; /* soft blue */
+  color: #0b1220;      /* near-black */
+  border-bottom-left-radius: 6px;
+  border-color: hsla(var(--primary), 0.45);
+}
+
+/* Edited indicator above bubble, outside top-right */
+.vl-chat .vl-msg.has-edited .vl-bubble {
+  margin-top: 16px; /* reserve vertical space so chip never overlaps previous bubble */
+}
+.vl-chat .vl-bubble .edited-indicator {
+  position: absolute;
+  top: -12px;                 /* outside, above the bubble */
+  right: 8px !important;      /* always top-right of the bubble */
+  left: auto !important;      /* cancel any prior centering */
+  transform: none !important; /* prevent translate overrides */
+  display: inline-block;    /* fit to text */
+  width: auto;
+  max-width: max-content;
+  font-size: 11px;
+  font-weight: 500;
+  font-style: italic;
+  padding: 0 4px; /* tighter fit around text */
+  line-height: 1;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+  background: #ffffff;               /* clear chip over any background */
+  color: #374151;                    /* gray-700 */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  border: 1px solid #e5e7eb;         /* gray-200 */
+  z-index: 5;                        /* ensure above bubble */
+}
+
+/* Spacing between stacked messages (extra safety) */
+/* Rely on container gap for spacing; avoid double margins */
+.vl-chat .vl-msg + .vl-msg { margin-top: 0; }
+
+/* Status label overlays the bubble so it doesn't create extra gap */
+.vl-chat .vl-msg .message-status {
+  position: absolute;
+  right: 8px;
+  bottom: 2px;
+  font-size: 10px;
+  color: #6b7280;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* Disable any legacy legend-style top borders within chat scope */
+.vl-chat .message-item.has-edited .message-content {
+  border-top: none !important;
+  padding-top: 0 !important;
+}
+
+/* Mobile tweaks */
+@media (max-width: 768px) {
+  .vl-chat .vl-bubble {
+    max-width: 88%;
+    padding: 12px;
+    border-radius: 14px;
+  }
+  .vl-chat .vl-msg.editing .vl-bubble {
+    max-width: 96%;
+  }
+  .vl-chat .vl-msg.has-edited .vl-bubble { margin-top: 14px; }
+  .vl-chat .vl-bubble .edited-indicator {
+    top: -10px;
+    right: 8px !important;
+    left: auto !important;
+    transform: none !important;
+    font-size: 10.5px;
+  }
+}
+
+/* Legacy fallback: ensure wider bubble in non-scoped layout when editing */
+.message-item.editing .message-content {
+  max-width: min(92%, 56rem);
+}
+
+/* Removed new-message/scroll-to-bottom button styling */
+
+
+
+
+.message-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  max-width: 300px;
+}
+.message-gallery .gallery-item {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.message-gallery .gallery-item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 1px solid hsl(var(--border));
+}
+.message-gallery .gallery-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
 }

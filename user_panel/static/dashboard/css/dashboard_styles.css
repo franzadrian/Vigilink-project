@@ -168,7 +168,7 @@
         }
 
         /* Sidebar */
-        .sidebar {
+.sidebar {
             position: fixed;
             top: 64px;
             left: 0;
@@ -180,7 +180,46 @@
             z-index: 40;
             margin-top: 0;
             padding-top: 0;
-        }
+}
+
+/* Unread badge for Communication link */
+.unread-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 9999px;
+    background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    border: 1px solid rgba(255,255,255,0.85);
+    box-shadow: 0 3px 10px rgba(239, 68, 68, 0.35);
+    transform-origin: center;
+    transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+@keyframes badge-in {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes badge-bump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+@keyframes badge-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+  70% { box-shadow: 0 0 0 10px rgba(239,68,68,0); }
+  100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+}
+.unread-badge.anim-in { animation: badge-in 180ms ease; }
+.unread-badge.bump { animation: badge-bump 220ms ease; }
+.unread-badge.pulse { animation: badge-pulse 1000ms ease; }
 
         .sidebar.collapsed {
             transform: translateX(-100%);
@@ -234,6 +273,15 @@
             width: 16px;
             height: 16px;
             stroke-width: 2;
+        }
+
+        /* Reply author link styling */
+        .reply-author-link {
+            color: inherit;
+            text-decoration: none;
+        }
+        .reply-author-link:hover {
+            text-decoration: underline;
         }
 
         /* Main Content */

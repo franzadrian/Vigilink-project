@@ -31,36 +31,63 @@
       <div id="search-results">
         <!-- Users with messages -->
         {% for user in users %}
-        <div class="user-item" data-user-id="{{ user.id }}" 
+        <div class="user-item{% if user.unread_count and user.unread_count > 0 %} unread{% endif %}" data-user-id="{{ user.id }}" 
              data-username="{{ user.username }}" 
              data-fullname="{{ user.full_name|default:'' }}" 
-             data-email="{{ user.email }}">
+             data-email="{{ user.email }}"
+             {% if user.last_message_time %}data-last-message-time="{{ user.last_message_time|date:'c' }}"{% endif %}>
           <div class="user-avatar">
-            {% if user.profile_picture or user.profile_picture_url %}
-              <img src="{{ user.get_profile_picture_url }}" alt="{{ user.username }}" class="avatar-image">
+            {% if user.profile_picture_url %}
+              <img src="{{ user.profile_picture_url }}?{% now 'U' %}"
+                   alt="{{ user.username }}"
+                   class="avatar-image"
+                   onerror="this.onerror=null; this.src='/static/accounts/images/profile.png';">
             {% else %}
               <span class="avatar-text">{{ user.full_name|default:user.username|make_list|slice:":2"|join:""|upper }}</span>
             {% endif %}
           </div>
           <div class="user-info">
-            <div class="user-name">{{ user.full_name|default:user.username }}</div>
+            <div class="user-name">
+              {% if user.full_name and user.full_name|lower != 'none' %}
+                {{ user.full_name }}
+              {% else %}
+                {{ user.username }}
+              {% endif %}
+            </div>
             <div class="last-message">
-              {% with last_message=user.sent_messages.first|default:user.received_messages.first %}
-                {% if last_message %}
-                  {{ last_message.message|truncatechars:30 }}
+              {% if user.unread_count and user.unread_count|add:0 >= 2 %}
+                {% if user.unread_count > 9 %}
+                  9+ new message
+                {% else %}
+                  {{ user.unread_count }} new message
+                {% endif %}
+              {% else %}
+                {% if user.last_message %}
+                  {% if user.last_message_is_own %}
+                    You: {{ user.last_message|truncatechars:30 }}
+                  {% else %}
+                    {% if user.first_name and user.first_name|lower != 'none' %}
+                      {{ user.first_name }}: {{ user.last_message|truncatechars:30 }}
+                    {% elif user.last_name and user.last_name|lower != 'none' %}
+                      {{ user.last_name }}: {{ user.last_message|truncatechars:30 }}
+                    {% elif user.full_name and user.full_name|lower != 'none' %}
+                      {{ user.full_name }}: {{ user.last_message|truncatechars:30 }}
+                    {% else %}
+                      {{ user.username }}: {{ user.last_message|truncatechars:30 }}
+                    {% endif %}
+                  {% endif %}
                 {% else %}
                   No messages yet
                 {% endif %}
-              {% endwith %}
+              {% endif %}
             </div>
           </div>
-          <div class="message-time">
-            {% with last_message=user.sent_messages.first|default:user.received_messages.first %}
-              {% if last_message %}
-                {{ last_message.sent_at|friendly_timesince }}
-              {% endif %}
-            {% endwith %}
+          <div class="message-time" {% if user.last_message_time %}data-timestamp="{{ user.last_message_time|date:'c' }}"{% endif %}>
+            {% if user.last_message_time %}
+              {{ user.last_message_time|friendly_timesince }}
+            {% endif %}
           </div>
+          <button class="remove-user-btn" title="Remove" aria-label="Remove conversation">&times;</button>
         </div>
         {% empty %}
         <div class="no-users">
@@ -80,7 +107,8 @@
       </button>
       <div class="selected-user-info">
         <div class="user-avatar-header">
-          <img src="" alt="User" class="avatar-image" id="selected-user-avatar-img" style="display: none;">
+          <img src="" alt="User" class="avatar-image" id="selected-user-avatar-img" style="display: none;"
+               onerror="this.onerror=null; this.src='/static/accounts/images/profile.png';">
           <span class="avatar-text" id="selected-user-avatar">U</span>
           <span class="status-indicator online"></span>
         </div>
@@ -90,17 +118,12 @@
       </div>
     </div>
     
-    <div class="messages-container">
+    <div class="messages-container vl-chat">
       <div id="messages-list" class="messages-list">
         <!-- Messages will be dynamically populated via JavaScript -->
         <div class="no-messages-container">
           <!-- Empty container for better layout -->
         </div>
-      </div>
-      <div id="scroll-to-bottom" class="scroll-to-bottom">
-        <button type="button" aria-label="Scroll to bottom">
-          <i class="fas fa-arrow-down"></i>
-        </button>
       </div>
     </div>
     
@@ -142,5 +165,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script defer src="{% static 'communication/js/user_communication.js' %}"></script>
+<script defer src="{% static 'communication/js/user_communication.js' %}?v=2"></script>
 {% endblock %}

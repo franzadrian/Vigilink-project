@@ -29,10 +29,12 @@ urlpatterns = [
     path('communication/', views.communication, name='communication'),
     path('communication/messages/', views.chat_messages, name='chat_messages'),
     path('communication/send/', views.send_message, name='send_message'),
+    path('communication/send-image/', views.send_image_message, name='send_image_message'),
     path('communication/edit-message/', views.edit_message, name='edit_message'),
     path('communication/delete-message/', views.delete_message, name='delete_message'),
     path('communication/recent-chats/', views.get_recent_chats, name='recent_chats'),
-    path('mark-read/<uuid:message_id>/', views.mark_message_read, name='mark_message_read'),
+    # Mark message as read (message_id is an integer primary key)
+    path('mark-read/<int:message_id>/', views.mark_message_read, name='mark_message_read'),
     path('global-user-search/', views.global_user_search, name='global_user_search'),
     path('search-users/', views.search_users, name='search_users'),
     path('payment/create/', views.create_payment, name='create_payment'),
