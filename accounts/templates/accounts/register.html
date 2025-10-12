@@ -70,7 +70,7 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label class="form-label" for="fullName">Full Name</label>
-                        <input class="form-input" type="text" id="fullName" name="fullName" placeholder="Enter your full name" required>
+                        <input class="form-input" type="text" id="fullName" name="fullName" placeholder="Enter your full name" minlength="4" maxlength="30" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="email">Email</label>
@@ -95,7 +95,7 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="emergencyContact">Emergency Contact Information (Optional)</label>
-                        <input class="form-input" type="text" id="emergencyContact" name="emergencyContact" placeholder="Enter emergency contact">
+                        <input class="form-input" type="text" id="emergencyContact" name="emergencyContact" placeholder="Enter 11-digit phone number" inputmode="numeric" pattern="[0-9]{11}" minlength="11" maxlength="11">
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="city">City</label>

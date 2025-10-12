@@ -74,8 +74,8 @@ def register_view(request):
             return render(request, 'accounts/register.html', {'cities': cities})
         
         # Validate full name length
-        if len(full_name) < 7 or len(full_name) > 15:
-            messages.error(request, 'Full name must be between 7 and 15 characters')
+        if len(full_name) < 4 or len(full_name) > 30:
+            messages.error(request, 'Full name must be between 4 and 30 characters')
             return render(request, 'accounts/register.html', {'cities': cities})
         
         # Validate full name (only letters and spaces allowed)
@@ -100,7 +100,13 @@ def register_view(request):
         if email_domain not in valid_domains:
             messages.error(request, f'Please use a valid email domain. Accepted domains include: {", ".join(valid_domains)}')
             return render(request, 'accounts/register.html', {'cities': cities})
-        
+
+        # Validate emergency contact (optional): must be exactly 11 digits if provided
+        if contact:
+            if not re.match(r'^\d{11}$', contact.strip()):
+                messages.error(request, 'Emergency contact must be exactly 11 digits and contain numbers only.')
+                return render(request, 'accounts/register.html', {'cities': cities})
+
         if password != confirm_password:
             messages.error(request, 'Passwords do not match')
             return render(request, 'accounts/register.html', {'cities': cities})

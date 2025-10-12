@@ -103,10 +103,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return validDomains.includes(domain);
         }
         
-        // Function to validate full name length (between 7 and 20 characters total)
+        // Function to validate full name length (between 4 and 30 characters total)
 function validateFullNameLength(fullName) {
-    const minLength = 7;
-    const maxLength = 20;
+    const minLength = 4;
+    const maxLength = 30;
     const fullNameLength = (fullName || '').trim().length;
     return fullNameLength >= minLength && fullNameLength <= maxLength;
 }
@@ -118,7 +118,7 @@ function validateFullNameLength(fullName) {
                 const fullName = fullNameInput ? fullNameInput.value.trim() : '';
                 
                 const fullNameLength = fullName.length;
-                const charsNeeded = Math.max(0, 12 - fullNameLength);
+                const charsNeeded = Math.max(0, 4 - fullNameLength);
                 
                 // Clear all validation when field is empty
                 if (fullName === '') {
@@ -139,11 +139,11 @@ function validateFullNameLength(fullName) {
                 }
                 
                 // Show character count message
-                if (fullNameLength < 7) {
-                    const charsNeeded = 7 - fullNameLength;
+                if (fullNameLength < 4) {
+                    const charsNeeded = 4 - fullNameLength;
                     showError(fullNameInput, `${charsNeeded} more character${charsNeeded !== 1 ? 's' : ''} needed in full name.`);
-                } else if (fullNameLength > 20) {
-                    const charsExcess = fullNameLength - 20;
+                } else if (fullNameLength > 30) {
+                    const charsExcess = fullNameLength - 30;
                     showError(fullNameInput, `Full name too long. Please remove ${charsExcess} character${charsExcess !== 1 ? 's' : ''}.`);
                 } else {
                     // Only add success class during typing
@@ -159,13 +159,51 @@ function validateFullNameLength(fullName) {
                 const fullName = fullNameInput ? fullNameInput.value.trim() : '';
                 
                 if (fullName !== '' && validateName(fullName)) {
-                    if (fullName.length >= 7 && fullName.length <= 20) {
+                    if (fullName.length >= 4 && fullName.length <= 30) {
                         showSuccess(this, 'Valid full name');
                     }
                 }
             });
         }
-        
+
+        // Emergency contact (optional) – digits only, exactly 11 when provided
+        const emergencyContactInput = document.getElementById('emergencyContact');
+        if (isRegistrationForm && emergencyContactInput) {
+            function updateEmergencyContactValidation() {
+                const raw = emergencyContactInput.value.trim();
+
+                if (raw === '') {
+                    removeError(emergencyContactInput);
+                    emergencyContactInput.classList.remove('input-success-field');
+                    return;
+                }
+
+                if (!/^\d+$/.test(raw)) {
+                    showError(emergencyContactInput, 'Numbers only (0-9).');
+                    return;
+                }
+
+                if (raw.length < 11) {
+                    const needed = 11 - raw.length;
+                    showError(emergencyContactInput, `${needed} more digit${needed !== 1 ? 's' : ''} needed.`);
+                } else if (raw.length > 11) {
+                    const excess = raw.length - 11;
+                    showError(emergencyContactInput, `Too many digits. Remove ${excess}.`);
+                } else {
+                    removeError(emergencyContactInput);
+                    emergencyContactInput.classList.add('input-success-field');
+                }
+            }
+
+            emergencyContactInput.addEventListener('input', updateEmergencyContactValidation);
+            emergencyContactInput.addEventListener('blur', function() {
+                const raw = emergencyContactInput.value.trim();
+                if (raw !== '' && /^\d{11}$/.test(raw)) {
+                    showSuccess(emergencyContactInput, 'Valid emergency contact');
+                }
+            });
+        }
+
         // Middle name and last name fields have been removed
         
         if (emailInput) {
@@ -321,10 +359,13 @@ function validateFullNameLength(fullName) {
                     }
                 }
                 
-                // Check contact
-                const contactInput = document.getElementById('contact');
-                if (contactInput && !contactInput.value.trim()) {
-                    return false;
+                // Check emergency contact (optional): if present, must be exactly 11 digits
+                const emergencyContactInput = document.getElementById('emergencyContact');
+                if (emergencyContactInput) {
+                    const val = emergencyContactInput.value.trim();
+                    if (val !== '' && !/^\d{11}$/.test(val)) {
+                        return false;
+                    }
                 }
             }
             
@@ -379,21 +420,33 @@ function validateFullNameLength(fullName) {
                         fullNameInput.focus();
                         hasError = true;
                     }
-                    // Check if full name meets length requirement (7-20 characters)
+                    // Check if full name meets length requirement (4-30 characters)
                     else if (!validateFullNameLength(fullName)) {
                         event.preventDefault();
-                        if (fullName.length < 7) {
-                            const charsNeeded = 7 - fullName.length;
-                            showError(fullNameInput, `Full name must be at least 7 characters. ${charsNeeded} more character${charsNeeded !== 1 ? 's' : ''} needed.`);
-                        } else if (fullName.length > 20) {
-                            const charsExcess = fullName.length - 20;
-                            showError(fullNameInput, `Full name must be at most 20 characters. Please remove ${charsExcess} character${charsExcess !== 1 ? 's' : ''}.`);
+                        if (fullName.length < 4) {
+                            const charsNeeded = 4 - fullName.length;
+                            showError(fullNameInput, `Full name must be at least 4 characters. ${charsNeeded} more character${charsNeeded !== 1 ? 's' : ''} needed.`);
+                        } else if (fullName.length > 30) {
+                            const charsExcess = fullName.length - 30;
+                            showError(fullNameInput, `Full name must be at most 30 characters. Please remove ${charsExcess} character${charsExcess !== 1 ? 's' : ''}.`);
                         }
                         fullNameInput.focus();
                         hasError = true;
                     }
                 }
                 
+                // Validate emergency contact (optional)
+                const emergencyContactInput = document.getElementById('emergencyContact');
+                if (!hasError && emergencyContactInput) {
+                    const val = emergencyContactInput.value.trim();
+                    if (val !== '' && !/^\d{11}$/.test(val)) {
+                        event.preventDefault();
+                        showError(emergencyContactInput, 'Emergency contact must be exactly 11 digits (numbers only).');
+                        emergencyContactInput.focus();
+                        hasError = true;
+                    }
+                }
+
                 // Check if all fields are valid
                 if (!areAllFieldsValid()) {
                     event.preventDefault();

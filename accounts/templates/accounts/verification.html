@@ -85,6 +85,28 @@
         // JavaScript for code input functionality
         const codeInputs = document.querySelectorAll('.code-input');
         
+        // Handle paste across all boxes: distribute digits sequentially
+        const container = document.querySelector('.code-input-container');
+        if (container) {
+            container.addEventListener('paste', (e) => {
+                const pasted = (e.clipboardData || window.clipboardData).getData('text') || '';
+                const digits = pasted.replace(/\D/g, '').slice(0, codeInputs.length);
+                if (!digits) return; // let default if no digits
+                e.preventDefault();
+                // Fill from the first input
+                for (let i = 0; i < codeInputs.length; i++) {
+                    codeInputs[i].value = digits[i] || '';
+                }
+                // Focus next empty or blur if all filled
+                const nextEmptyIndex = Array.from(codeInputs).findIndex(inp => inp.value === '');
+                if (nextEmptyIndex !== -1) {
+                    codeInputs[nextEmptyIndex].focus();
+                } else {
+                    codeInputs[codeInputs.length - 1].blur();
+                }
+            });
+        }
+
         codeInputs.forEach((input, index) => {
             // Auto-focus on first input when page loads
             if (index === 0) {
