@@ -36,16 +36,6 @@ def _csv(name, default=""):
 ALLOWED_HOSTS = _csv('ALLOWED_HOSTS', '*') if not DEBUG else ['*']
 CSRF_TRUSTED_ORIGINS = _csv('CSRF_TRUSTED_ORIGINS')
 
-# Auto-add Render external hostname if available
-RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
-if RENDER_EXTERNAL_HOSTNAME:
-    if ALLOWED_HOSTS == ['*'] and not DEBUG:
-        ALLOWED_HOSTS = []
-    if RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
-        ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
-    origin = f"https://{RENDER_EXTERNAL_HOSTNAME}"
-    if origin not in CSRF_TRUSTED_ORIGINS:
-        CSRF_TRUSTED_ORIGINS.append(origin)
 
 
 # Application definition
@@ -230,3 +220,4 @@ CSRF_COOKIE_SECURE = not DEBUG
 # Refresh token (preferred for production); optional file path for convenience
 DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
 DROPBOX_REFRESH_TOKEN_FILE = BASE_DIR / 'dropbox_refresh_token.txt'
+
