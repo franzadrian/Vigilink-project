@@ -1,0 +1,15 @@
+env/
+venv/
+*.pyc
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.git/
+.gitignore
+.vscode/
+*.log
+node_modules/
+staticfiles/
+media/
+*.sqlite3
+__snapshots__/
