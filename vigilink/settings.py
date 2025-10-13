@@ -21,7 +21,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-)#k6@ho08g)@ppw+tn-p_dm59y9(!2=s%=5ajw&o(g_%rf^%ye'
+# Read from environment if provided; fall back to a dev-only key.
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-)#k6@ho08g)@ppw+tn-p_dm59y9(!2=s%=5ajw&o(g_%rf^%ye')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() in ('1', 'true', 'yes')
@@ -87,18 +88,30 @@ WSGI_APPLICATION = 'vigilink.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Use PostgreSQL
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DB', 'vigilink_db'),
-        'USER': os.environ.get('POSTGRES_USER', 'vigilink_user'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'vigilink'),
-        'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
-        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
-        'CONN_MAX_AGE': int(os.environ.get('POSTGRES_CONN_MAX_AGE', '60')),
+# Database
+# Default to SQLite for local development. Set USE_POSTGRES=true to use Postgres.
+USE_POSTGRES = os.environ.get('USE_POSTGRES', '').lower() in ('1', 'true', 'yes')
+
+if USE_POSTGRES:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('POSTGRES_DB', 'vigilink_db'),
+            'USER': os.environ.get('POSTGRES_USER', 'vigilink_user'),
+            'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
+            'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
+            'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+            'CONN_MAX_AGE': int(os.environ.get('POSTGRES_CONN_MAX_AGE', '60')),
+            # psycopg honors libpq env like PGSSLMODE; no extra config required here
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -197,8 +210,9 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'achives1@gmail.com'
-EMAIL_HOST_PASSWORD = 'wrry gbvd vhlk hqcb'  # App password for Gmail
+# Read SMTP creds from environment (no hardcoded secrets)
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 
 # Verification settings
 VERIFICATION_CODE_EXPIRY_MINUTES = 10

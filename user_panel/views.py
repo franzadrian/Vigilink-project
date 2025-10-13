@@ -22,10 +22,10 @@ from django.utils.safestring import mark_safe
 # Set up logging
 logger = logging.getLogger(__name__)
 
-# PayPal API Configuration
-PAYPAL_CLIENT_ID = "ASK5CmbwHCxQ_LcKuW3IO3TnGeGqDRLnc00vPUMR4_iwZFfcEdnAZnRLzWu3jRxjAgx4VSToPBA4ZBQS"
-PAYPAL_CLIENT_SECRET = "EIJWooCierps6iLQQSRND8Bj1aS6xDhIUByyt_hstwx8F2s0jfJo6GR0g4e05ixK2cVfL_9vcoPm-hqS"
-PAYPAL_BASE_URL = "https://api-m.sandbox.paypal.com"
+# PayPal API Configuration (read from environment; do not hardcode secrets)
+PAYPAL_CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID", "")
+PAYPAL_CLIENT_SECRET = os.environ.get("PAYPAL_CLIENT_SECRET", "")
+PAYPAL_BASE_URL = os.environ.get("PAYPAL_BASE_URL", "https://api-m.sandbox.paypal.com")
 
 def about(request):
     """About page view"""
