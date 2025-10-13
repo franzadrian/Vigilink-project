@@ -19,6 +19,5 @@ RUN python manage.py collectstatic --noinput
 # Koyeb provides PORT; default to 8080 for local Docker runs
 ENV PORT=8080
 
-# Run via gunicorn
-CMD ["gunicorn", "vigilink.wsgi:application", "--bind", "0.0.0.0:${PORT}", "--workers", "3", "--timeout", "120"]
-
+# Run via gunicorn (expand $PORT at runtime; default to 8080 locally)
+CMD ["sh", "-c", "gunicorn vigilink.wsgi:application --bind 0.0.0.0:${PORT:-8080} --workers 3 --timeout 120"]
