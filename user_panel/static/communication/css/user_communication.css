@@ -1381,6 +1381,15 @@
   position: relative;
   overflow: hidden;
   border-radius: 8px;
+  /* Make in-message thumbnails perfectly square */
+  aspect-ratio: 1 / 1;
+}
+.message-gallery .message-image-link {
+  /* Override generic single-image constraints for gallery tiles */
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
 }
 .message-gallery .gallery-item img {
   display: block;

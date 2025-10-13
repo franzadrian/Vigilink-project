@@ -9,12 +9,9 @@ import uuid
 # Dropbox credentials (prefer settings or environment variables; do not hardcode tokens)
 APP_KEY = os.environ.get('DROPBOX_APP_KEY') or getattr(settings, 'DROPBOX_APP_KEY', None)
 APP_SECRET = os.environ.get('DROPBOX_APP_SECRET') or getattr(settings, 'DROPBOX_APP_SECRET', None)
-# For this school project, use a hardcoded fallback token if no env/setting provided
-ACCESS_TOKEN = (
-    os.environ.get('DROPBOX_ACCESS_TOKEN')
-    or getattr(settings, 'DROPBOX_ACCESS_TOKEN', None)
-    or 'sl.u.AGDkhWU4Zco3K8-YKc-yGMdnEkmQfr1Qh7wC5YVgougO7gDmKxEbXFfmrGNZcN-FV-73CAzuj55kRWIAh6Kb0tjc4auMW2eDeSNa9lQmp6gSCAD-y6ktm59P_l7ghTsanUPcFDS-t6-h-UhcJKBuklqsw8fI4e_fWDzaH5H_KX1EuiTSZqwJkpvIWviB4-MYyFSNOqQG_HZK4MmZPJ7DG4Fp6MJ-IOzqo6vrU8SmPd8cVuDgWnjzf6fCn5dwkGcHLkTac9HrE6Htqm9tZglNQteGIUJ_c0nXKEKhK4OuNw4Yk6Yq2qxNOHxxvA3iXrI0M9RLLxjXFSZQB91o_zGvp5QwY-5RFupddBr6Uy4u02mC1S2-zwAFaoVQ5DORH1Jte0ioN_gSAWVpC6HpYWS2azTOd7NBTQzHOlja-7QLgPYyzTzla7TBb_QusnRuxrBwQ9oGab9osA7wbgBRCoJ8LJUclQ_L9xu7a3VyZNZX7-7_5IsqkWkfTGAJpU76NkwPxkgbUsKXoONeEE-_29DjaZ9d_x8BV0zlsC_vTcDPKkjJOSKQTnlT-kvlZMFlt_tRDEh25itUXWf_sm_frWP6QRklL4UGrxilCs_oGfWOJ3iHhRp6YMYrXzykVwUt-Del9MUX4wgALFsiMrSIlgPLrXLzMPhlseN1uuM6DYUKKNg3GszY6MTiRdcPaaBBk9SRH_0emlhPMa-J0Vz0UHpUnGu44NLGyA6CBGmQbd_26fQCPuT8ilfQq8RSnbR0ZrNYXyzF4Q2q9y5BDBX5IiOz3akN-Il38Wx72cog4sS9--4zqP7AQWPyOFMhIYvefirGCcFzoWjslqMgWg_Fun3pyp1es2uWXZGDqPQPCnyenloSL_K_rxf7Z79FOFRnwBhm8YzDQ_32mP3bCJTw8LfejS0f54qqUMT8r2btMZqvJbEvoTtFmK_-b3-m_q4xvGhOFpho55IpwF5XofquvQiEvdxOKCdoMfK3QzSL123kAjnnVbvAq2gGaR91C0cZRFo7M_Tvt1RTbVXR5KOC_3dre4JWBMgvep-CrRkNuDvgl5qljqjwbXxB1FOPZpvIY6-KqPxPScamiYy-jD65FC18DfSfuLFOBEX3hHDkqEoO5sqFCl6e1PMWMp_CBGSuIsLhwbZZRcfl2lypklaHA9YowzbKm9XSpD7JXNaowESbppMsrvDLkSrOj5tcEZgoIBHU5aSSl8e7AI6zHDsn-bYpd6Xo9u36SeT-ZQdzj9m2KvGG6kcApnog84gA04jFu_kT6yrh346HUE5qUkWQJaraPOxve3wpbAJNDb9VSc61LbKtEGBTsHpTTYB_7wDU73eM4sPUziZduH-zu1Yir4_w6-iAzSyyZZ0jIWgujG6I3ILI0t3o2picc_2vkZ0rHu-mS4VLdfWdv4_FGPMGEDN7deITt08yYlywslaheVcjh_2A-A'
-)
+
+# Optional last-resort fallback token (OK for school projects)
+ACCESS_TOKEN = 'sl.u.AGDXbUbfRxnoGPo_98Ig-YdMWlVf8LGzus5DMfdY01dlnx6O_roM4ivuxq4EAUVtzaDBvuCA2Ts9aU8GArih5051IMdYG70dm7oIN-hgOPg-cnWSwl4P0qNSQxNKx4Q3RIVAIoRbYfAdnOfeDcN5zx_wHhAV-CtVmfK9TboBOOulCinSY1PuBoD9TplYEubLD0fNN41sQKfRw4GSMG78akMqxacHlQzvQpb5LyLIliVEWLNOHh466_49925yqU8rgkIesUVthBNk_7AORKZz20spq7dkaXikIa7PWq6kVOlAq1FjHIGk9q3PQmtNwRIbSOI0yU5n5yuoIi-S7dZMSx6bYQsWKl4jk5GwoHeivKn61s6WHmSa7PMWGCyzv6RM7seUYshVAnSoZEK78bbySniYNjeboqVyNp2IXk0jJQnEPY2DDxJVcvLkh7zgvJVpmkHZfxGTivXZNJ6-CbB14lBx327qg7ms51-MZJ7TQZaET6ZTaqWnT1wNiZebxWHX83HV_pQAbUcUrPz5uxGtgp2n_dg7Ezmq9WqSwfA0Z-z6xilwUeT-Ft-ELHExzgkkeprfunivH5hAw5g9N4ihoVJy1mMrTRlARIiaD1mDzXvj2EhoTneVz5GQzb8oCC8hMC8-yUaFwCn2Jpy26U4Xk3Wu9txFK7XZz-35BY3NOptsiUuEGdYzFJ-nDTUHU9E5XkjKiXrvhmd8gxapRgqLMEq8Q9mH1Ibj_Pnu05Xy_a5XVzzKUF9TAwUs2aE04wTnpdtYf3EbtztpasXNMdN3kcg2zSEt24NchKEr6dJviDCQTHE06sw6SN6kV_yRvys_VteEUBmzK6ky6pY1IvQJNsCOqlLKoYLXqhyBKn6JrSHtHUgKZdWNkpGam_bdp4RKBADCiLJY1XCwww17rfO7BUowVabn1M8K2XuY8lWxpl0q3FwALNuj5ZZHAEgD2l2uvHq1BqaWKYuqNv1kBPzn_wNLsDZHs3qD9rIwQXtfAd5FrHliIzlo7L9oyIuP0qeBc83y6yL-EVPJINFaC_qs9tSMrTOacNmPHuFVXryjPqWquxGi5fBSdX4DeuHT3Xrk547GVIXN7u6uIGCIUlzGpBw_Q2lu-5YoBCtRWSPwu8cUTUnR78R8U1ED0-QM8wEGaxCROMnZvyEshhVQZJ4Xf_bNz39-_dbMFDrp5yYhjNosmWYHeRz40IUXiqqd9b0II52bKNJmnH6GyzC7Qu4TA8wwVlvVUjcdjjUyAtN8lItUB4X5BFKsus8GsMgB23EjbEZncZjlw_Qjfj9Oxza1l4ukDvuXwVDwEdoNtZkywXhjQcqyNwPwrcbG90d9m2a5EYE_eSTikpb3irsDEZiTdE6RMdfwqVILweihII9cI0t47I459dfLLbWQzsG_nBQ7QU0VpL2DVmJDjphmfznniROTxEiTJZ9HN7ut940eue-TIw'
 
 # Dropbox folder paths
 PROFILE_PICTURES_PATH = '/vigilink/profile_pictures/'
@@ -23,15 +20,44 @@ CHAT_IMAGES_PATH = '/vigilink/chat_images/'
 
 def get_dropbox_client():
     """Initialize and return a Dropbox client instance.
-    Looks up token in env, settings, then optional token file path.
+    Prefers OAuth2 refresh token if provided; otherwise falls back to access token.
+    Lookup order:
+      1) Refresh token: env -> settings -> optional file (settings.DROPBOX_REFRESH_TOKEN_FILE)
+      2) Access token:  env -> settings -> optional file (settings.DROPBOX_TOKEN_FILE) -> ACCESS_TOKEN fallback
     """
-    # Resolve token dynamically (in case env/settings changed after import)
+    # 1) Try refresh token flow first
+    refresh_token = (
+        os.environ.get('DROPBOX_REFRESH_TOKEN') or
+        getattr(settings, 'DROPBOX_REFRESH_TOKEN', None)
+    )
+    if not refresh_token:
+        rt_file = getattr(settings, 'DROPBOX_REFRESH_TOKEN_FILE', None)
+        if rt_file:
+            try:
+                with open(rt_file, 'r', encoding='utf-8') as f:
+                    refresh_token = f.read().strip()
+            except Exception:
+                refresh_token = None
+
+    if refresh_token and APP_KEY and APP_SECRET:
+        try:
+            dbx = dropbox.Dropbox(
+                oauth2_refresh_token=refresh_token,
+                app_key=APP_KEY,
+                app_secret=APP_SECRET,
+            )
+            dbx.users_get_current_account()
+            return dbx
+        except AuthError:
+            print("ERROR: Invalid Dropbox refresh token or app credentials")
+        except Exception as e:
+            print(f"ERROR: Dropbox init with refresh token failed: {e}")
+
+    # 2) Fall back to long/short-lived access token
     token = (
         os.environ.get('DROPBOX_ACCESS_TOKEN') or
-        getattr(settings, 'DROPBOX_ACCESS_TOKEN', None) or
-        ACCESS_TOKEN
+        getattr(settings, 'DROPBOX_ACCESS_TOKEN', None)
     )
-    # Optional token file path
     if not token:
         token_file = getattr(settings, 'DROPBOX_TOKEN_FILE', None)
         if token_file:
@@ -40,12 +66,14 @@ def get_dropbox_client():
                     token = f.read().strip()
             except Exception:
                 token = None
+    if not token and ACCESS_TOKEN:
+        token = ACCESS_TOKEN
+
     try:
         if not token:
             print("ERROR: Dropbox access token not configured")
             return None
         dbx = dropbox.Dropbox(token)
-        # Check that the access token is valid
         dbx.users_get_current_account()
         return dbx
     except AuthError:

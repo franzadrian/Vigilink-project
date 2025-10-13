@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,9 +24,28 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-)#k6@ho08g)@ppw+tn-p_dm59y9(!2=s%=5ajw&o(g_%rf^%ye'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() in ('1', 'true', 'yes')
 
-ALLOWED_HOSTS = ['*']
+# Hosts and CSRF from env (comma‑separated)
+def _csv(name, default=""):
+    raw = os.environ.get(name, default)
+    if not raw:
+        return []
+    return [h.strip() for h in raw.split(',') if h.strip()]
+
+ALLOWED_HOSTS = _csv('ALLOWED_HOSTS', '*') if not DEBUG else ['*']
+CSRF_TRUSTED_ORIGINS = _csv('CSRF_TRUSTED_ORIGINS')
+
+# Auto-add Render external hostname if available
+RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if RENDER_EXTERNAL_HOSTNAME:
+    if ALLOWED_HOSTS == ['*'] and not DEBUG:
+        ALLOWED_HOSTS = []
+    if RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+    origin = f"https://{RENDER_EXTERNAL_HOSTNAME}"
+    if origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(origin)
 
 
 # Application definition
@@ -44,6 +64,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -76,27 +97,18 @@ WSGI_APPLICATION = 'vigilink.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-import os
-
-# Use PostgreSQL if DATABASE_URL environment variable is set, otherwise use SQLite
-if os.environ.get('USE_POSTGRES', False):
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': 'vigilink_db',
-            'USER': 'vigilink_user',
-            'PASSWORD': 'vigilink',
-            'HOST': 'localhost',
-            'PORT': '5432',
-        }
+# Use PostgreSQL
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('POSTGRES_DB', 'vigilink_db'),
+        'USER': os.environ.get('POSTGRES_USER', 'vigilink_user'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'vigilink'),
+        'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
+        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        'CONN_MAX_AGE': int(os.environ.get('POSTGRES_CONN_MAX_AGE', '60')),
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+}
 
 
 # Password validation
@@ -133,14 +145,18 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Define static files directories
+# Define static files directories (for local dev; collected to STATIC_ROOT in prod)
 STATICFILES_DIRS = [
     BASE_DIR / 'accounts' / 'static',
     BASE_DIR / 'admin_panel' / 'static',
     BASE_DIR / 'user_panel' / 'static',
 ]
+
+# WhiteNoise static files storage (hashed files, compression)
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media files (User uploads)
 MEDIA_URL = '/media/'
@@ -197,6 +213,20 @@ EMAIL_HOST_PASSWORD = 'wrry gbvd vhlk hqcb'  # App password for Gmail
 # Verification settings
 VERIFICATION_CODE_EXPIRY_MINUTES = 10
 
-# Dropbox access token (prefer environment variable)
+# Dropbox configuration
+# Access token (legacy/short-lived) and token file
 DROPBOX_ACCESS_TOKEN = os.environ.get('DROPBOX_ACCESS_TOKEN', '')
 DROPBOX_TOKEN_FILE = BASE_DIR / 'dropbox_token.txt'
+
+# App credentials for refresh-token flow
+DROPBOX_APP_KEY = os.environ.get('DROPBOX_APP_KEY', '')
+DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', '')
+
+# Honor X-Forwarded-Proto (for Render/Heroku behind proxy)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+
+# Refresh token (preferred for production); optional file path for convenience
+DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
+DROPBOX_REFRESH_TOKEN_FILE = BASE_DIR / 'dropbox_refresh_token.txt'

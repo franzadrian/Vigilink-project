@@ -1,4 +1,4 @@
-﻿// Global state
+// Global state
 let selectedUser = null;
 let messages = [];
 let pollTimer = null;
@@ -22,6 +22,24 @@ let relativeTimeTimer = null;
 let hiddenChatUserIds = new Set();
 let selectedUserMeta = { id: null, full_name: '', username: '', profile_picture_url: '' };
 // hidden manager metadata removed
+// Track messages the user deleted locally to avoid flicker/race until server confirms
+const locallyDeletedIds = new Set();
+
+// Lightweight hash utility for change detection
+function hashMessage(m) {
+    try {
+        const id = m && (m.id || m.message_id) || '';
+        const msg = (m && (m.message || m.content)) || '';
+        const img = (m && m.image_url) || '';
+        const imgsLen = (Array.isArray(m && m.image_urls) ? m.image_urls.length : 0);
+        const edited = !!(m && m.is_edited);
+        const deleted = !!(m && m.is_deleted);
+        const ts = (m && m.sent_at) || '';
+        return [id, msg.length, img, imgsLen, edited ? 1 : 0, deleted ? 1 : 0, ts].join('|');
+    } catch (e) {
+        return String(Math.random());
+    }
+}
 
 // CSS.escape fallback for broader browser support
 const cssEscape = (window.CSS && CSS.escape) ? CSS.escape : function(str) {
@@ -78,6 +96,47 @@ const backButton = document.querySelector('#back-to-users');
 const messageForm = document.querySelector('#message-form');
 const scrollToBottomBtn = document.querySelector('#scroll-to-bottom');
 let imageFileInput = null;
+
+// Client-side image compression to speed up uploads
+async function compressImage(file, maxDim = 1280, quality = 0.82) {
+    return new Promise((resolve) => {
+        try {
+            const img = new Image();
+            const reader = new FileReader();
+            reader.onload = () => {
+                img.onload = () => {
+                    try {
+                        let { width, height } = img;
+                        const scale = Math.min(1, maxDim / Math.max(width, height));
+                        width = Math.floor(width * scale);
+                        height = Math.floor(height * scale);
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                const f = new File([blob], (file.name || 'upload') + '.jpg', { type: 'image/jpeg' });
+                                resolve(f);
+                            } else {
+                                resolve(file);
+                            }
+                        }, 'image/jpeg', quality);
+                    } catch (e) {
+                        resolve(file);
+                    }
+                };
+                img.onerror = () => resolve(file);
+                img.src = reader.result;
+            };
+            reader.onerror = () => resolve(file);
+            reader.readAsDataURL(file);
+        } catch (e) {
+            resolve(file);
+        }
+    });
+}
 
 // Persist last "Sent" message per conversation so the status survives refresh
 function setLastSentFor(userId, messageId) {
@@ -387,6 +446,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 isOptionsMenuOpen = false;
                 optionsMenuForMessageId = null;
                 if (messageItem) {
+                    // Prevent editing image messages
+                    if (messageItem.querySelector('.message-image, .message-gallery')) {
+                        alert('Editing image messages is not supported.');
+                        return;
+                    }
                     const messageId = messageItem.dataset.messageId;
                     startEditingMessage(messageItem, messageId);
                 }
@@ -465,12 +529,37 @@ document.addEventListener('DOMContentLoaded', () => {
     ensureImageLightbox();
     if (messagesList) {
         messagesList.addEventListener('click', (e) => {
+            // If clicking on +N overlay, open slideshow with all images
+            const overlay = e.target.closest('.gallery-overlay');
+            if (overlay) {
+                const msgItem = overlay.closest('.message-item');
+                if (msgItem) {
+                    let urls = [];
+                    try { urls = JSON.parse(msgItem.dataset.imageUrls || '[]'); } catch (err) { urls = []; }
+                    if (Array.isArray(urls) && urls.length) {
+                        openImageLightboxWith(urls, 0);
+                        return;
+                    }
+                }
+            }
+
+            // Clicking any image opens slideshow for that message (if multiple)
             const link = e.target.closest('.message-image-link');
             const img = e.target.closest('.message-image');
             if (link || img) {
                 e.preventDefault();
-                const url = (link && link.getAttribute('href')) || (img && img.getAttribute('src'));
-                if (url) openImageLightbox(url);
+                const msgItem = (link || img).closest('.message-item');
+                const clickedUrl = (link && link.getAttribute('href')) || (img && img.getAttribute('src'));
+                if (!msgItem || !clickedUrl) return;
+                let urls = [];
+                try { urls = JSON.parse(msgItem.dataset.imageUrls || '[]'); } catch (err) { urls = []; }
+                if (Array.isArray(urls) && urls.length) {
+                    let start = urls.indexOf(clickedUrl);
+                    if (start < 0) start = 0;
+                    openImageLightboxWith(urls, start);
+                } else {
+                    openImageLightbox(clickedUrl);
+                }
             }
         });
     }
@@ -643,7 +732,7 @@ function markConversationRead(userId, msgs) {
         const mid = m.id || m.message_id;
         if (!m || !mid) continue;
         if (m.is_own) continue; // only mark incoming messages
-        if (m.is_deleted) continue;
+        if (m.is_deleted || locallyDeletedIds.has(mid)) continue;
         if (_readMarkedIds.has(String(mid))) continue;
         idsToMark.push(String(mid));
     }
@@ -838,7 +927,7 @@ function createListUserItem(user) {
     removeBtn.className = 'remove-user-btn';
     removeBtn.title = 'Remove';
     removeBtn.setAttribute('aria-label', 'Remove conversation');
-    removeBtn.textContent = 'Ã—';
+    removeBtn.textContent = '×';
     removeBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const uid = el.dataset.userId;
@@ -1040,7 +1129,7 @@ function applyRecentChats(chats) {
     };
     const truncate = (s, n = 30) => {
         const str = (s || '').toString();
-        return str.length > n ? (str.slice(0, n - 1) + 'â€¦') : str;
+        return str.length > n ? (str.slice(0, n - 1) + '…') : str;
     };
 
     let totalUnread = 0;
@@ -1139,6 +1228,13 @@ function fetchMessages(userId, options = {}) {
     .then(response => response.json())
     .then(data => {
         if (!Array.isArray(data)) return;
+        // Apply local deletions to server payload to avoid flicker/races
+        try {
+            data.forEach(m => {
+                const mid = String((m && (m.id || m.message_id)) || '');
+                if (mid && locallyDeletedIds.has(mid)) m.is_deleted = true;
+            });
+        } catch (e) {}
         lastFetchedMessages = data;
         // Ensure 'Sent' status persists: prefer saved marker; otherwise infer from latest own message
         const savedSent = getLastSentFor(userId);
@@ -1169,8 +1265,14 @@ function fetchMessages(userId, options = {}) {
             pendingMessagesCount = Math.max(pendingMessagesCount, 1);
             return;
         }
+        // Use incremental diff to avoid heavy re-renders
         messages = data;
-        renderMessages();
+        if (!messagesList || !messagesList.querySelector('.message-item')) {
+            // First render or empty: do a full render once
+            renderMessages();
+        } else {
+            applyMessagesDiff(data);
+        }
         // If this conversation is open, mark incoming messages as read and normalize user list preview
         if (String(selectedUser) === String(userId)) {
             markConversationRead(userId, data);
@@ -1223,6 +1325,76 @@ function fetchMessages(userId, options = {}) {
     });
 }
 
+// Incrementally apply new messages to the DOM (append/update only what changed)
+function applyMessagesDiff(newData) {
+    if (!messagesList || !Array.isArray(newData)) return;
+    // Build index of existing nodes
+    const existing = new Map();
+    messagesList.querySelectorAll('.message-item').forEach(node => {
+        const id = node && node.dataset && node.dataset.messageId;
+        if (id) existing.set(String(id), node);
+    });
+    // Append/update in chronological order
+    const sorted = [...newData].sort((a, b) => new Date(a.sent_at) - new Date(b.sent_at));
+    const frag = document.createDocumentFragment();
+    let appended = 0;
+    const keepIds = new Set();
+    sorted.forEach(m => {
+        const mid = String(m.id || m.message_id || '');
+        if (!mid) return;
+        // If server marks message deleted, render the deleted placeholder
+        if (m.is_deleted || locallyDeletedIds.has(mid)) {
+            const h = hashMessage(m);
+            const node = existing.get(mid);
+            const el = buildMessageItem(m);
+            el.dataset.hash = h;
+            if (node) {
+                const wasAtBottom = isNearBottom();
+                node.replaceWith(el);
+                if (wasAtBottom) scrollToBottom(false);
+                existing.delete(mid);
+            } else {
+                frag.appendChild(el);
+                appended++;
+            }
+            return;
+        }
+        keepIds.add(mid);
+        const h = hashMessage(m);
+        const node = existing.get(mid);
+        if (!node) {
+            // New message: build and append
+            const el = buildMessageItem(m);
+            el.dataset.hash = h;
+            frag.appendChild(el);
+            appended++;
+        } else {
+            // Possible update
+            if (node.dataset.hash !== h) {
+                const wasAtBottom = isNearBottom();
+                const el = buildMessageItem(m);
+                el.dataset.hash = h;
+                node.replaceWith(el);
+                if (wasAtBottom) {
+                    scrollToBottom(false);
+                }
+            }
+            // Mark as processed; leftover nodes will be removed
+            existing.delete(mid);
+        }
+    });
+    if (appended) {
+        messagesList.appendChild(frag);
+        scrollToBottom(false);
+    }
+    // Remove any leftover nodes that are no longer present in server data
+    if (existing.size) {
+        for (const [, node] of existing) {
+            try { node.remove(); } catch (e) { if (node && node.parentNode) node.parentNode.removeChild(node); }
+        }
+    }
+}
+
 // Start editing a message
 function startEditingMessage(messageItem, messageId) {
     if (!messageItem || !messageId) return;
@@ -1231,6 +1403,8 @@ function startEditingMessage(messageItem, messageId) {
 
     const content = messageItem.querySelector('.message-content');
     if (!content) return;
+    // Save original content markup to restore on cancel
+    try { messageItem.__origContentHTML = content.innerHTML; } catch (e) { messageItem.__origContentHTML = null; }
     const p = content.querySelector('p');
     const originalText = p ? p.textContent : '';
 
@@ -1328,6 +1502,8 @@ function saveMessageEdit(messageItem, messageId, newText, originalText) {
                 }
                 messageItem.classList.add('has-edited');
             }
+            // Clear stored original markup
+            try { messageItem.__origContentHTML = null; } catch (e) {}
             // Update in memory list if present
             const msg = messages.find(m => m.id === messageId);
             if (msg) {
@@ -1356,10 +1532,14 @@ function cancelMessageEdit(messageItem, originalText) {
     const messageContent = messageItem.querySelector('.message-content');
     const message = messages.find(m => m.id === messageItem.dataset.messageId);
     
-    messageContent.innerHTML = `
+    if (messageItem.__origContentHTML) {
+        messageContent.innerHTML = messageItem.__origContentHTML;
+    } else {
+        messageContent.innerHTML = `
          ${message && message.is_edited ? '<div class="edited-indicator">edited</div>' : ''}
         <p>${originalText}</p>
     `;
+    }
     // Unfreeze bubble width back to auto sizing
     if (messageContent && messageContent.style) {
         messageContent.style.minWidth = '';
@@ -1375,6 +1555,8 @@ function cancelMessageEdit(messageItem, originalText) {
     // Re-show edited indicator if present
     const badge = messageContent.querySelector('.edited-indicator');
     if (badge) badge.style.display = '';
+    // Clear stored original markup
+    try { messageItem.__origContentHTML = null; } catch (e) {}
     }
 
 // Delete message
@@ -1414,7 +1596,33 @@ function deleteMessage(messageItem, messageId) {
     
     confirmBtn.addEventListener('click', () => {
         document.body.removeChild(alertOverlay);
-        
+        // Optimistically show deleted placeholder immediately
+        const prevHTML = messageItem.innerHTML;
+        const prevClasses = messageItem.className;
+        // Remove any status label immediately
+        try { const status = messageItem.querySelector('.message-status'); if (status) status.remove(); } catch (e) {}
+        const wasSent = messageItem.classList.contains('sent');
+        messageItem.classList.remove('sent', 'received', 'has-edited');
+        messageItem.innerHTML = `
+            <div style="display:flex;justify-content:${wasSent ? 'flex-end' : 'flex-start'};width:100%;">
+                <p class="deleted-message">This message has been deleted</p>
+            </div>
+        `;
+        // Mark locally-deleted to survive upcoming polls/renders until server confirms
+        try { locallyDeletedIds.add(String(messageId)); } catch (e) {}
+        // Update in-memory state and list preview right away
+        try {
+            const idx = messages.findIndex(mm => String(mm.id || mm.message_id) === String(messageId));
+            if (idx !== -1) messages[idx].is_deleted = true;
+            const remaining = messages.filter(mm => !mm.is_deleted);
+            const latest = remaining.sort((a,b)=> new Date(b.sent_at) - new Date(a.sent_at))[0];
+            if (selectedUser) {
+                const txt = latest ? (latest.message || latest.content || (latest.image_urls ? 'Sent photos' : (latest.image_url ? 'Sent a photo' : ''))) : '';
+                updateLastMessage(selectedUser, txt, !!(latest && latest.is_own));
+            }
+        } catch (e) {}
+        // Proactively sync with server immediately (in addition to poll)
+        try { if (selectedUser) fetchMessages(selectedUser, { silent: true }); } catch (e) {}
         // Send delete request to server
         fetch('/user/communication/delete-message/', {
             method: 'POST',
@@ -1429,40 +1637,43 @@ function deleteMessage(messageItem, messageId) {
         .then(response => response.json())
         .then(data => {
             if (data && data.success) {
-                // Replace entire message content to match final render style (no blue bubble)
-                const wasSent = messageItem.classList.contains('sent');
-                // Remove alignment classes so bubble styles don't apply
-                messageItem.classList.remove('sent', 'received', 'has-edited');
-                // Remove any status label
-                const status = messageItem.querySelector('.message-status');
-                if (status) status.remove();
-                // Replace inner HTML with a small inline deleted chip
-                messageItem.innerHTML = `
-                    <div style="display: flex; justify-content: ${wasSent ? 'flex-end' : 'flex-start'}; width: 100%;">
-                        <p class="deleted-message" style="color: #333; font-style: italic; padding: 8px 12px; text-align: center; margin: 5px 0; background-color: transparent; border: 1px solid #3b82f6; border-radius: 4px; display: inline-block;">This message has been deleted</p>
-                    </div>
-                `;
-                // Update in-memory list
-                const msg = messages.find(m => m.id === messageId);
-                if (msg) msg.is_deleted = true;
                 // If this was the last 'Sent' message, clear the marker so it won't reapply
                 if (lastSentMessageId && String(lastSentMessageId) === String(messageId)) {
                     clearLastSentFor(selectedUser);
                 }
+                // Refresh list/messages silently to sync with server
+                try { refreshUserList(true); } catch (e) {}
+                try { if (selectedUser) fetchMessages(selectedUser, { silent: true }); } catch (e) {}
             } else {
                 console.error('Failed to delete message:', data && data.error);
+                // Revert optimistic change
+                messageItem.className = prevClasses;
+                messageItem.innerHTML = prevHTML;
+                try { locallyDeletedIds.delete(String(messageId)); } catch (e) {}
+                try {
+                    const idx = messages.findIndex(mm => String(mm.id || mm.message_id) === String(messageId));
+                    if (idx !== -1) messages[idx].is_deleted = false;
+                } catch (e) {}
                 alert('Failed to delete message. Please try again.');
             }
         })
         .catch(error => {
             console.error('Error fetching messages:', error);
+            // Revert optimistic change
+            messageItem.className = prevClasses;
+            messageItem.innerHTML = prevHTML;
+            try { locallyDeletedIds.delete(String(messageId)); } catch (e) {}
+            try {
+                const idx = messages.findIndex(mm => String(mm.id || mm.message_id) === String(messageId));
+                if (idx !== -1) messages[idx].is_deleted = false;
+            } catch (e) {}
             alert('Failed to delete message. Please try again.');
         });
     });
 }
 
 // Start polling for new messages for the selected user
-function startPollingMessages(intervalMs = 3000) {
+function startPollingMessages(intervalMs = 2000) {
     if (pollTimer) {
         clearInterval(pollTimer);
         pollTimer = null;
@@ -1556,31 +1767,39 @@ function buildMessageItem(message) {
     }
 
     let actionsHtml = '';
-    if (message.is_own) {
-        actionsHtml = `
-          <div class="message-options-container">
-            <div class="message-actions">
-              <button class="message-action-btn more-options-btn" title="More options">
-                <i class="fas fa-ellipsis-v"></i>
-              </button>
-              <div class="message-options-menu hidden">
-                <button class="message-option delete-btn" title="Delete"><i class="fas fa-trash"></i></button>
-                <button class="message-option edit-btn" title="Edit"><i class="fas fa-edit"></i></button>
-              </div>
-            </div>
-          </div>`;
-    }
 
     const text = message.message || message.content || '';
     const imgUrl = message.image_url || null;
     const editedChip = message.is_edited ? '<div class="edited-indicator">edited</div>' : '';
     const imgUrls = Array.isArray(message.image_urls) ? message.image_urls : null;
+    if (message.is_own) {
+        const hasImages = !!(imgUrl || (imgUrls && imgUrls.length));
+        if (hasImages) {
+            actionsHtml = `
+          <div class=\"message-options-container\">
+            <div class=\"message-actions\">
+              <button class=\"message-action-btn more-options-btn\" title=\"More options\">\n                <i class=\"fas fa-ellipsis-v\"></i>\n              </button>
+              <div class=\"message-options-menu hidden\">\n                <button class=\"message-option delete-btn\" title=\"Delete\"><i class=\"fas fa-trash\"></i></button>
+              </div>
+            </div>
+          </div>`;
+        } else {
+            actionsHtml = `
+          <div class=\"message-options-container\">
+            <div class=\"message-actions\">
+              <button class=\"message-action-btn more-options-btn\" title=\"More options\">\n                <i class=\"fas fa-ellipsis-v\"></i>\n              </button>
+              <div class=\"message-options-menu hidden\">\n                <button class=\"message-option delete-btn\" title=\"Delete\"><i class=\"fas fa-trash\"></i></button>\n                <button class=\"message-option edit-btn\" title=\"Edit\"><i class=\"fas fa-edit\"></i></button>
+              </div>
+            </div>
+          </div>`;
+        }
+    }
     if (imgUrls && imgUrls.length) {
         const shown = imgUrls.slice(0, 3);
         const extra = imgUrls.length - shown.length;
         let tiles = '';
         shown.forEach((u, idx) => {
-            const overlay = (idx === shown.length - 1 && extra > 0) ? `<div class="gallery-overlay">+${extra}</div>` : '';
+            const overlay = (idx === shown.length - 1 && extra > 0) ? `<div class="gallery-overlay" title="View all photos">+${extra}</div>` : '';
             tiles += `
                 <div class="gallery-item">
                     <a href="${u}" class="message-image-link"><img src="${u}" class="message-image"/></a>
@@ -1594,6 +1813,7 @@ function buildMessageItem(message) {
                 <div class="message-gallery">${tiles}</div>
             </div>
         `;
+        try { item.dataset.imageUrls = JSON.stringify(imgUrls); } catch (e) {}
     } else if (imgUrl) {
         item.innerHTML = `
             ${actionsHtml}
@@ -1637,13 +1857,22 @@ function sendImageMessage(file) {
             return;
         }
     } catch (e) {}
+    // Optimistic preview + compression
+    const previewUrl = URL.createObjectURL(file);
+    const tempMsg = { id: 'temp-' + Date.now(), is_own: true, sent_at: new Date().toISOString(), image_url: previewUrl };
+    appendNewMessage(tempMsg);
+    scrollToBottom(true);
+    // Compress before upload to speed things up
+    const toUploadPromise = compressImage(file).catch(() => file);
     const formData = new FormData();
     formData.append('receiver', String(selectedUser));
-    formData.append('image', file);
-    fetch('/user/communication/send-image/', {
+    toUploadPromise.then((compressed) => {
+        formData.append('image', compressed || file);
+        return fetch('/user/communication/send-image/', {
         method: 'POST',
         headers: { 'X-CSRFToken': csrfToken },
         body: formData
+        });
     })
     .then(async (r) => {
         const data = await r.json().catch(() => ({}));
@@ -1653,8 +1882,32 @@ function sendImageMessage(file) {
             return;
         }
         if (data && data.id) {
-            const msgObj = { id: data.id, is_own: true, sent_at: data.sent_at, message: data.message, image_url: data.image_url };
-            appendNewMessage(msgObj);
+            // Replace last temp image with real one
+            const tempNode = Array.from(messagesList.querySelectorAll('.message-item'))
+                .reverse().find(n => (n.dataset.messageId || '').startsWith('temp-'));
+            if (tempNode) {
+                tempNode.dataset.messageId = data.id;
+                tempNode.classList.add('sent');
+                tempNode.innerHTML = `
+                    <div class="message-options-container">
+                      <div class="message-actions">
+                        <button class="message-action-btn more-options-btn" title="More options">
+                          <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <div class="message-options-menu hidden">
+                          <button class="message-option delete-btn" title="Delete"><i class="fas fa-trash"></i></button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="message-content vl-bubble">
+                      <a href="${data.image_url}" class="message-image-link">
+                        <img src="${data.image_url}" alt="Image" class="message-image"/>
+                      </a>
+                    </div>`;
+            } else {
+                const msgObj = { id: data.id, is_own: true, sent_at: data.sent_at, message: data.message, image_url: data.image_url };
+                appendNewMessage(msgObj);
+            }
             updateLastMessage(selectedUser, 'Sent a photo', true);
             scrollToBottom(true);
             fetchMessages(selectedUser, { silent: true });
@@ -1668,19 +1921,61 @@ function sendImagesMessage(files) {
     const list = Array.from(files || []).filter(Boolean).slice(0, 10);
     if (!list.length) return;
     if (!selectedUser) { alert('Please select a conversation before sending images.'); return; }
+    // Optimistic gallery preview
+    const tempUrls = list.slice(0, 3).map(f => URL.createObjectURL(f));
+    const tempMsg = { id: 'temp-' + Date.now(), is_own: true, sent_at: new Date().toISOString(), image_urls: tempUrls };
+    appendNewMessage(tempMsg);
+    scrollToBottom(true);
     const formData = new FormData();
     formData.append('receiver', String(selectedUser));
-    list.forEach(f => formData.append('images', f));
-    fetch('/user/communication/send-image/', {
+    // Compress sequentially with small concurrency (2)
+    const compressAll = async () => {
+        const out = [];
+        for (let i = 0; i < list.length; i++) {
+            try { out.push(await compressImage(list[i])); } catch (e) { out.push(list[i]); }
+        }
+        return out;
+    };
+    compressAll().then((filesToSend) => {
+        filesToSend.forEach(f => formData.append('images', f));
+        return fetch('/user/communication/send-image/', {
         method: 'POST',
         headers: { 'X-CSRFToken': csrfToken },
         body: formData
+        });
     })
     .then(r => r.json())
     .then(data => {
         if (data && data.id && Array.isArray(data.image_urls) && data.image_urls.length) {
-            const msgObj = { id: data.id, is_own: true, sent_at: data.sent_at, message: data.message, image_urls: data.image_urls };
-            appendNewMessage(msgObj);
+            const tempNode = Array.from(messagesList.querySelectorAll('.message-item'))
+                .reverse().find(n => (n.dataset.messageId || '').startsWith('temp-'));
+            if (tempNode) {
+                tempNode.dataset.messageId = data.id;
+                tempNode.classList.add('sent');
+                const shown = data.image_urls.slice(0, 3);
+                const extra = data.image_urls.length - shown.length;
+                let tiles = '';
+                shown.forEach((u, idx) => {
+                    const overlay = (idx === shown.length - 1 && extra > 0) ? `<div class=\"gallery-overlay\" title=\"View all photos\">+${extra}</div>` : '';
+                    tiles += `
+                        <div class=\"gallery-item\">
+                            <a href=\"${u}\" class=\"message-image-link\"><img src=\"${u}\" class=\"message-image\"/></a>
+                            ${overlay}
+                        </div>`;
+                });
+                tempNode.innerHTML = `
+                    <div class=\"message-options-container\">
+                      <div class=\"message-actions\">
+                        <button class=\"message-action-btn more-options-btn\" title=\"More options\"><i class=\"fas fa-ellipsis-v\"></i></button>
+                        <div class=\"message-options-menu hidden\"><button class=\"message-option delete-btn\" title=\"Delete\"><i class=\"fas fa-trash\"></i></button></div>
+                      </div>
+                    </div>
+                    <div class=\"message-content vl-bubble\"><div class=\"message-gallery\">${tiles}</div></div>`;
+                try { tempNode.dataset.imageUrls = JSON.stringify(data.image_urls); } catch (e) {}
+            } else {
+                const msgObj = { id: data.id, is_own: true, sent_at: data.sent_at, message: data.message, image_urls: data.image_urls };
+                appendNewMessage(msgObj);
+            }
             updateLastMessage(selectedUser, 'Sent photos', true);
             scrollToBottom(true);
             fetchMessages(selectedUser, { silent: true });
@@ -1699,6 +1994,9 @@ function sendImagesMessage(files) {
 }
 
 // ---------- Image Lightbox Helpers ----------
+// Lightbox with navigation state
+let _lb = { urls: [], idx: 0 };
+
 function ensureImageLightbox() {
     if (document.getElementById('chat-image-lightbox')) return;
     const wrap = document.createElement('div');
@@ -1706,30 +2004,57 @@ function ensureImageLightbox() {
     wrap.className = 'chat-image-lightbox hidden';
     wrap.innerHTML = `
         <div class="cil-backdrop" data-cil-close="1"></div>
-        <div class="cil-content">
-            <button class="cil-close" aria-label="Close" data-cil-close="1">&times;</button>
-            <img class="cil-image" src="" alt="Image"/>
+        <div class="cil-content" style="position:relative;display:flex;align-items:center;justify-content:center;gap:8px;">
+            <button class="cil-close" aria-label="Close" data-cil-close="1" style="position:absolute;right:8px;top:8px;font-size:24px;line-height:1;background:none;border:none;color:#fff;cursor:pointer">&times;</button>
+            <button class="cil-prev" aria-label="Previous" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:24px;background:rgba(0,0,0,0.4);border:none;color:#fff;cursor:pointer;padding:6px 10px">&#10094;</button>
+            <img class="cil-image" src="" alt="Image" style="max-width:90vw;max-height:85vh;object-fit:contain;"/>
+            <button class="cil-next" aria-label="Next" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:24px;background:rgba(0,0,0,0.4);border:none;color:#fff;cursor:pointer;padding:6px 10px">&#10095;</button>
+            <div class="cil-counter" style="position:absolute;bottom:8px;right:12px;color:#fff;background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:3px;font-size:12px"></div>
         </div>
     `;
     document.body.appendChild(wrap);
     wrap.addEventListener('click', (e) => {
         if (e.target && e.target.getAttribute('data-cil-close') === '1') closeImageLightbox();
     });
+    const prevBtn = wrap.querySelector('.cil-prev');
+    const nextBtn = wrap.querySelector('.cil-next');
+    prevBtn.addEventListener('click', (e) => { e.preventDefault(); prevLightbox(); });
+    nextBtn.addEventListener('click', (e) => { e.preventDefault(); nextLightbox(); });
     document.addEventListener('keydown', (e) => {
         const overlay = document.getElementById('chat-image-lightbox');
         if (!overlay || overlay.classList.contains('hidden')) return;
         if (e.key === 'Escape') closeImageLightbox();
+        if (e.key === 'ArrowRight') nextLightbox();
+        if (e.key === 'ArrowLeft') prevLightbox();
     });
 }
 
-function openImageLightbox(url) {
+function showLightboxImage() {
     const overlay = document.getElementById('chat-image-lightbox');
     if (!overlay) return;
     const img = overlay.querySelector('.cil-image');
-    img.src = url;
+    const counter = overlay.querySelector('.cil-counter');
+    if (!_lb.urls || !_lb.urls.length) return;
+    const idx = Math.max(0, Math.min(_lb.idx, _lb.urls.length - 1));
+    _lb.idx = idx;
+    img.src = _lb.urls[idx];
+    if (counter) counter.textContent = `${idx + 1}/${_lb.urls.length}`;
+}
+
+function openImageLightboxWith(urls, startIndex = 0) {
+    const overlay = document.getElementById('chat-image-lightbox');
+    if (!overlay) return;
+    _lb.urls = Array.isArray(urls) ? urls.slice() : [String(urls || '')];
+    _lb.idx = Math.max(0, Math.min(startIndex || 0, _lb.urls.length - 1));
+    showLightboxImage();
     overlay.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 }
+
+function nextLightbox() { if (_lb.urls && _lb.urls.length) { _lb.idx = (_lb.idx + 1) % _lb.urls.length; showLightboxImage(); } }
+function prevLightbox() { if (_lb.urls && _lb.urls.length) { _lb.idx = (_lb.idx - 1 + _lb.urls.length) % _lb.urls.length; showLightboxImage(); } }
+
+function openImageLightbox(url) { openImageLightboxWith([url], 0); }
 
 function closeImageLightbox() {
     const overlay = document.getElementById('chat-image-lightbox');
@@ -1965,6 +2290,11 @@ function setSentBadgeOn(messageItem) {
 window.addEventListener('load', () => {
     startPollingUserList();
 });
+
+
+
+
+
 
 
 
