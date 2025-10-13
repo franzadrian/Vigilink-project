@@ -48,9 +48,6 @@ services:
       # Dropbox token(s) if used in production
       # - key: DROPBOX_ACCESS_TOKEN
       #   sync: false
-    postdeploy: |
-      python manage.py migrate
-      python manage.py populate_locations
 databases:
   - name: vigilink-db
     plan: free
