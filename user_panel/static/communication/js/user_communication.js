@@ -69,6 +69,7 @@ function hideChatUser(userId) {
     saveHiddenChatIds();
     const row = document.querySelector(`#search-results .user-item[data-user-id="${cssEscape(id)}"]`);
     if (row) row.remove();
+    ensureListEmptyState();
 }
 
 function unhideChatUser(userId) {
@@ -96,6 +97,139 @@ const backButton = document.querySelector('#back-to-users');
 const messageForm = document.querySelector('#message-form');
 const scrollToBottomBtn = document.querySelector('#scroll-to-bottom');
 let imageFileInput = null;
+// Emoji API config (public demo key provided by user)
+const EMOJI_API_KEY = '4c635462a8e1eb1df2c4f4fccde0af004d04ba76';
+let _emojiCache = { all: null, lastQuery: '', lastResults: [] };
+
+function ensureEmojiPicker() {
+    let picker = document.getElementById('vl-emoji-picker');
+    if (picker) return picker;
+    const container = document.querySelector('.message-input-container') || document.body;
+    picker = document.createElement('div');
+    picker.id = 'vl-emoji-picker';
+    picker.className = 'emoji-picker';
+    picker.innerHTML = `
+      <div class="ep-header">
+        <input class="ep-search" type="text" placeholder="Search emojis..." />
+      </div>
+      <div class="ep-body">
+        <div class="ep-grid" id="vl-emoji-grid"></div>
+      </div>
+      <div class="ep-footer">Click an emoji to insert</div>
+    `;
+    container.appendChild(picker);
+    // Close picker on outside click
+    document.addEventListener('click', (e) => {
+        const btn = document.querySelector('.input-btn[aria-label="Add emoji"]');
+        if (!picker.classList.contains('visible')) return;
+        if (picker.contains(e.target) || (btn && btn.contains(e.target))) return;
+        picker.classList.remove('visible');
+    });
+    // Search handling
+    const search = picker.querySelector('.ep-search');
+    if (search) {
+        let searchTimer = null;
+        search.addEventListener('input', () => {
+            const q = (search.value || '').trim();
+            if (searchTimer) clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => { loadEmojis(q); }, 200);
+        });
+    }
+    return picker;
+}
+
+async function loadEmojis(query = '') {
+    try {
+        const grid = document.getElementById('vl-emoji-grid');
+        if (!grid) return;
+        grid.innerHTML = '';
+        let list = [];
+        if (!query) {
+            if (_emojiCache.all && Array.isArray(_emojiCache.all) && _emojiCache.all.length) {
+                list = _emojiCache.all;
+            } else {
+                const url = `https://emoji-api.com/emojis?access_key=${encodeURIComponent(EMOJI_API_KEY)}`;
+                const r = await fetch(url);
+                list = await r.json();
+                if (Array.isArray(list)) _emojiCache.all = list;
+                else list = [];
+            }
+        } else {
+            if (_emojiCache.lastQuery === query && Array.isArray(_emojiCache.lastResults)) {
+                list = _emojiCache.lastResults;
+            } else {
+                const url = `https://emoji-api.com/emojis?search=${encodeURIComponent(query)}&access_key=${encodeURIComponent(EMOJI_API_KEY)}`;
+                const r = await fetch(url);
+                list = await r.json();
+                if (!Array.isArray(list)) list = [];
+                _emojiCache.lastQuery = query;
+                _emojiCache.lastResults = list;
+            }
+        }
+        const max = Math.min(600, list.length);
+        for (let i = 0; i < max; i++) {
+            const item = list[i];
+            const ch = (item && (item.character || item.emoji || item.unicode || ''));
+            if (!ch) continue;
+            const btn = document.createElement('div');
+            btn.className = 'ep-item';
+            btn.textContent = ch;
+            btn.title = (item.unicodeName || item.slug || '').toString();
+            btn.addEventListener('click', () => insertEmoji(ch));
+            grid.appendChild(btn);
+        }
+    } catch (e) {
+        const grid = document.getElementById('vl-emoji-grid');
+        if (!grid) return;
+        const fallback = ['😀','😄','😁','😂','🤣','😊','😍','😘','😎','😉','👍','🙏','🔥','🎉','❤️','💯','✨','👏','😭','🤔','👌','🙌'];
+        fallback.forEach(ch => {
+            const btn = document.createElement('div');
+            btn.className = 'ep-item';
+            btn.textContent = ch;
+            btn.addEventListener('click', () => insertEmoji(ch));
+            grid.appendChild(btn);
+        });
+    }
+}
+
+function insertEmoji(ch) {
+    try {
+        if (!messageInput) return;
+        const start = messageInput.selectionStart || messageInput.value.length;
+        const end = messageInput.selectionEnd || messageInput.value.length;
+        const val = messageInput.value || '';
+        messageInput.value = val.slice(0, start) + ch + val.slice(end);
+        const pos = start + ch.length;
+        messageInput.focus();
+        messageInput.setSelectionRange(pos, pos);
+        updateSendButton();
+        updateCharCount();
+    } catch (e) {}
+}
+
+// Ensure the left list shows a centered empty-state when there are no users
+function ensureListEmptyState() {
+    try {
+        const container = document.getElementById('search-results');
+        if (!container) return;
+        const term = (searchInput && searchInput.value) ? searchInput.value.trim() : '';
+        // When search overlay is active, let search-specific empty state handle it
+        if (term.length >= 2) return;
+        const hasUsers = !!container.querySelector('.user-item:not(.search-result-item)');
+        const placeholder = container.querySelector('.no-users');
+        if (!hasUsers) {
+            if (!placeholder) {
+                const div = document.createElement('div');
+                div.className = 'no-users';
+                div.innerHTML = '<div class="no-users-icon"><i class="fas fa-user-slash"></i></div>' +
+                                '<div class="no-users-text"><p>No users available for messaging</p></div>';
+                container.appendChild(div);
+            }
+        } else if (placeholder) {
+            placeholder.remove();
+        }
+    } catch (_) {}
+}
 
 // Client-side image compression to speed up uploads
 async function compressImage(file, maxDim = 1280, quality = 0.82) {
@@ -238,7 +372,9 @@ function getDisplayNameForUser(userId) {
     const fullAttr = normalize(item.getAttribute('data-fullname'));
     const headerName = normalize((item.querySelector('.user-name') || {}).textContent);
     const username = normalize(item.getAttribute('data-username'));
-    return pickToken(fullAttr) || pickToken(headerName) || pickToken(username);
+    const email = normalize(item.getAttribute('data-email'));
+    const emailName = (!bad.includes(email.toLowerCase()) && email.includes('@')) ? email.split('@')[0] : '';
+    return pickToken(fullAttr) || pickToken(headerName) || pickToken(username) || emailName;
 }
 
 function updateLastMessage(userId, messageText, isOwn = false, updateTime = true, reorder = true, otherName = null) {
@@ -248,27 +384,32 @@ function updateLastMessage(userId, messageText, isOwn = false, updateTime = true
     const lastMsgEl = userItem.querySelector('.last-message');
     if (lastMsgEl) {
         let prefix = '';
-        if (isOwn && messageText) {
-            prefix = 'You: ';
-        } else if (!isOwn && messageText) {
-            // Sanitize name and fall back to list display name if needed
-            const bad = ['none','null','undefined','n/a','na'];
-            const normalize = (s) => (s || '').toString().trim();
-            const pickToken = (s) => {
-                const toks = normalize(s).split(/\s+/).filter(Boolean);
-                for (const t of toks) { if (!bad.includes(t.toLowerCase())) return t; }
-                if (toks.length) {
-                    const last = toks[toks.length - 1];
-                    if (!bad.includes(last.toLowerCase())) return last;
-                }
-                return '';
-            };
-            let name = pickToken(otherName);
-            if (!name) name = getDisplayNameForUser(userId);
-            if (!name) name = pickToken(userItem.getAttribute('data-fullname')) || pickToken(userItem.getAttribute('data-username'));
-            prefix = name ? `${name}: ` : '';
+        const raw = (messageText || '').toString();
+        const lower = raw.toLowerCase();
+        const isSystemDeleted = lower.startsWith('you deleted a message') || lower.startsWith('message deleted');
+        if (raw) {
+            if (isOwn && !isSystemDeleted) {
+                prefix = 'You: ';
+            } else if (!isOwn && !isSystemDeleted) {
+                // Sanitize name and fall back to list display name if needed
+                const bad = ['none','null','undefined','n/a','na'];
+                const normalize = (s) => (s || '').toString().trim();
+                const pickToken = (s) => {
+                    const toks = normalize(s).split(/\s+/).filter(Boolean);
+                    for (const t of toks) { if (!bad.includes(t.toLowerCase())) return t; }
+                    if (toks.length) {
+                        const last = toks[toks.length - 1];
+                        if (!bad.includes(last.toLowerCase())) return last;
+                    }
+                    return '';
+                };
+                let name = pickToken(otherName);
+                if (!name) name = getDisplayNameForUser(userId);
+                if (!name) name = pickToken(userItem.getAttribute('data-fullname')) || pickToken(userItem.getAttribute('data-username'));
+                prefix = name ? `${name}: ` : '';
+            }
         }
-        lastMsgEl.textContent = (messageText ? `${prefix}${messageText}` : '');
+        lastMsgEl.textContent = (raw ? `${prefix}${raw}` : '');
     }
 
     const timeEl = userItem.querySelector('.message-time');
@@ -310,6 +451,26 @@ document.addEventListener('DOMContentLoaded', () => {
             it.remove();
         }
     });
+    // Normalize initial user names to avoid generic 'User' labels
+    try {
+        const items = document.querySelectorAll('#search-results .user-item');
+        const bad = ['none','null','undefined','n/a','na'];
+        const normalize = (s) => (s || '').toString().trim();
+        const isBad = (s) => { const v = normalize(s); return !v || bad.includes(v.toLowerCase()); };
+        items.forEach((it) => {
+            const nameEl = it.querySelector('.user-name');
+            const current = normalize(nameEl ? nameEl.textContent : '');
+            if (!nameEl || (current && current.toLowerCase() !== 'user')) return;
+            const dsFull = normalize(it.getAttribute('data-fullname'));
+            const dsUser = normalize(it.getAttribute('data-username'));
+            const dsEmail = normalize(it.getAttribute('data-email'));
+            const emailName = (!isBad(dsEmail) && dsEmail.includes('@')) ? dsEmail.split('@')[0] : '';
+            const display = (!isBad(dsFull) ? dsFull : '') || (!isBad(dsUser) ? dsUser : '') || emailName || (current || 'User');
+            if (display && display !== current) {
+                nameEl.textContent = display;
+            }
+        });
+    } catch (e) {}
     // If messages list exists, scroll to bottom on page load
     if (messagesList) {
         scrollToBottom(true);
@@ -524,6 +685,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    // Emoji button and picker
+    const emojiBtn = document.querySelector('.input-btn[aria-label="Add emoji"]');
+    if (emojiBtn) {
+        const picker = ensureEmojiPicker();
+        emojiBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const p = ensureEmojiPicker();
+            if (!_emojiCache.all) { loadEmojis(''); }
+            p.classList.toggle('visible');
+        });
+    }
 
     // Image lightbox for viewing sent/received pictures in-page
     ensureImageLightbox();
@@ -694,8 +867,8 @@ function formatRelativeTime(input) {
     if (isNaN(d)) return '';
     const now = Date.now();
     const diffSec = Math.max(0, Math.floor((now - d.getTime()) / 1000));
-    if (diffSec < 5) return 'Just now';
-    if (diffSec < 60) return `${diffSec} seconds ago`;
+    // For the first minute, always show "Just now" (no seconds countdown)
+    if (diffSec < 60) return 'Just now';
     const diffMin = Math.floor(diffSec / 60);
     if (diffMin === 1) return '1 minute ago';
     if (diffMin < 60) return `${diffMin} minutes ago`;
@@ -773,9 +946,17 @@ function createUserItem(user) {
     const el = document.createElement('div');
     el.className = 'user-item';
     if (user && typeof user.id !== 'undefined') el.dataset.userId = String(user.id);
-    if (user && user.username) el.dataset.username = user.username;
-    if (user && (user.full_name || user.fullname)) el.dataset.fullname = user.full_name || user.fullname;
-    if (user && user.email) el.dataset.email = user.email;
+    // Sanitize name fields and dataset attributes
+    const bad = ['none','null','undefined','n/a','na'];
+    const normalize = (s) => (s || '').toString().trim();
+    const isBad = (s) => { const v = normalize(s); return !v || bad.includes(v.toLowerCase()); };
+    const full = !isBad(user && (user.full_name || user.fullname)) ? normalize(user.full_name || user.fullname) : '';
+    const uname = !isBad(user && user.username) ? normalize(user.username) : '';
+    const email = normalize(user && user.email);
+    const emailName = (!isBad(email) && email.includes('@')) ? email.split('@')[0] : '';
+    if (uname) el.dataset.username = uname;
+    if (full) el.dataset.fullname = full;
+    if (email) el.dataset.email = email;
 
     // Avatar
     const avatar = document.createElement('div');
@@ -808,8 +989,8 @@ function createUserItem(user) {
     } else {
         const initials = document.createElement('span');
         initials.className = 'avatar-text';
-        const name = (user && (user.full_name || user.fullname || user.username)) || 'U';
-        const letters = name.toString().trim().split(/\s+/).map(s => s[0]).slice(0,2).join('').toUpperCase();
+        const fallback = full || uname || emailName || 'U';
+        const letters = fallback.toString().trim().split(/\s+/).map(s => s[0]).slice(0,2).join('').toUpperCase();
         initials.textContent = letters || 'U';
         avatar.appendChild(initials);
     }
@@ -819,8 +1000,7 @@ function createUserItem(user) {
     info.className = 'user-info';
     const nameDiv = document.createElement('div');
     nameDiv.className = 'user-name';
-    const rawFull = (user && (user.full_name || user.fullname)) ? String(user.full_name || user.fullname).trim() : '';
-    const displayName = rawFull && rawFull.toLowerCase() !== 'none' ? rawFull : ((user && user.username) || 'User');
+    const displayName = full || uname || emailName || 'User';
     nameDiv.textContent = displayName;
     const lastMsg = document.createElement('div');
     lastMsg.className = 'last-message';
@@ -859,9 +1039,16 @@ function createListUserItem(user) {
         ? String(user.id || user.user_id)
         : '';
     if (idVal) el.dataset.userId = idVal;
-    if (user && user.username) el.dataset.username = user.username;
-    if (user && (user.full_name || user.fullname)) el.dataset.fullname = user.full_name || user.fullname;
-    if (user && user.email) el.dataset.email = user.email;
+    const bad = ['none','null','undefined','n/a','na'];
+    const normalize = (s) => (s || '').toString().trim();
+    const isBad = (s) => { const v = normalize(s); return !v || bad.includes(v.toLowerCase()); };
+    const full = !isBad(user && (user.full_name || user.fullname)) ? normalize(user.full_name || user.fullname) : '';
+    const uname = !isBad(user && user.username) ? normalize(user.username) : '';
+    const email = normalize(user && user.email);
+    const emailName = (!isBad(email) && email.includes('@')) ? email.split('@')[0] : '';
+    if (uname) el.dataset.username = uname;
+    if (full) el.dataset.fullname = full;
+    if (email) el.dataset.email = email;
 
     // Avatar
     const avatar = document.createElement('div');
@@ -892,8 +1079,8 @@ function createListUserItem(user) {
     } else {
         const initials = document.createElement('span');
         initials.className = 'avatar-text';
-        const name = (user && (user.full_name || user.fullname || user.username)) || 'U';
-        const letters = name.toString().trim().split(/\s+/).map(s => s[0]).slice(0,2).join('').toUpperCase();
+        const fallback = full || uname || emailName || 'U';
+        const letters = fallback.toString().trim().split(/\s+/).map(s => s[0]).slice(0,2).join('').toUpperCase();
         initials.textContent = letters || 'U';
         avatar.appendChild(initials);
     }
@@ -903,8 +1090,7 @@ function createListUserItem(user) {
     info.className = 'user-info';
     const nameDiv = document.createElement('div');
     nameDiv.className = 'user-name';
-    const rawFull = (user && (user.full_name || user.fullname)) ? String(user.full_name || user.fullname).trim() : '';
-    const displayName = rawFull && rawFull.toLowerCase() !== 'none' ? rawFull : ((user && user.username) || 'User');
+    const displayName = full || uname || emailName || 'User';
     nameDiv.textContent = displayName;
     const lastMsg = document.createElement('div');
     lastMsg.className = 'last-message';
@@ -960,6 +1146,11 @@ function handleSearch() {
         });
         // Hide no-results message
         hideNoUsers();
+        // Re-show placeholder if it was hidden during search
+        const ph = searchResults.querySelector('.no-users');
+        if (ph) ph.style.display = '';
+        // If there are no items at all, re-show the main empty state
+        ensureListEmptyState();
         return;
     }
     
@@ -972,6 +1163,9 @@ function handleSearch() {
                 Array.from(document.querySelectorAll('#search-results .user-item:not(.search-result-item)')).forEach(item => {
                     item.style.display = 'none';
                 });
+                // Hide the main placeholder while search overlay is active
+                const ph = searchResults.querySelector('.no-users');
+                if (ph) ph.style.display = 'none';
                 // Clear previous dynamic items and no-results
                 clearDynamicResults();
                 if (data.users.length > 0) {
@@ -993,6 +1187,13 @@ function handleSearch() {
 
 // Select a user and open chat
 function selectUser(userId) {
+    // Capture the clicked element before clearing search overlays
+    let selectedUserItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
+    let fromSearch = false;
+    if (!selectedUserItem) {
+        selectedUserItem = document.querySelector(`#search-results .search-result-item[data-user-id="${userId}"]`);
+        fromSearch = !!selectedUserItem;
+    }
     selectedUser = userId;
     // Reset minimal meta for selected user
     selectedUserMeta = { id: userId, full_name: '', username: '', profile_picture_url: '' };
@@ -1010,18 +1211,24 @@ function selectUser(userId) {
     if (selectedItem) selectedItem.classList.remove('unread');
 
     // Update header name and avatar
-    let selectedUserItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
-    if (!selectedUserItem) {
-        // Fallback: search result entry
-        selectedUserItem = document.querySelector(`#search-results .search-result-item[data-user-id="${userId}"]`);
-    }
     if (selectedUserItem) {
-        const userName = (selectedUserItem.querySelector('.user-name') || {}).textContent || '';
+        // Compute a robust display name from dataset/text with sensible fallbacks
+        const bad = ['none','null','undefined','n/a','na'];
+        const normalize = (s) => (s || '').toString().trim();
+        const isBad = (s) => { const v = normalize(s); return !v || bad.includes(v.toLowerCase()); };
+        const dsFull = normalize(selectedUserItem.getAttribute('data-fullname'));
+        const dsUser = normalize(selectedUserItem.getAttribute('data-username'));
+        const dsEmail = normalize(selectedUserItem.getAttribute('data-email'));
+        const emailName = (!isBad(dsEmail) && dsEmail.includes('@')) ? dsEmail.split('@')[0] : '';
+        let userName = (selectedUserItem.querySelector('.user-name') || {}).textContent || '';
+        userName = isBad(userName) ? '' : normalize(userName);
+        const displayName = (!isBad(dsFull) ? dsFull : '') || (!isBad(dsUser) ? dsUser : '') || userName || emailName || 'User';
         const userAvatarImg = selectedUserItem.querySelector('.avatar-image');
         const userInitials = selectedUserItem.querySelector('.avatar-text');
         const userNameHeader = document.querySelector('#selected-user-name');
-        if (userNameHeader) userNameHeader.textContent = userName;
-        selectedUserMeta.full_name = userName;
+        if (userNameHeader) userNameHeader.textContent = displayName;
+        selectedUserMeta.full_name = displayName;
+        selectedUserMeta.username = (!isBad(dsUser) ? dsUser : (emailName || displayName));
 
         const userAvatarHeader = document.querySelector('#selected-user-avatar');
         const userAvatarHeaderImg = document.querySelector('#selected-user-avatar-img');
@@ -1048,6 +1255,46 @@ function selectUser(userId) {
             selectedUserMeta.profile_picture_url = userAvatarHeaderImg.src;
         }
     }
+
+    // If this came from search, ensure a persistent list item exists before clearing search UI
+    try {
+        if (fromSearch) {
+            const listContainer = document.getElementById('search-results');
+            if (listContainer) {
+                let persistent = listContainer.querySelector(`.user-item[data-user-id="${userId}"]`);
+                if (!persistent) {
+                    const dsFull = selectedUserItem ? selectedUserItem.getAttribute('data-fullname') || '' : '';
+                    const dsUser = selectedUserItem ? selectedUserItem.getAttribute('data-username') || '' : '';
+                    const dsEmail = selectedUserItem ? selectedUserItem.getAttribute('data-email') || '' : '';
+                    const imgEl = selectedUserItem ? selectedUserItem.querySelector('.avatar-image') : null;
+                    const userObj = {
+                        id: userId,
+                        full_name: dsFull,
+                        username: dsUser,
+                        email: dsEmail,
+                        profile_picture_url: imgEl && imgEl.getAttribute('src') ? imgEl.getAttribute('src') : ''
+                    };
+                    try {
+                        persistent = createListUserItem(userObj);
+                        listContainer.prepend(persistent);
+                    } catch (_) {}
+                }
+            }
+        }
+    } catch (_) {}
+
+    // If a search is active, clear it so the persistent list is visible
+    try {
+        if (searchInput && searchInput.value && searchInput.value.length >= 2) {
+            searchInput.value = '';
+            clearDynamicResults();
+            Array.from(document.querySelectorAll('#search-results .user-item:not(.search-result-item)')).forEach(item => {
+                item.style.display = 'flex';
+            });
+            hideNoUsers();
+            ensureListEmptyState();
+        }
+    } catch (e) {}
 
     // Show chat, hide welcome; on mobile hide user list
     if (welcomeScreen) welcomeScreen.classList.add('hidden');
@@ -1158,14 +1405,17 @@ function applyRecentChats(chats) {
                 lastEl.textContent = label;
             } else {
                 const isOwn = !!chat.last_message_is_own;
+                const raw = (chat.last_message || '').toString();
+                const lower = raw.toLowerCase();
+                const isSystemDeleted = lower.startsWith('you deleted a message') || lower.startsWith('message deleted');
                 let prefix = '';
-                if (isOwn) {
+                if (isOwn && !isSystemDeleted) {
                     prefix = 'You: ';
-                } else {
+                } else if (!isOwn && !isSystemDeleted) {
                     const name = pickToken(chat.first_name) || pickToken(chat.last_name) || pickToken(chat.full_name) || pickToken(chat.username) || '';
                     prefix = name ? `${name}: ` : '';
                 }
-                lastEl.textContent = `${prefix}${truncate(chat.last_message)}`;
+                lastEl.textContent = `${prefix}${truncate(raw)}`;
             }
         }
         // Update time with friendly label and persist timestamp
@@ -1178,6 +1428,8 @@ function applyRecentChats(chats) {
         // Reorder by recency: append in server-provided order
         container.appendChild(el);
     });
+    // Toggle empty-state depending on whether any persistent users remain
+    ensureListEmptyState();
     // Update global communication unread badge with animation cues
     try {
         const badge = document.getElementById('comm-unread-badge');
@@ -1278,8 +1530,23 @@ function fetchMessages(userId, options = {}) {
             markConversationRead(userId, data);
             const latest = [...data].sort((a,b) => new Date(b.sent_at) - new Date(a.sent_at))[0];
             if (latest) {
+                // Determine a preview honoring deletions and image placeholders
+                const mid = String(latest.id || latest.message_id || '');
+                const isLocallyDeleted = mid && locallyDeletedIds.has(mid);
+                let text = (latest.message || latest.content || '').toString();
+                let isOwnFlag = !!latest.is_own;
+                try {
+                    if (latest.is_deleted || isLocallyDeleted) {
+                        text = isOwnFlag ? 'You deleted a message' : 'Message deleted';
+                        isOwnFlag = false; // avoid any prefixing
+                    } else if (typeof text === 'string') {
+                        if (text.startsWith('[img]')) text = 'Sent a photo';
+                        else if (text.startsWith('[imgs]')) text = 'Sent photos';
+                    }
+                } catch (e) {}
+                // Name only used for non-own, non-system labels
                 let name = null;
-                if (!latest.is_own) {
+                if (!isOwnFlag) {
                     let sname = (latest.sender_name || '').toString().trim();
                     const bad = ['none','null','undefined','n/a','na'];
                     if (!sname || bad.includes(sname.toLowerCase())) {
@@ -1294,7 +1561,7 @@ function fetchMessages(userId, options = {}) {
                         }
                     }
                 }
-                updateLastMessage(userId, latest.message || latest.content || '', !!latest.is_own, false, false, name);
+                updateLastMessage(userId, text, isOwnFlag, false, false, name);
                 // Also refresh the time using latest.sent_at
                 const selectedItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
                 if (selectedItem) {
@@ -1387,10 +1654,17 @@ function applyMessagesDiff(newData) {
         messagesList.appendChild(frag);
         scrollToBottom(false);
     }
-    // Remove any leftover nodes that are no longer present in server data
+    // Remove any leftover nodes that are no longer present in server data,
+    // but keep optimistic temp messages until the server echoes them back.
     if (existing.size) {
         for (const [, node] of existing) {
-            try { node.remove(); } catch (e) { if (node && node.parentNode) node.parentNode.removeChild(node); }
+            try {
+                const idAttr = (node && node.dataset && node.dataset.messageId) ? String(node.dataset.messageId) : '';
+                if (idAttr.startsWith('temp-')) continue;
+                node.remove();
+            } catch (e) {
+                if (node && node.parentNode) try { node.parentNode.removeChild(node); } catch (_) {}
+            }
         }
     }
 }
@@ -1596,30 +1870,49 @@ function deleteMessage(messageItem, messageId) {
     
     confirmBtn.addEventListener('click', () => {
         document.body.removeChild(alertOverlay);
-        // Optimistically show deleted placeholder immediately
+        // Optimistically show deleted placeholder immediately (replace entire node to avoid stale markup)
         const prevHTML = messageItem.innerHTML;
         const prevClasses = messageItem.className;
+        const originalNode = messageItem;
         // Remove any status label immediately
-        try { const status = messageItem.querySelector('.message-status'); if (status) status.remove(); } catch (e) {}
-        const wasSent = messageItem.classList.contains('sent');
-        messageItem.classList.remove('sent', 'received', 'has-edited');
-        messageItem.innerHTML = `
-            <div style="display:flex;justify-content:${wasSent ? 'flex-end' : 'flex-start'};width:100%;">
+        try { const status = originalNode.querySelector('.message-status'); if (status) status.remove(); } catch (e) {}
+        const wasSent = originalNode.classList.contains('sent');
+        let placeholderNode = null;
+        try {
+            placeholderNode = buildMessageItem({ id: messageId, message_id: messageId, is_deleted: true, is_own: wasSent, sent_at: new Date().toISOString(), message: '' });
+        } catch (e) {
+            // Fallback: mutate existing node
+            originalNode.classList.remove('sent', 'received', 'has-edited');
+            originalNode.innerHTML = `<div style="display:flex;justify-content:${wasSent ? 'flex-end' : 'flex-start'};width:100%;">
                 <p class="deleted-message">This message has been deleted</p>
-            </div>
-        `;
+            </div>`;
+        }
+        if (placeholderNode) {
+            try { originalNode.replaceWith(placeholderNode); } catch (e) { placeholderNode = null; }
+        }
         // Mark locally-deleted to survive upcoming polls/renders until server confirms
         try { locallyDeletedIds.add(String(messageId)); } catch (e) {}
         // Update in-memory state and list preview right away
         try {
             const idx = messages.findIndex(mm => String(mm.id || mm.message_id) === String(messageId));
+            const deleted = idx !== -1 ? messages[idx] : null;
             if (idx !== -1) messages[idx].is_deleted = true;
             const remaining = messages.filter(mm => !mm.is_deleted);
             const latest = remaining.sort((a,b)=> new Date(b.sent_at) - new Date(a.sent_at))[0];
             if (selectedUser) {
-                const txt = latest ? (latest.message || latest.content || (latest.image_urls ? 'Sent photos' : (latest.image_url ? 'Sent a photo' : ''))) : '';
-                updateLastMessage(selectedUser, txt, !!(latest && latest.is_own));
+                // If the deleted message was the newest one, show a clear deleted label.
+                const deletedWasLatest = !!(deleted && (!latest || new Date(deleted.sent_at) >= new Date(latest.sent_at)));
+                if (deletedWasLatest) {
+                    const label = deleted && deleted.is_own ? 'You deleted a message' : 'Message deleted';
+                    // Pass isOwn=false so we don't prepend "You: " to our override label
+                    updateLastMessage(selectedUser, label, false, true, true);
+                } else {
+                    const txt = latest ? (latest.message || latest.content || (latest.image_urls ? 'Sent photos' : (latest.image_url ? 'Sent a photo' : ''))) : '';
+                    updateLastMessage(selectedUser, txt, !!(latest && latest.is_own));
+                }
             }
+            // Force a minimal diff render so image/gallery messages update instantly
+            try { applyMessagesDiff(messages); } catch (e) {}
         } catch (e) {}
         // Proactively sync with server immediately (in addition to poll)
         try { if (selectedUser) fetchMessages(selectedUser, { silent: true }); } catch (e) {}
@@ -1647,8 +1940,11 @@ function deleteMessage(messageItem, messageId) {
             } else {
                 console.error('Failed to delete message:', data && data.error);
                 // Revert optimistic change
-                messageItem.className = prevClasses;
-                messageItem.innerHTML = prevHTML;
+                if (placeholderNode && placeholderNode.parentNode) {
+                    try { placeholderNode.replaceWith(originalNode); } catch (e) {}
+                }
+                originalNode.className = prevClasses;
+                originalNode.innerHTML = prevHTML;
                 try { locallyDeletedIds.delete(String(messageId)); } catch (e) {}
                 try {
                     const idx = messages.findIndex(mm => String(mm.id || mm.message_id) === String(messageId));
@@ -1660,8 +1956,11 @@ function deleteMessage(messageItem, messageId) {
         .catch(error => {
             console.error('Error fetching messages:', error);
             // Revert optimistic change
-            messageItem.className = prevClasses;
-            messageItem.innerHTML = prevHTML;
+            if (placeholderNode && placeholderNode.parentNode) {
+                try { placeholderNode.replaceWith(originalNode); } catch (e) {}
+            }
+            originalNode.className = prevClasses;
+            originalNode.innerHTML = prevHTML;
             try { locallyDeletedIds.delete(String(messageId)); } catch (e) {}
             try {
                 const idx = messages.findIndex(mm => String(mm.id || mm.message_id) === String(messageId));
@@ -1862,28 +2161,55 @@ function sendImageMessage(file) {
     const tempMsg = { id: 'temp-' + Date.now(), is_own: true, sent_at: new Date().toISOString(), image_url: previewUrl };
     appendNewMessage(tempMsg);
     scrollToBottom(true);
+    // Attach progress overlay
+    let tempNode = Array.from((messagesList || document).querySelectorAll('.message-item')).pop();
+    let prog = null;
+    try { prog = attachUploadOverlay(tempNode, { text: 'Preparing image...…' }); } catch (e) {}
+    // Optimistically ensure the user appears in the list immediately and update preview
+    (function ensureUserVisibleNow() {
+        const container = document.getElementById('search-results');
+        if (!container || !selectedUser) return;
+        let el = container.querySelector(`.user-item[data-user-id="${selectedUser}"]`);
+        if (!el) {
+            const u = {
+                id: selectedUser,
+                username: selectedUserMeta.username || '',
+                full_name: selectedUserMeta.full_name || '',
+                profile_picture_url: selectedUserMeta.profile_picture_url || ''
+            };
+            try { el = createListUserItem(u); container.prepend(el); } catch (e) {}
+        }
+        updateLastMessage(selectedUser, 'Sent a photo', true, true, true);
+        unhideChatUser(selectedUser);
+        ensureListEmptyState();
+    })();
     // Compress before upload to speed things up
     const toUploadPromise = compressImage(file).catch(() => file);
     const formData = new FormData();
     formData.append('receiver', String(selectedUser));
     toUploadPromise.then((compressed) => {
         formData.append('image', compressed || file);
-        return fetch('/user/communication/send-image/', {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrfToken },
-        body: formData
+        return uploadWithProgress('/user/communication/send-image/', formData, (ev) => {
+            if (prog) {
+                if (ev && ev.lengthComputable && ev.total > 0) {
+                    const pct = Math.max(0, Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
+                    prog.update(pct);
+                } else {
+                    prog.indeterminate();
+                }
+            }
         });
     })
-    .then(async (r) => {
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok || !data || data.error) {
+    .then((data) => {
+        if (!data || data.error) {
             const msg = (data && data.error) ? data.error : 'Failed to upload image.';
             alert(msg);
+            if (prog) prog.fail(msg);
             return;
         }
         if (data && data.id) {
             // Replace last temp image with real one
-            const tempNode = Array.from(messagesList.querySelectorAll('.message-item'))
+            tempNode = Array.from(messagesList.querySelectorAll('.message-item'))
                 .reverse().find(n => (n.dataset.messageId || '').startsWith('temp-'));
             if (tempNode) {
                 tempNode.dataset.messageId = data.id;
@@ -1908,9 +2234,12 @@ function sendImageMessage(file) {
                 const msgObj = { id: data.id, is_own: true, sent_at: data.sent_at, message: data.message, image_url: data.image_url };
                 appendNewMessage(msgObj);
             }
+            if (prog) prog.done();
             updateLastMessage(selectedUser, 'Sent a photo', true);
             scrollToBottom(true);
             fetchMessages(selectedUser, { silent: true });
+            try { refreshUserList(true); } catch (e) {}
+            try { ensureListEmptyState(); } catch (e) {}
         }
     })
     .catch((e) => { console.error('Image upload error', e); alert('Failed to upload image.'); });
@@ -1926,8 +2255,30 @@ function sendImagesMessage(files) {
     const tempMsg = { id: 'temp-' + Date.now(), is_own: true, sent_at: new Date().toISOString(), image_urls: tempUrls };
     appendNewMessage(tempMsg);
     scrollToBottom(true);
+    // Optimistically ensure the user appears in the list immediately and update preview
+    (function ensureUserVisibleNow() {
+        const container = document.getElementById('search-results');
+        if (!container || !selectedUser) return;
+        let el = container.querySelector(`.user-item[data-user-id="${selectedUser}"]`);
+        if (!el) {
+            const u = {
+                id: selectedUser,
+                username: selectedUserMeta.username || '',
+                full_name: selectedUserMeta.full_name || '',
+                profile_picture_url: selectedUserMeta.profile_picture_url || ''
+            };
+            try { el = createListUserItem(u); container.prepend(el); } catch (e) {}
+        }
+        updateLastMessage(selectedUser, 'Sent photos', true, true, true);
+        unhideChatUser(selectedUser);
+        ensureListEmptyState();
+    })();
     const formData = new FormData();
     formData.append('receiver', String(selectedUser));
+    // Progress overlay for batch upload
+    let batchTemp = Array.from((messagesList || document).querySelectorAll('.message-item')).pop();
+    let batchProg = null;
+    try { batchProg = attachUploadOverlay(batchTemp, { text: 'Preparing ' + list.length + ' images...' }); } catch (e) {}
     // Compress sequentially with small concurrency (2)
     const compressAll = async () => {
         const out = [];
@@ -1938,14 +2289,17 @@ function sendImagesMessage(files) {
     };
     compressAll().then((filesToSend) => {
         filesToSend.forEach(f => formData.append('images', f));
-        return fetch('/user/communication/send-image/', {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrfToken },
-        body: formData
+        return uploadWithProgress('/user/communication/send-image/', formData, (ev) => {
+            if (batchProg) {
+                if (ev && ev.lengthComputable && ev.total > 0) {
+                    const pct = Math.max(0, Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
+                    batchProg.update(pct);
+                } else {
+                    batchProg.indeterminate();
+                }
+            }
         });
-    })
-    .then(r => r.json())
-    .then(data => {
+    }).then(data => {
         if (data && data.id && Array.isArray(data.image_urls) && data.image_urls.length) {
             const tempNode = Array.from(messagesList.querySelectorAll('.message-item'))
                 .reverse().find(n => (n.dataset.messageId || '').startsWith('temp-'));
@@ -1956,29 +2310,32 @@ function sendImagesMessage(files) {
                 const extra = data.image_urls.length - shown.length;
                 let tiles = '';
                 shown.forEach((u, idx) => {
-                    const overlay = (idx === shown.length - 1 && extra > 0) ? `<div class=\"gallery-overlay\" title=\"View all photos\">+${extra}</div>` : '';
+                    const overlay = (idx === shown.length - 1 && extra > 0) ? `<div class="gallery-overlay" title="View all photos">+${extra}</div>` : '';
                     tiles += `
-                        <div class=\"gallery-item\">
-                            <a href=\"${u}\" class=\"message-image-link\"><img src=\"${u}\" class=\"message-image\"/></a>
+                        <div class="gallery-item">
+                            <a href="${u}" class="message-image-link"><img src="${u}" class="message-image"/></a>
                             ${overlay}
                         </div>`;
                 });
                 tempNode.innerHTML = `
-                    <div class=\"message-options-container\">
-                      <div class=\"message-actions\">
-                        <button class=\"message-action-btn more-options-btn\" title=\"More options\"><i class=\"fas fa-ellipsis-v\"></i></button>
-                        <div class=\"message-options-menu hidden\"><button class=\"message-option delete-btn\" title=\"Delete\"><i class=\"fas fa-trash\"></i></button></div>
+                    <div class="message-options-container">
+                      <div class="message-actions">
+                        <button class="message-action-btn more-options-btn" title="More options"><i class="fas fa-ellipsis-v"></i></button>
+                        <div class="message-options-menu hidden"><button class="message-option delete-btn" title="Delete"><i class="fas fa-trash"></i></button></div>
                       </div>
                     </div>
-                    <div class=\"message-content vl-bubble\"><div class=\"message-gallery\">${tiles}</div></div>`;
+                    <div class="message-content vl-bubble"><div class="message-gallery">${tiles}</div></div>`;
                 try { tempNode.dataset.imageUrls = JSON.stringify(data.image_urls); } catch (e) {}
             } else {
                 const msgObj = { id: data.id, is_own: true, sent_at: data.sent_at, message: data.message, image_urls: data.image_urls };
                 appendNewMessage(msgObj);
             }
+            if (batchProg) batchProg.done();
             updateLastMessage(selectedUser, 'Sent photos', true);
             scrollToBottom(true);
             fetchMessages(selectedUser, { silent: true });
+            try { refreshUserList(true); } catch (e) {}
+            try { ensureListEmptyState(); } catch (e) {}
         } else if (data && data.image_url) {
             // Fallback for single
             const msgObj = { id: data.id, is_own: true, sent_at: data.sent_at, message: data.message, image_url: data.image_url };
@@ -1986,14 +2343,87 @@ function sendImagesMessage(files) {
             updateLastMessage(selectedUser, 'Sent photos', true);
             scrollToBottom(true);
             fetchMessages(selectedUser, { silent: true });
+            try { refreshUserList(true); } catch (e) {}
+            try { ensureListEmptyState(); } catch (e) {}
         } else if (data && data.error) {
             alert(data.error);
+            if (batchProg) batchProg.fail(data.error);
         }
-    })
-    .catch((e) => { console.error('Images upload error', e); alert('Failed to upload images.'); });
+    }).catch((e) => { console.error('Images upload error', e); alert('Failed to upload images.'); });
 }
 
-// ---------- Image Lightbox Helpers ----------
+
+// --- Upload helpers: XHR + overlay UI ---
+function uploadWithProgress(url, formData, onProgress) {
+    return new Promise((resolve, reject) => {
+        try {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', url, true);
+            try { xhr.setRequestHeader('X-CSRFToken', csrfToken); } catch (e) {}
+            xhr.onload = () => {
+                try {
+                    const data = JSON.parse(xhr.responseText || '{}');
+                    if (xhr.status >= 200 && xhr.status < 300) resolve(data); else resolve(data);
+                } catch (e) {
+                    if (xhr.status >= 200 && xhr.status < 300) resolve({}); else reject(e);
+                }
+            };
+            xhr.onerror = () => reject(new Error('Network error'));
+            xhr.upload.onprogress = (ev) => { try { onProgress && onProgress(ev); } catch (e) {} };
+            xhr.send(formData);
+        } catch (e) { reject(e); }
+    });
+}
+
+function attachUploadOverlay(messageItem, opts = {}) {
+    if (!messageItem) return null;
+    const bubble = messageItem.querySelector('.message-content');
+    if (!bubble) return null;
+    const overlay = document.createElement('div');
+    overlay.className = 'upload-overlay';
+    overlay.innerHTML = `
+      <div class="upload-text">${(opts.text || 'Uploading...')}</div>
+      <div class="progress-outer"><div class="progress-inner"></div></div>
+      <div class="upload-eta"></div>
+    `;
+    bubble.appendChild(overlay);
+    const bar = overlay.querySelector('.progress-inner');
+    const eta = overlay.querySelector('.upload-eta');
+    let startTs = Date.now();
+    let lastPct = 0;
+    return {
+        update(pct) {
+            lastPct = pct;
+            if (bar) bar.style.width = pct + '%';
+            if (eta) {
+                try {
+                    const elapsed = (Date.now() - startTs) / 1000;
+                    if (pct > 0 && pct < 100) {
+                        const rate = elapsed / pct; // sec per percent
+                        const remain = Math.max(0, Math.round((100 - pct) * rate));
+                        eta.textContent = remain > 0 ? (remain + 's remaining') : '';
+                    } else {
+                        eta.textContent = '';
+                    }
+                } catch (_) {}
+            }
+        },
+        indeterminate() {
+            if (bar) bar.style.width = (lastPct > 0 ? lastPct : 10) + '%';
+            if (eta) eta.textContent = '';
+        },
+        done() {
+            try { overlay.remove(); } catch (e) { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
+        },
+        fail(msg) {
+            try {
+                const txt = overlay.querySelector('.upload-text');
+                if (txt) txt.textContent = msg || 'Upload failed';
+                if (bar) bar.style.background = '#ef4444';
+            } catch (_) {}
+        }
+    };
+}
 // Lightbox with navigation state
 let _lb = { urls: [], idx: 0 };
 
@@ -2206,24 +2636,32 @@ function sendMessage() {
                 .reverse()
                 .find(n => (n.dataset.messageId || '').startsWith('temp-'));
             if (tempNode) {
-                tempNode.dataset.messageId = data.id;
-                tempNode.classList.add('sent');
-                // Ensure content contains actions for own messages
-                const content = tempNode.querySelector('.message-content');
-                if (content) {
-                    // Only keep the message text inside the bubble; the outer three-dot menu remains
-                    content.innerHTML = `<p>${data.message}</p>`;
-                }
-                // Persist last sent id and add 'Sent' status indicator at bottom-right
-                setLastSentFor(selectedUser, data.id);
-                setSentBadgeOn(tempNode);
-            } else {
-                // Fallback: attach status to the last sent item
-                const lastOwn = Array.from((messagesList || document).querySelectorAll('.message-item.sent')).pop();
-                if (lastOwn) {
+                // If polling already rendered the message with the real ID, drop the temp node
+                const existingNode = (messagesList || document).querySelector(`.message-item[data-message-id="${data.id}"]`);
+                if (existingNode && existingNode !== tempNode) {
+                    try { tempNode.remove(); } catch (e) {}
                     setLastSentFor(selectedUser, data.id);
-                    setSentBadgeOn(lastOwn);
+                    setSentBadgeOn(existingNode);
+                } else {
+                    tempNode.dataset.messageId = data.id;
+                    tempNode.classList.add('sent');
+                    // Ensure content contains actions for own messages
+                    const content = tempNode.querySelector('.message-content');
+                    if (content) {
+                        // Only keep the message text inside the bubble; the outer three-dot menu remains
+                        content.innerHTML = `<p>${data.message}</p>`;
+                    }
+                    // Persist last sent id and add 'Sent' status indicator at bottom-right
+                    setLastSentFor(selectedUser, data.id);
+                    setSentBadgeOn(tempNode);
                 }
+            } else {
+                // Fallback: append the message now if optimistic temp was already removed by a refresh
+                const msgObj = { id: data.id, is_own: true, sent_at: data.sent_at || new Date().toISOString(), message: data.message };
+                appendNewMessage(msgObj);
+                setLastSentFor(selectedUser, data.id);
+                const lastOwn = Array.from((messagesList || document).querySelectorAll('.message-item.sent')).pop();
+                if (lastOwn) setSentBadgeOn(lastOwn);
             }
             // Ensure this user exists in the list immediately
             (function ensureUserInList() {
@@ -2290,6 +2728,11 @@ function setSentBadgeOn(messageItem) {
 window.addEventListener('load', () => {
     startPollingUserList();
 });
+
+
+
+
+
 
 
 

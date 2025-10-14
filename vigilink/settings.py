@@ -16,6 +16,26 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load environment variables from a local .env file if present (dev convenience)
+# This avoids needing python-dotenv and only sets vars that aren't already set.
+_env_file = BASE_DIR / '.env'
+if _env_file.exists():
+    try:
+        with _env_file.open('r', encoding='utf-8') as _f:
+            for _raw in _f:
+                _line = _raw.strip()
+                if not _line or _line.startswith('#') or '=' not in _line:
+                    continue
+                _key, _val = _line.split('=', 1)
+                _key = _key.strip()
+                _val = _val.strip()
+                if _val and _val[0] == _val[-1] and _val[0] in ('"', "'"):
+                    _val = _val[1:-1]
+                os.environ.setdefault(_key, _val)
+    except Exception:
+        # If .env parsing fails, ignore and proceed with existing environment
+        pass
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -103,7 +123,18 @@ if USE_POSTGRES:
             'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
             'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
             'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+            # Use a short persistent connection or disable by setting 0.
             'CONN_MAX_AGE': int(os.environ.get('POSTGRES_CONN_MAX_AGE', '60')),
+            # Health-check DB connection at the start of each request so Django
+            # transparently reconnects if the provider closed the connection
+            # (common with serverless DBs and poolers like Neon).
+            'CONN_HEALTH_CHECKS': os.environ.get('POSTGRES_CONN_HEALTH_CHECKS', 'True').lower() in ('1', 'true', 'yes'),
+            'OPTIONS': {
+                # Ensure TLS for providers like Neon; falls back to PGSSLMODE if set.
+                'sslmode': os.environ.get('POSTGRES_SSLMODE', os.environ.get('PGSSLMODE', 'require')),
+                # Avoid long waits on broken networks.
+                'connect_timeout': int(os.environ.get('POSTGRES_CONNECT_TIMEOUT', '10')),
+            },
             # psycopg honors libpq env like PGSSLMODE; no extra config required here
         }
     }

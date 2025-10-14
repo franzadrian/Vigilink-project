@@ -96,10 +96,15 @@ def communication(request):
         except Exception:
             last_name = ''
 
-        # Display-friendly last message text (treat image placeholders nicely)
+        # Display-friendly last message text (respect deletions and image placeholders)
         last_preview = msg.message or ''
+        last_is_own = (msg.sender == request.user)
         try:
-            if isinstance(last_preview, str):
+            if getattr(msg, 'is_deleted', False):
+                last_preview = 'You deleted a message' if last_is_own else 'Message deleted'
+                # For system labels like above, do not apply a "You: " prefix later
+                last_is_own = False
+            elif isinstance(last_preview, str):
                 if last_preview.startswith('[img]'):
                     last_preview = 'Sent a photo'
                 elif last_preview.startswith('[imgs]'):
@@ -117,7 +122,7 @@ def communication(request):
             'profile_picture_url': pic_url,
             'last_message': last_preview,
             'last_message_time': msg.sent_at,
-            'last_message_is_own': (msg.sender == request.user),
+            'last_message_is_own': last_is_own,
             'unread_count': unread_map.get(other.id, 0),
         })
         if len(chat_summaries) >= MAX_USERS:
@@ -157,6 +162,21 @@ def get_recent_chats(request):
         other = m.receiver if m.sender == request.user else m.sender
         if other.id in seen_users:
             continue
+        # Determine preview text honoring deletions
+        m_is_own = (m.sender == request.user)
+        last_preview = m.message or ''
+        try:
+            if getattr(m, 'is_deleted', False):
+                last_preview = 'You deleted a message' if m_is_own else 'Message deleted'
+                # Ensure client won't prefix with "You: " again
+                m_is_own = False
+            elif isinstance(last_preview, str):
+                if last_preview.startswith('[img]'):
+                    last_preview = 'Sent a photo'
+                elif last_preview.startswith('[imgs]'):
+                    last_preview = 'Sent photos'
+        except Exception:
+            pass
         seen_users.add(other.id)
 
         # Resolve profile picture url safely
@@ -180,17 +200,6 @@ def get_recent_chats(request):
         first_name = tokens[0] if tokens else (raw_user.split()[0] if raw_user else '')
         last_name = tokens[-1] if tokens else ''
 
-        # Display-friendly last message text (treat image placeholders)
-        last_preview = m.message or ''
-        try:
-            if isinstance(last_preview, str):
-                if last_preview.startswith('[img]'):
-                    last_preview = 'Sent a photo'
-                elif last_preview.startswith('[imgs]'):
-                    last_preview = 'Sent photos'
-        except Exception:
-            pass
-
         recent_users.append({
             'id': other.id,
             'username': other.username,
@@ -200,7 +209,7 @@ def get_recent_chats(request):
             'profile_picture_url': pic_url,
             'last_message': last_preview,
             'last_message_time': m.sent_at.isoformat(),
-            'last_message_is_own': (m.sender == request.user),
+            'last_message_is_own': m_is_own,
             'unread_count': unread_map.get(other.id, 0),
         })
         if len(recent_users) >= 20:
@@ -326,12 +335,14 @@ def send_image_message(request):
         except User.DoesNotExist:
             return JsonResponse({'error': 'Receiver not found'}, status=404)
 
-        # Upload to Dropbox chat images folder (no local fallback)
+        # Upload to Dropbox chat images folder (Dropbox only; no local fallback)
         from .dropbox_utils import upload_chat_image, get_dropbox_client
-        # Proactively check Dropbox auth so we can return a helpful error
+        import uuid, os
+
+        # Enforce Dropbox availability; error out if not available
         try:
             if not get_dropbox_client():
-                return JsonResponse({'error': 'Dropbox authentication failed. Please configure a valid DROPBOX_ACCESS_TOKEN.'}, status=500)
+                return JsonResponse({'error': 'Dropbox authentication failed. Please configure a valid DROPBOX_REFRESH_TOKEN (or ACCESS_TOKEN).'}, status=500)
         except Exception:
             return JsonResponse({'error': 'Dropbox client initialization failed.'}, status=500)
 
