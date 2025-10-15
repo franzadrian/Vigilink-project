@@ -13,8 +13,46 @@
   {% load static %}
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+  {# Replace admin CSS with user communications UI #}
+  <link rel="stylesheet" href="{% static 'communication/css/user_communication.css' %}">
+  <link rel="stylesheet" href="{% static 'communication/css/mobile_responsive.css' %}">
+  {# Restore admin layout styling for header/sidebar #}
   <link rel="stylesheet" href="{% static 'admin_communication/css/communication.css' %}">
   <link rel="stylesheet" href="{% static 'admin_dashboard/css/unread_badge.css' %}">
+
+  <style>
+    /* Ensure chat colors/layout remain consistent inside chat only */
+    .chat-content {
+      --background: 240 10% 98%;
+      --foreground: 240 10% 3.9%;
+      --card: 0 0% 100%;
+      --card-foreground: 240 10% 3.9%;
+      --primary: 214 100% 50%;
+      --primary-foreground: 0 0% 98%;
+      --primary-glow: 214 100% 65%;
+      --secondary: 240 5% 96%;
+      --secondary-foreground: 240 6% 10%;
+      --muted: 240 5% 96%;
+      --muted-foreground: 240 4% 46%;
+      --accent: 214 100% 95%;
+      --accent-foreground: 214 100% 50%;
+      --border: 240 6% 90%;
+      --input: 240 6% 90%;
+      --ring: 262 80% 50%;
+
+      --chat-background: 0 0% 100%;
+      --chat-hover: 240 5% 98%;
+      --chat-active: 214 100% 96%;
+      --message-bubble: 214 100% 50%;
+      --message-bubble-foreground: 0 0% 98%;
+      --message-received: 240 5% 96%;
+      --message-received-foreground: 240 10% 3.9%;
+
+      --radius: 0.75rem;
+      --sidebar-width: 16rem;
+      --header-height: 4rem;
+    }
+  </style>
 
 </head>
 <body>
@@ -122,170 +160,185 @@
     <div id="sidebarOverlay" class="sidebar-overlay"></div>
 
     <main role="main" class="main-content">
-      <header class="page" style="margin-bottom: 20px;">
-        <h1 style="margin-bottom: 5px;">Admin Communication</h1>
-        <p style="margin-top: 0;">An organized and reliable office professional.</p>
+      {% load time_filters %}
+      {% csrf_token %}
+      <header class="page" style="margin-bottom: 12px;">
+        <h1 style="margin-bottom: 4px;">Admin Communication</h1>
+        <p style="margin-top: 0;">Manage conversations with residents.</p>
       </header>
 
-      <!-- Inbox Section -->
-      <div class="inbox-section">
-        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-          <h2 class="section-title">Inbox</h2>
-          <button class="new-message-btn" style="background-color: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 5px;"><i class="fas fa-plus-circle"></i> New Message</button>
-        </div>
-        
-        <!-- Message Type Filter -->
-        <div class="filter-container" style="margin-bottom: 20px; display: flex; gap: 10px;">
-          <button id="filter-all" class="filter-btn active" style="padding: 8px 16px; border-radius: 6px; background-color: #2563eb; color: white; border: none; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">All Messages</button>
-          <button id="filter-inquiry" class="filter-btn" style="padding: 8px 16px; border-radius: 6px; background-color: #e5e7eb; color: #4b5563; border: none; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">Inquiries</button>
-          <button id="filter-feedback" class="filter-btn" style="padding: 8px 16px; border-radius: 6px; background-color: #e5e7eb; color: #4b5563; border: none; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">Feedback</button>
-          <button id="filter-report" class="filter-btn" style="padding: 8px 16px; border-radius: 6px; background-color: #e5e7eb; color: #4b5563; border: none; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">Reports</button>
-        </div>
-
-        <div class="table-container" style="overflow-x: auto;">
-          <table class="messages-table" style="width: 100%; border-collapse: separate; border-spacing: 0;">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Subject</th>
-                <th>Message</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="message-table-body">
-              {% for message in contact_messages %}
-              <tr class="{% if not message.is_read %}unread-row{% endif %}" data-message-type="{% if 'inquiry' in message.subject|lower %}inquiry{% elif 'feedback' in message.subject|lower %}feedback{% elif 'report' in message.subject|lower %}report{% else %}{{ message.message_type|default:'inquiry' }}{% endif %}" data-is-read="{{ message.is_read|yesno:'true,false' }}" data-date="{{ message.created_at|date:'U' }}">
-                <td>{{ message.name }}</td>
-                <td>{{ message.subject }}</td>
-                <td>{{ message.message|truncatechars:20 }}</td>
-                <td>{{ message.created_at|date:"M j, Y" }}</td>
-                <td><span class="{% if message.is_read %}status-read{% else %}status-unread{% endif %}">{% if message.is_read %}Read{% else %}Unread{% endif %}</span></td>
-                <td class="action-buttons">
-                  <button class="view-btn" data-id="{{ message.contact_id }}">View</button>
-                  <button class="delete-btn" data-id="{{ message.contact_id }}">Delete</button>
-                </td>
-              </tr>
+      <!-- Chat UI (same as user communications) -->
+      <div class="chat-content">
+        <!-- User List (Left Section) -->
+        <div id="user-list" class="user-list">
+          <div class="user-list-header">
+            <h2>Conversations</h2>
+          </div>
+          <div class="user-list-search">
+            <div class="search-wrapper">
+              <i class="fas fa-search search-icon"></i>
+              <input type="text" id="user-search" placeholder="Search users..." class="search-input">
+            </div>
+          </div>
+          <div class="users-container">
+            <div id="search-results">
+              {% for user in users %}
+              <div class="user-item{% if user.unread_count and user.unread_count > 0 %} unread{% endif %}"
+                   data-user-id="{{ user.id }}"
+                   data-username="{{ user.username }}"
+                   data-fullname="{{ user.full_name|default:'' }}"
+                   data-email="{{ user.email }}"
+                   {% if user.last_message_time %}data-last-message-time="{{ user.last_message_time|date:'c' }}"{% endif %}>
+                <div class="user-avatar">
+                  {% if user.profile_picture_url %}
+                    <img src="{{ user.profile_picture_url }}?{% now 'U' %}"
+                         alt="{{ user.username }}"
+                         class="avatar-image"
+                         onerror="this.onerror=null; this.src='/static/accounts/images/profile.png';">
+                  {% else %}
+                    <span class="avatar-text">{{ user.full_name|default:user.username|make_list|slice:":2"|join:""|upper }}</span>
+                  {% endif %}
+                </div>
+                <div class="user-info">
+                  <div class="user-name">
+                    {% if user.full_name and user.full_name|lower != 'none' %}
+                      {{ user.full_name }}
+                    {% else %}
+                      {{ user.username }}
+                    {% endif %}
+                  </div>
+                  <div class="last-message">
+                    {% if user.unread_count and user.unread_count|add:0 >= 2 %}
+                      {% if user.unread_count > 9 %}
+                        9+ new message
+                      {% else %}
+                        {{ user.unread_count }} new message
+                      {% endif %}
+                    {% else %}
+                      {% if user.last_message %}
+                        {% with lm=user.last_message|lower %}
+                          {% if lm == 'you deleted a message' or lm == 'message deleted' %}
+                            {{ user.last_message|truncatechars:30 }}
+                          {% elif user.last_message_is_own %}
+                            You: {{ user.last_message|truncatechars:30 }}
+                          {% else %}
+                            {{ user.username }}: {{ user.last_message|truncatechars:30 }}
+                          {% endif %}
+                        {% endwith %}
+                      {% else %}
+                        No messages yet
+                      {% endif %}
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="message-time" {% if user.last_message_time %}data-timestamp="{{ user.last_message_time|date:'c' }}"{% endif %}>
+                  {% if user.last_message_time %}
+                    {{ user.last_message_time|friendly_timesince }}
+                  {% endif %}
+                </div>
+                <button class="remove-user-btn" title="Remove" aria-label="Remove conversation">&times;</button>
+              </div>
               {% empty %}
-                 <tr id="no-messages-row" class="no-messages">
-                     <td colspan="6" style="text-align: center;">No messages found</td>
-                 </tr>
+              <div class="no-users">
+                <div class="no-users-icon"><i class="fas fa-user-slash"></i></div>
+                <div class="no-users-text">
+                  <p>No users available for messaging</p>
+                </div>
+              </div>
               {% endfor %}
-            </tbody>
-          </table>
-      </div>
-      
-      <!-- Pagination Controls -->
-      <div class="pagination-controls" style="display: flex; flex-direction: column; justify-content: space-between; align-items: center; margin-top: 20px;">
-        <div class="pagination-info" style="color: #4b5563; font-size: 0.875rem; margin-bottom: 10px; width: 100%; text-align: center;">
-          Showing <span id="startIndex" style="font-weight: 700; color: #2563EB;">1</span> to <span id="endIndex" style="font-weight: 700; color: #2563EB;">10</span> of <span id="totalItems" style="font-weight: 700; color: #2563EB;">0</span> messages
+            </div>
+          </div>
         </div>
-        <div class="pagination-buttons" style="display: flex; gap: 10px; align-items: center; width: 100%; justify-content: center;">
-          <button id="prevPage" style="padding: 6px 12px; background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; transition: all 0.2s; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 80px; font-size: 0.9rem;"><i class="fas fa-chevron-left"></i> Previous</button>
-          <div id="pageNumbers" style="display: flex; gap: 5px;"></div>
-          <button id="nextPage" style="padding: 6px 12px; background-color: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; transition: all 0.2s; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 80px; font-size: 0.9rem;">Next <i class="fas fa-chevron-right"></i></button>
-        </div>
-      </div>
-      </div>
 
+        <!-- Chat Messages (Right Section) -->
+        <div id="chat-messages" class="chat-messages">
+          <div class="chat-header">
+            <button id="back-to-users" class="back-btn" aria-label="Back to users">
+              <i class="fas fa-arrow-left"></i>
+            </button>
+            <div class="selected-user-info">
+              <div class="user-avatar-header">
+                <img src="" alt="User" class="avatar-image" id="selected-user-avatar-img" style="display: none;"
+                     onerror="this.onerror=null; this.src='/static/accounts/images/profile.png';">
+                <span class="avatar-text" id="selected-user-avatar">U</span>
+                <span class="status-indicator online"></span>
+              </div>
+              <div class="user-name-header">
+                <span id="selected-user-name">User</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="messages-container vl-chat">
+            <div id="messages-list" class="messages-list">
+              <div class="no-messages-container"></div>
+            </div>
+          </div>
+
+          <div class="message-input-container">
+            <form id="message-form" class="message-form">
+              <div class="input-wrapper">
+                <input type="text" id="message-input" placeholder="Type a message..." maxlength="500" class="message-input">
+                <div class="input-actions">
+                  <div id="char-count" class="char-count">500</div>
+                  <button type="button" class="input-btn" aria-label="Add image">
+                    <i class="fas fa-image"></i>
+                  </button>
+                  <button type="button" class="input-btn" aria-label="Add emoji">
+                    <i class="far fa-smile"></i>
+                  </button>
+                </div>
+              </div>
+              <button type="submit" id="send-btn" class="send-btn" aria-label="Send message">
+                <i class="fas fa-paper-plane"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <div id="welcome-screen" class="welcome-screen hidden">
+          <div class="welcome-content">
+            <div class="welcome-icon"><i class="fas fa-comments"></i></div>
+            <div class="welcome-text">
+              <h3>Welcome to Admin Communications</h3>
+              <p>Select a user to start a conversation</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
     </main>
   </div>
 </div>
   
-  <script src="{% static 'admin_communication/js/communication.js' %}"></script>
+  {# Replace admin JS with chat UI logic #}
+  <script defer src="{% static 'communication/js/user_communication.js' %}?v=4"></script>
+  <script>
+    // Minimal sidebar toggle for admin layout
+    document.addEventListener('DOMContentLoaded', function () {
+      var btn = document.getElementById('mobile-menu-btn');
+      var sidebar = document.getElementById('sidebar');
+      var overlay = document.getElementById('sidebarOverlay');
+      function openSidebar() {
+        try { if (sidebar) sidebar.classList.add('open'); } catch (_) {}
+        try { if (overlay) overlay.classList.add('active'); } catch (_) {}
+        try { document.body.classList.add('sidebar-open'); } catch (_) {}
+      }
+      function closeSidebar() {
+        try { if (sidebar) sidebar.classList.remove('open'); } catch (_) {}
+        try { if (overlay) overlay.classList.remove('active'); } catch (_) {}
+        try { document.body.classList.remove('sidebar-open'); } catch (_) {}
+      }
+      if (btn) btn.addEventListener('click', function () {
+        if (!sidebar) return;
+        if (sidebar.classList.contains('open')) closeSidebar(); else openSidebar();
+      });
+      if (overlay) overlay.addEventListener('click', closeSidebar);
+      window.addEventListener('resize', function(){ if (window.innerWidth > 768) closeSidebar(); });
+    });
+  </script>
   
   <!-- JavaScript code moved to communication.js -->
-  <!-- View Message Modal -->
-  <div id="viewMessageModal" class="modal">
-    <div class="modal-content">
-      <span class="close-modal" id="closeViewModal">&times;</span>
-      <div class="modal-header">
-        <h3 class="modal-title">Message Details</h3>
-      </div>
-      <div class="modal-body">
-        <div class="message-details">
-          <div class="message-detail-row">
-            <div class="message-label">From:</div>
-            <div class="message-value" id="messageFrom"></div>
-            <span id="userStatus" class="user-status"></span>
-          </div>
-          <div class="message-detail-row">
-            <div class="message-label">Email:</div>
-            <div class="message-value" id="messageEmail"></div>
-          </div>
-          <div class="message-detail-row">
-            <div class="message-label">Subject:</div>
-            <div class="message-value" id="messageSubject"></div>
-          </div>
-          <div class="message-detail-row">
-            <div class="message-label">Date:</div>
-            <div class="message-value" id="messageDate"></div>
-          </div>
-        </div>
-        <div>
-          <div class="message-label">Message:</div>
-          <div class="message-content" id="messageContent"></div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" id="closeViewBtn">Close</button>
-        <button class="btn btn-primary" id="replyBtn">Reply</button>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Send Message Modal -->
-  <div id="sendMessageModal" class="modal">
-    <div class="modal-content">
-      <span class="close-modal" id="closeSendModal">&times;</span>
-      <div class="modal-header">
-        <h3 class="modal-title">Send Message</h3>
-      </div>
-      <div class="modal-body">
-        <form id="sendMessageForm">
-          <div class="form-group">
-            <label class="form-label" for="recipientName">To:</label>
-            <input type="text" class="form-control" id="recipientName" placeholder="Recipient Name">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="recipientEmail">Email:</label>
-            <input type="email" class="form-control" id="recipientEmail" placeholder="Recipient Email">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="messageSubjectInput">Subject:</label>
-            <input type="text" class="form-control" id="messageSubjectInput" placeholder="Message Subject">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="messageTextarea">Message:</label>
-            <textarea class="form-control" id="messageTextarea" placeholder="Type your message here..."></textarea>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" id="cancelSendBtn">Cancel</button>
-        <button class="btn btn-primary" id="sendMessageBtn">Send Message</button>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Delete Confirmation Modal -->
-  <div id="deleteMessageModal" class="modal">
-    <div class="modal-content">
-      <span class="close-modal" id="closeDeleteModal">&times;</span>
-      <div class="modal-header">
-        <h3 class="modal-title">Confirm Delete</h3>
-      </div>
-      <div class="modal-body">
-        <p>Are you sure you want to delete this message?</p>
-        <p>This action cannot be undone.</p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" id="cancelDeleteBtn">Cancel</button>
-        <button class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
-      </div>
-    </div>
-  </div>
+  {# Remove admin-specific modals; chat UI handles messaging inline #}
 </body>
 </html>

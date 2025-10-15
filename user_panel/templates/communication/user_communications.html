@@ -26,6 +26,13 @@
         <input type="text" id="user-search" placeholder="Search users..." class="search-input">
       </div>
     </div>
+    <!-- Quick Actions -->
+    <div class="user-list-actions">
+      <button id="open-contact-threads" class="contact-admin-btn" type="button" title="View my contact requests">
+        <i class="fas fa-headset" aria-hidden="true"></i>
+        <span>My Contact Requests</span>
+      </button>
+    </div>
     
     <div class="users-container">
       <div id="search-results">
@@ -168,9 +175,29 @@
       </div>
     </div>
   </div>
+
+  <!-- Contact Threads Panel (hidden by default) -->
+  <div id="contact-threads-panel" class="contact-panel hidden"
+       data-contact-url="{% url 'user_panel:contact' %}"
+       data-threads-url="{% url 'user_panel:contact_threads' %}"
+       data-support-url="{% url 'user_panel:support_admin' %}"
+       data-bootstrap-url="{% url 'user_panel:bootstrap_contact_chat' %}">
+    <div class="contact-header">
+      <div class="contact-title">
+        <i class="fas fa-headset"></i>
+        <h3>My Contact Requests</h3>
+      </div>
+      <button id="close-contact-threads" class="close-contact" type="button" aria-label="Back to chat">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div id="contact-threads-alert" class="contact-alert" role="status" aria-live="polite" hidden></div>
+    <div id="contact-threads-list" class="contact-threads-list"></div>
+  </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script defer src="{% static 'communication/js/user_communication.js' %}?v=3"></script>
+<script defer src="{% static 'communication/js/user_communication.js' %}?v=4"></script>
+<script defer src="{% static 'communication/js/contact_us.js' %}?v=5"></script>
 {% endblock %}

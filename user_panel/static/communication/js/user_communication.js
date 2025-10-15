@@ -2169,6 +2169,8 @@ function sendImageMessage(file) {
     (function ensureUserVisibleNow() {
         const container = document.getElementById('search-results');
         if (!container || !selectedUser) return;
+        // Skip injecting support/admin chats into the left list
+        try { if (selectedUserMeta && selectedUserMeta.is_admin) return; } catch (e) {}
         let el = container.querySelector(`.user-item[data-user-id="${selectedUser}"]`);
         if (!el) {
             const u = {
@@ -2179,8 +2181,10 @@ function sendImageMessage(file) {
             };
             try { el = createListUserItem(u); container.prepend(el); } catch (e) {}
         }
-        updateLastMessage(selectedUser, 'Sent a photo', true, true, true);
-        unhideChatUser(selectedUser);
+        if (!(selectedUserMeta && selectedUserMeta.is_admin)) {
+            updateLastMessage(selectedUser, 'Sent a photo', true, true, true);
+            unhideChatUser(selectedUser);
+        }
         ensureListEmptyState();
     })();
     // Compress before upload to speed things up
@@ -2259,6 +2263,7 @@ function sendImagesMessage(files) {
     (function ensureUserVisibleNow() {
         const container = document.getElementById('search-results');
         if (!container || !selectedUser) return;
+        try { if (selectedUserMeta && selectedUserMeta.is_admin) return; } catch (e) {}
         let el = container.querySelector(`.user-item[data-user-id="${selectedUser}"]`);
         if (!el) {
             const u = {
@@ -2269,8 +2274,10 @@ function sendImagesMessage(files) {
             };
             try { el = createListUserItem(u); container.prepend(el); } catch (e) {}
         }
-        updateLastMessage(selectedUser, 'Sent photos', true, true, true);
-        unhideChatUser(selectedUser);
+        if (!(selectedUserMeta && selectedUserMeta.is_admin)) {
+            updateLastMessage(selectedUser, 'Sent photos', true, true, true);
+            unhideChatUser(selectedUser);
+        }
         ensureListEmptyState();
     })();
     const formData = new FormData();
@@ -2598,6 +2605,7 @@ function sendMessage() {
     (function ensureUserVisibleNow() {
         const container = document.getElementById('search-results');
         if (!container) return;
+        try { if (selectedUserMeta && selectedUserMeta.is_admin) return; } catch (e) {}
         let el = container.querySelector(`.user-item[data-user-id="${selectedUser}"]`);
         if (!el) {
             const u = {
@@ -2611,8 +2619,10 @@ function sendMessage() {
                 container.prepend(el);
             } catch (e) {}
         }
-        // Update preview and move to top
-        updateLastMessage(selectedUser, message, true, true, true);
+        // Update preview and move to top (only for non-admin chats)
+        if (!(selectedUserMeta && selectedUserMeta.is_admin)) {
+            updateLastMessage(selectedUser, message, true, true, true);
+        }
         // If previously hidden, unhide now
         unhideChatUser(selectedUser);
     })();
@@ -2667,6 +2677,8 @@ function sendMessage() {
             (function ensureUserInList() {
                 const container = document.getElementById('search-results');
                 if (!container) return;
+                // Do not inject admin/support accounts into the left list
+                try { if (selectedUserMeta && selectedUserMeta.is_admin) return; } catch (e) {}
                 let el = container.querySelector(`.user-item[data-user-id="${selectedUser}"]`);
                 if (!el) {
                     const u = {
@@ -2681,10 +2693,11 @@ function sendMessage() {
                     } catch (e) {}
                 }
             })();
-            // Update last message in user list (prefix with You: for own)
-            updateLastMessage(selectedUser, data.message || message, true);
-            // Unhide this user if previously removed, since we just sent a new message
-            unhideChatUser(selectedUser);
+            // Update list preview only for non-admin chats
+            if (!(selectedUserMeta && selectedUserMeta.is_admin)) {
+                updateLastMessage(selectedUser, data.message || message, true);
+                unhideChatUser(selectedUser);
+            }
             // Force-refresh recent chats so new conversations appear immediately
             try { refreshUserList(true); } catch (e) {}
             // Scroll a bit later to account for DOM paint (force scroll for own message)

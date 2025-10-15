@@ -4,6 +4,8 @@ from django.http import HttpResponseForbidden, JsonResponse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from accounts.models import User
+from django.core.paginator import Paginator
+from django.db.models import Q
 import json
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -24,8 +26,40 @@ def admin_resident(request):
     if request.user.role != 'admin' and not request.user.is_superuser:
         return HttpResponseForbidden("You don't have permission to access this page.")
     
-    # Fetch all users from the database
-    users = User.objects.all()
+    # Base queryset: non-admin users, with related city/district to avoid N+1
+    qs = (
+        User.objects
+        .select_related('city', 'district')
+        .all()
+    )
+
+    # Optional search (q) and role filter
+    q = (request.GET.get('q') or '').strip()
+    role = (request.GET.get('role') or '').strip().lower()
+    if q:
+        qs = qs.filter(
+            Q(full_name__icontains=q) |
+            Q(username__icontains=q) |
+            Q(email__icontains=q) |
+            Q(address__icontains=q) |
+            Q(city__name__icontains=q) |
+            Q(district__name__icontains=q)
+        )
+    if role and role in ('guest', 'resident', 'community_owner', 'security', 'admin'):
+        qs = qs.filter(role=role)
+
+    # Exclude admins from list by default (template also guards)
+    qs = qs.exclude(role='admin')
+
+    # Server-side pagination
+    page_number = request.GET.get('page') or 1
+    try:
+        page_number = int(page_number)
+    except Exception:
+        page_number = 1
+    paginator = Paginator(qs.order_by('id'), 25)  # 25 per page
+    page_obj = paginator.get_page(page_number)
+    users = page_obj.object_list
     
     # Fetch all cities and districts for dropdowns
     from accounts.models import City, District
@@ -34,8 +68,13 @@ def admin_resident(request):
     
     return render(request, 'admin_residents/admin_resident.html', {
         'users': users,
+        'page_obj': page_obj,
+        'paginator': paginator,
+        'total_count': paginator.count,
+        'q': q,
+        'role_filter': role,
         'cities': cities,
-        'districts': districts
+        'districts': districts,
     })
 
 def admin_index(request):

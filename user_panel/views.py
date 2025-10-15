@@ -160,6 +160,12 @@ def get_recent_chats(request):
 
     for m in recent_messages:
         other = m.receiver if m.sender == request.user else m.sender
+        # Skip admins/superusers to keep support accounts out of the left list
+        try:
+            if getattr(other, 'role', None) == 'admin' or getattr(other, 'is_superuser', False):
+                continue
+        except Exception:
+            pass
         if other.id in seen_users:
             continue
         # Determine preview text honoring deletions
@@ -595,19 +601,36 @@ from django.contrib import messages
 from admin_panel.models import ContactMessage
 
 def contact_submit(request):
-    """Handle contact form submission"""
-    if request.method == 'POST':
-        name = request.POST.get('name')
-        email = request.POST.get('email')
-        subject = request.POST.get('subject')
-        message = request.POST.get('message')
-        
-        # Validate form data
+    """Handle contact form submission (HTML form and AJAX/JSON)."""
+    if request.method != 'POST':
+        return redirect('user_panel:contact')
+
+    # Detect JSON/AJAX
+    wants_json = (
+        request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        or 'application/json' in (request.headers.get('Accept') or '')
+        or (request.content_type or '').startswith('application/json')
+    )
+
+    try:
+        if (request.content_type or '').startswith('application/json'):
+            data = json.loads(request.body or '{}')
+            name = data.get('name') or (request.user.get_full_name() if request.user.is_authenticated else '')
+            email = data.get('email') or (request.user.email if request.user.is_authenticated else '')
+            subject = (data.get('subject') or '').strip()
+            message = (data.get('message') or '').strip()
+        else:
+            name = request.POST.get('name') or (request.user.get_full_name() if request.user.is_authenticated else '')
+            email = request.POST.get('email') or (request.user.email if request.user.is_authenticated else '')
+            subject = (request.POST.get('subject') or '').strip()
+            message = (request.POST.get('message') or '').strip()
+
         if not all([name, email, subject, message]):
+            if wants_json:
+                return JsonResponse({'status': 'error', 'message': 'Please fill in all required fields'}, status=400)
             messages.error(request, 'Please fill in all required fields')
             return redirect('user_panel:contact')
-        
-        # Create contact message
+
         contact_message = ContactMessage(
             name=name,
             email=email,
@@ -616,20 +639,27 @@ def contact_submit(request):
             user=request.user if request.user.is_authenticated else None
         )
         contact_message.save()
-        
-        # Custom success messages based on subject
+
+        # Tailored success text
         if subject == 'General Inquiry':
-            messages.success(request, 'Thank you for your inquiry! We will provide you with all the information you need as soon as possible.')
+            success_text = 'Thank you for your inquiry! We will provide you with all the information you need as soon as possible.'
         elif subject == 'Feedback':
-            messages.success(request, 'Thank you for your feedback! Your insights are valuable and help us improve our services.')
+            success_text = 'Thank you for your feedback! Your insights are valuable and help us improve our services.'
         elif subject == 'Report an Issue':
-            messages.success(request, 'Thank you for reporting this issue! We will investigate and address it promptly.')
+            success_text = 'Thank you for reporting this issue! We will investigate and address it promptly.'
         else:
-            messages.success(request, 'Your message has been sent successfully. We will get back to you soon!')
-            
+            success_text = 'Your message has been sent successfully. We will get back to you soon!'
+
+        if wants_json:
+            return JsonResponse({'status': 'success', 'message': success_text})
+
+        messages.success(request, success_text)
         return redirect('user_panel:contact')
-    
-    return redirect('user_panel:contact')
+    except Exception as e:
+        if wants_json:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+        messages.error(request, f"An error occurred: {str(e)}")
+        return redirect('user_panel:contact')
 
 def pricing(request):
     """Pricing page view"""
@@ -1458,3 +1488,119 @@ def get_post_images(request, post_id):
     except Exception as e:
         logger.error(f"Error fetching images for post {post_id}: {str(e)}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+# ===== Support/Admin Communications =====
+@login_required
+def get_contact_threads(request):
+    """Return the current user's Contact Us submissions as threads (JSON)."""
+    try:
+        threads = ContactMessage.objects.filter(user=request.user).order_by('-created_at')
+        data = [{
+            'id': t.contact_id,
+            'subject': t.subject,
+            'message': t.message,
+            'created_at': t.created_at.isoformat(),
+            'is_read': t.is_read,
+        } for t in threads]
+        return JsonResponse({'status': 'success', 'threads': data})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+def get_support_admin(request):
+    """Return a support admin user to chat with (JSON).
+
+    Strategy:
+    1) Prefer any user with role 'admin' or superuser or staff, excluding the requester.
+    2) If none remain, allow self (useful on dev/staging where only one admin exists).
+    3) If still none, return 404 with a clear message.
+    """
+    try:
+        base_qs = User.objects.filter(
+            models.Q(role='admin') | models.Q(is_superuser=True) | models.Q(is_staff=True)
+        ).order_by('-is_superuser', '-is_staff', 'id')
+
+        admin = base_qs.exclude(id=request.user.id).first()
+        if not admin:
+            admin = base_qs.first()
+        if not admin:
+            return JsonResponse({'status': 'error', 'message': 'No support admin account exists yet.'}, status=404)
+        # Resolve profile picture URL if possible
+        pic_url = None
+        try:
+            pic_url = admin.get_profile_picture_url() if hasattr(admin, 'get_profile_picture_url') else None
+        except Exception:
+            pic_url = None
+        if not pic_url:
+            try:
+                pic_url = admin.profile_picture.url if getattr(admin, 'profile_picture', None) else None
+            except Exception:
+                pic_url = None
+        name = (admin.get_full_name() or admin.full_name or admin.username or 'Support').strip()
+        return JsonResponse({
+            'status': 'success',
+            'admin': {
+                'id': admin.id,
+                'username': admin.username,
+                'full_name': name,
+                'profile_picture_url': pic_url,
+                'is_admin': True,
+            }
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def bootstrap_contact_chat(request):
+    """Ensure a ContactMessage is mirrored as the first message in chat with an admin.
+
+    Body JSON: { "contact_id": <int> }
+    Creates a Message(sender=request.user, receiver=admin, message=contact.message) if not present.
+    Returns {status, admin_id, created}.
+    """
+    try:
+        data = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+    contact_id = data.get('contact_id')
+    if not contact_id:
+        return JsonResponse({'status': 'error', 'message': 'contact_id is required'}, status=400)
+    try:
+        cm = ContactMessage.objects.get(contact_id=contact_id, user=request.user)
+    except ContactMessage.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Contact message not found'}, status=404)
+
+    # Find or choose admin as in get_support_admin
+    base_qs = User.objects.filter(
+        models.Q(role='admin') | models.Q(is_superuser=True) | models.Q(is_staff=True)
+    ).order_by('-is_superuser', '-is_staff', 'id')
+    admin = base_qs.exclude(id=request.user.id).first() or base_qs.first()
+    if not admin:
+        return JsonResponse({'status': 'error', 'message': 'No support admin account exists yet.'}, status=404)
+
+    # Check if a matching message already exists (avoid duplicates)
+    exists = Message.objects.filter(
+        sender=request.user,
+        receiver=admin,
+        message=cm.message
+    ).exists()
+    created = False
+    if not exists:
+        try:
+            m = Message(
+                sender=request.user,
+                receiver=admin,
+                message=cm.message,
+                sent_at=cm.created_at
+            )
+            m.save()
+            created = True
+        except Exception as e:
+            # If creation fails for any reason, return error
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+    return JsonResponse({'status': 'success', 'admin_id': admin.id, 'created': created})

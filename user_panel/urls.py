@@ -33,6 +33,9 @@ urlpatterns = [
     path('communication/edit-message/', views.edit_message, name='edit_message'),
     path('communication/delete-message/', views.delete_message, name='delete_message'),
     path('communication/recent-chats/', views.get_recent_chats, name='recent_chats'),
+    path('communication/contact-threads/', views.get_contact_threads, name='contact_threads'),
+    path('communication/support-admin/', views.get_support_admin, name='support_admin'),
+    path('communication/bootstrap-contact-chat/', views.bootstrap_contact_chat, name='bootstrap_contact_chat'),
     # Mark message as read (message_id is an integer primary key)
     path('mark-read/<int:message_id>/', views.mark_message_read, name='mark_message_read'),
     path('global-user-search/', views.global_user_search, name='global_user_search'),

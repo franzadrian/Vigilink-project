@@ -17,6 +17,8 @@ function setupDialogCloseButtons() {
         
 // Add event listeners for view resident buttons
 document.addEventListener('DOMContentLoaded', function() {
+    // Detect server-side pagination mode
+    const serverPaginate = !!document.querySelector('[data-server-pagination="1"]');
     // Setup dialog close buttons
     setupDialogCloseButtons();
     
@@ -638,6 +640,10 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
             const roleLinks = document.querySelectorAll('#roleDropdown a');
             roleLinks.forEach(link => {
                 link.addEventListener('click', function(e) {
+                    if (serverPaginate) {
+                        // Let the anchor navigate (server-side filter)
+                        return;
+                    }
                     e.preventDefault();
                     const selectedRole = this.getAttribute('data-role');
                     currentRole = selectedRole;
@@ -732,13 +738,14 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                  applyPagination();
              }
              
-             // Pagination variables
-             let currentPage = 1;
-             const rowsPerPage = 10;
+    // Pagination variables (client-side fallback only)
+    let currentPage = 1;
+    const rowsPerPage = 10;
              
              // Apply pagination to the table
-             function applyPagination() {
-                 // Get all rows except the "No results" row
+    function applyPagination() {
+        if (serverPaginate) return; // server handles page slicing
+        // Get all rows except the "No results" row
                  const allRows = Array.from(document.querySelectorAll('#residentsTableBody tr:not(.no-results)'));
                  
                  // Store original display state
@@ -788,8 +795,20 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
              }
              
              // Update pagination controls
-             function updatePaginationControls(totalPages, startIndex, endIndex, totalRows) {
-                 // Update page info if elements exist
+    function updatePaginationControls(totalPages, startIndex, endIndex, totalRows) {
+        if (serverPaginate) {
+            // In server mode, wire prev/next buttons to navigate via data-href
+            const prevPageBtn = document.getElementById('prevPage');
+            const nextPageBtn = document.getElementById('nextPage');
+            if (prevPageBtn && prevPageBtn.dataset && prevPageBtn.dataset.href) {
+                prevPageBtn.onclick = (e) => { e.preventDefault(); window.location.href = prevPageBtn.dataset.href; };
+            }
+            if (nextPageBtn && nextPageBtn.dataset && nextPageBtn.dataset.href) {
+                nextPageBtn.onclick = (e) => { e.preventDefault(); window.location.href = nextPageBtn.dataset.href; };
+            }
+            return;
+        }
+        // Update page info if elements exist
                  const startIndexElement = document.getElementById('startIndex');
                  const endIndexElement = document.getElementById('endIndex');
                  const pageNumbers = document.getElementById('pageNumbers');
@@ -852,35 +871,32 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
              }
              
              // Previous page button (if it exists)
-             let prevPageBtn = document.getElementById('prevPage');
-             if (prevPageBtn) {
-                 prevPageBtn.addEventListener('click', function() {
-                     if (currentPage > 1) {
-                         currentPage--;
-                         applyPagination();
-                     }
-                 });
-             }
+    let prevPageBtn = document.getElementById('prevPage');
+    if (prevPageBtn && !serverPaginate) {
+        prevPageBtn.addEventListener('click', function() {
+            if (currentPage > 1) {
+                currentPage--;
+                applyPagination();
+            }
+        });
+    }
              
              // Next page button (if it exists)
-             let nextPageBtn = document.getElementById('nextPage');
-             if (nextPageBtn) {
-                 nextPageBtn.addEventListener('click', function() {
-                     // Get visible rows based on filter (using data-original-display attribute)
-                     const visibleRows = Array.from(document.querySelectorAll('#residentsTableBody tr:not(.no-results)'))
-                         .filter(row => row.getAttribute('data-original-display') !== 'none');
-                     
-                     const totalPages = Math.ceil(visibleRows.length / rowsPerPage);
-                     
-                     if (currentPage < totalPages) {
-                         currentPage++;
-                         applyPagination();
-                     }
-                 });
-             }
+    let nextPageBtn = document.getElementById('nextPage');
+    if (nextPageBtn && !serverPaginate) {
+        nextPageBtn.addEventListener('click', function() {
+            const visibleRows = Array.from(document.querySelectorAll('#residentsTableBody tr:not(.no-results)'))
+                .filter(row => row.getAttribute('data-original-display') !== 'none');
+            const totalPages = Math.ceil(visibleRows.length / rowsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                applyPagination();
+            }
+        });
+    }
              
-             // Initialize pagination
-             applyPagination();
+    // Initialize pagination
+    applyPagination();
              
              // Initialize table filtering
              filterTable();
