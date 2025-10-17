@@ -1351,7 +1351,7 @@
 /* Message bubble: consistent size and wrapping */
 .message-content {
   position: relative;
-  max-width: 72ch; /* readable width */
+  max-width: 60ch; /* tighter readable width */
   padding: 10px 12px 10px 12px;
   border-radius: var(--radius);
   overflow-wrap: anywhere; /* robust wrapping */
@@ -1407,7 +1407,7 @@
 /* Bubble visuals */
 .vl-chat .vl-bubble {
   position: relative;
-  max-width: min(80%, 42rem);
+  max-width: min(68%, 36rem); /* narrower bubbles on desktop */
   padding: 12px 14px;
   border-radius: 16px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
@@ -1493,7 +1493,7 @@
 /* Mobile tweaks */
 @media (max-width: 768px) {
   .vl-chat .vl-bubble {
-    max-width: 88%;
+    max-width: 86%;
     padding: 12px;
     border-radius: 14px;
   }
@@ -1566,6 +1566,7 @@
   flex-direction: column;
   background: hsl(var(--card));
   border-left: 1px solid hsl(var(--border));
+  min-height: 0; /* allow children to scroll */
 }
 .contact-panel.hidden { display: none; }
 .contact-header {
@@ -1623,16 +1624,19 @@
 .hidden { display: none !important; }
 
 /* Contact threads list */
-.contact-threads-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+.contact-threads-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; flex: 1 1 auto; overflow-y: auto; min-height: 0; }
 .ticket-item { border: 1px solid hsl(var(--border)); border-radius: 12px; padding: 12px; background: hsl(var(--card)); }
-.ticket-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.ticket-subject { font-weight: 600; color: hsl(var(--foreground)); }
+.ticket-item.active { border-color: #93c5fd; background: hsla(var(--primary), 0.06); box-shadow: inset 3px 0 0 #3b82f6; }
+.ticket-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.ticket-subject { font-weight: 600; color: hsl(var(--foreground)); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ticket-meta { display: flex; gap: 8px; align-items: center; color: hsl(var(--muted-foreground)); font-size: 0.85rem; }
 .ticket-badge { background: hsla(var(--primary), 0.12); color: hsl(var(--foreground)); border: 1px solid hsla(var(--primary), 0.35); padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; }
-.ticket-body { margin-top: 6px; color: hsl(var(--muted-foreground)); }
+.ticket-body { margin-top: 6px; color: hsl(var(--muted-foreground)); overflow-wrap: anywhere; word-break: break-word; white-space: normal; }
 .ticket-actions { margin-top: 10px; display: flex; gap: 8px; }
 .ticket-actions .open-admin-chat { border: 1px solid hsla(var(--primary), 0.35); background: hsla(var(--primary), 0.08); padding: 8px 12px; border-radius: 10px; cursor: pointer; }
 .ticket-actions .open-admin-chat:hover { background: hsla(var(--primary), 0.14); }
+/* Prevent long content from breaking layout */
+.contact-threads-list, .ticket-item { min-width: 0; }
 
 /* Go to Contact Us button in empty state */
 .go-contact-btn {

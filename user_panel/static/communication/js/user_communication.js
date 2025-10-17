@@ -21,6 +21,28 @@ let userListPollTimer = null;
 let relativeTimeTimer = null;
 let hiddenChatUserIds = new Set();
 let selectedUserMeta = { id: null, full_name: '', username: '', profile_picture_url: '' };
+
+// Bridge globals so other scripts (e.g., contact_us.js) can set window.selectedUserMeta
+try {
+    if (!('selectedUserMeta' in window)) {
+        Object.defineProperty(window, 'selectedUserMeta', {
+            get: function() { return selectedUserMeta; },
+            set: function(v) { selectedUserMeta = v || {}; }
+        });
+    } else {
+        // If a value was already placed on window by a previous script, consume it
+        if (window.selectedUserMeta && typeof window.selectedUserMeta === 'object') {
+            selectedUserMeta = window.selectedUserMeta;
+        }
+    }
+    if (!('selectedUser' in window)) {
+        Object.defineProperty(window, 'selectedUser', {
+            get: function() { return selectedUser; },
+            set: function(v) { selectedUser = v; }
+        });
+    }
+} catch (e) {}
+let composeLocked = false;
 // hidden manager metadata removed
 // Track messages the user deleted locally to avoid flicker/race until server confirms
 const locallyDeletedIds = new Set();
@@ -349,9 +371,64 @@ function restoreScrollAnchor(anchor) {
 // Input helpers
 function updateSendButton() {
     if (!sendButton || !messageInput) return;
-    const disabled = !messageInput.value.trim();
+    const blocked = composeLocked || !!messageInput.disabled;
+    const disabled = blocked || !messageInput.value.trim();
     sendButton.disabled = disabled;
     sendButton.classList.toggle('disabled', disabled);
+}
+
+// Enable/disable compose area with optional note (used for Done contact threads)
+function setComposeDisabled(disabled, noteText) {
+    try {
+        composeLocked = !!disabled;
+        const container = document.querySelector('.message-input-container');
+        // Message banner element (single instance)
+        let banner = document.getElementById('compose-done-banner');
+        // Toggle input + send button state
+        if (messageInput) messageInput.disabled = !!disabled;
+        if (sendButton) sendButton.disabled = !!disabled;
+        // Hide or show the form entirely
+        if (container) {
+            const form = container.querySelector('#message-form');
+            if (disabled) {
+                if (form) form.style.display = 'none';
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'compose-done-banner';
+                    banner.style.margin = '8px 12px';
+                    banner.style.color = '#6b7280';
+                    banner.style.fontWeight = '600';
+                    banner.style.textAlign = 'center';
+                    banner.style.padding = '10px 12px';
+                    banner.style.border = '1px solid #e5e7eb';
+                    banner.style.borderRadius = '10px';
+                    banner.style.background = '#f9fafb';
+                    container.appendChild(banner);
+                }
+                banner.textContent = noteText || 'This contact request is Done. Start a new request to message again.';
+                banner.style.display = 'block';
+                // Also hide any emoji picker currently visible
+                try { const ep = document.getElementById('vl-emoji-picker'); if (ep) ep.classList.remove('visible'); } catch(_) {}
+            } else {
+                if (banner) banner.style.display = 'none';
+                if (form) form.style.display = '';
+                if (messageInput) messageInput.placeholder = 'Type a message...';
+            }
+        }
+    } catch (e) {}
+    updateSendButton();
+}
+
+// Expose a helper for contact panel to lock/unlock compose
+window.applyComposeLockIfNeeded = function() {
+    try {
+        const t = window.activeContactThread;
+        const isAdminChat = !!(selectedUserMeta && selectedUserMeta.is_admin);
+        const shouldDisable = !!(t && t.is_read && isAdminChat);
+        setComposeDisabled(shouldDisable, 'This contact request is Done. Start a new request to message again.');
+    } catch (e) {
+        setComposeDisabled(false);
+    }
 }
 
 // Update the last message preview and time in the user list
@@ -646,6 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (messageForm) {
         messageForm.addEventListener('submit', (e) => {
             e.preventDefault();
+            if (composeLocked) return;
             sendMessage();
         });
     }
@@ -1195,8 +1273,17 @@ function selectUser(userId) {
         fromSearch = !!selectedUserItem;
     }
     selectedUser = userId;
-    // Reset minimal meta for selected user
-    selectedUserMeta = { id: userId, full_name: '', username: '', profile_picture_url: '' };
+    // Preserve any pre-set meta (e.g., is_admin from contact panel) while resetting basics
+    const prevMeta = selectedUserMeta || {};
+    selectedUserMeta = {
+        id: userId,
+        full_name: prevMeta.full_name || '',
+        username: prevMeta.username || '',
+        profile_picture_url: prevMeta.profile_picture_url || ''
+    };
+    if (typeof prevMeta.is_admin !== 'undefined') {
+        selectedUserMeta.is_admin = prevMeta.is_admin;
+    }
     // Load last sent marker for this conversation so 'Sent' appears after reload
     const lastSaved = getLastSentFor(userId);
     lastSentMessageId = lastSaved ? String(lastSaved) : null;
@@ -1301,10 +1388,18 @@ function selectUser(userId) {
     if (chatMessages) chatMessages.classList.remove('hidden');
     if (isMobile && userList) userList.classList.add('hidden');
 
-    // Stop previous polling, fetch and start polling
-    stopPollingMessages();
-    fetchMessages(userId);
-    startPollingMessages();
+  // Stop previous polling, fetch and start polling
+  stopPollingMessages();
+  fetchMessages(userId);
+  startPollingMessages();
+  // If switching to a non-admin chat, clear any active contact window and unlock compose
+  try {
+      if (!(selectedUserMeta && selectedUserMeta.is_admin)) {
+          window.activeContactThread = null;
+          if (typeof setComposeDisabled === 'function') setComposeDisabled(false);
+      }
+  } catch (e) {}
+    try { window.applyComposeLockIfNeeded(); } catch (e) {}
 
     // Focus and gently stick to bottom unless user scrolls
     if (messageInput) messageInput.focus();
@@ -1430,35 +1525,7 @@ function applyRecentChats(chats) {
     });
     // Toggle empty-state depending on whether any persistent users remain
     ensureListEmptyState();
-    // Update global communication unread badge with animation cues
-    try {
-        const badge = document.getElementById('comm-unread-badge');
-        if (badge) {
-            const prev = parseInt(badge.getAttribute('data-count') || '0', 10) || 0;
-            if (totalUnread > 0) {
-                const label = totalUnread > 99 ? '99+' : String(totalUnread);
-                const wasHidden = (badge.style.display === 'none' || badge.style.display === '');
-                badge.textContent = label;
-                badge.setAttribute('data-count', String(totalUnread));
-                badge.style.display = 'inline-flex';
-                // Animate on appear and on increase
-                if (wasHidden) {
-                    badge.classList.remove('bump');
-                    void badge.offsetWidth; // reflow
-                    badge.classList.add('anim-in');
-                    setTimeout(() => badge.classList.remove('anim-in'), 220);
-                } else if (totalUnread > prev) {
-                    badge.classList.remove('anim-in', 'bump');
-                    void badge.offsetWidth;
-                    badge.classList.add('bump');
-                    setTimeout(() => badge.classList.remove('bump'), 260);
-                }
-            } else {
-                badge.style.display = 'none';
-                badge.removeAttribute('data-count');
-            }
-        }
-    } catch (e) {}
+    // Sidebar badge is now updated by dashboard unread_messages.js (aggregate: chats + contact requests)
 }
 
 // Fetch messages from server for a given user
@@ -1478,8 +1545,8 @@ function fetchMessages(userId, options = {}) {
         }
     })
     .then(response => response.json())
-    .then(data => {
-        if (!Array.isArray(data)) return;
+      .then(data => {
+          if (!Array.isArray(data)) return;
         // Apply local deletions to server payload to avoid flicker/races
         try {
             data.forEach(m => {
@@ -1487,7 +1554,7 @@ function fetchMessages(userId, options = {}) {
                 if (mid && locallyDeletedIds.has(mid)) m.is_deleted = true;
             });
         } catch (e) {}
-        lastFetchedMessages = data;
+          lastFetchedMessages = data;
         // Ensure 'Sent' status persists: prefer saved marker; otherwise infer from latest own message
         const savedSent = getLastSentFor(userId);
         if (savedSent) {
@@ -1512,19 +1579,22 @@ function fetchMessages(userId, options = {}) {
             pendingMessagesCount = Math.max(pendingMessagesCount, 1);
             return;
         }
-        // If user has scrolled up, defer update until they opt in
+        // If user has scrolled up, update in place while preserving scroll anchor
         if (userAnchored) {
-            pendingMessagesCount = Math.max(pendingMessagesCount, 1);
+            // Update in-memory and render with anchor preservation
+            messages = data;
+            renderMessages();
             return;
         }
         // Use incremental diff to avoid heavy re-renders
-        messages = data;
-        if (!messagesList || !messagesList.querySelector('.message-item')) {
+          // Optionally filter messages for a specific contact request window (admin chat only)
+          messages = filterForActiveContactWindow(data);
+          if (!messagesList || !messagesList.querySelector('.message-item')) {
             // First render or empty: do a full render once
             renderMessages();
         } else {
-            applyMessagesDiff(data);
-        }
+              applyMessagesDiff(messages);
+          }
         // If this conversation is open, mark incoming messages as read and normalize user list preview
         if (String(selectedUser) === String(userId)) {
             markConversationRead(userId, data);
@@ -1578,7 +1648,7 @@ function fetchMessages(userId, options = {}) {
             const selectedItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
             if (selectedItem) selectedItem.classList.remove('unread');
         }
-    })
+      })
     .catch(error => {
         console.error('Error fetching messages:', error);
         if (!silent && messagesList) {
@@ -1590,6 +1660,27 @@ function fetchMessages(userId, options = {}) {
             `;
         }
     });
+}
+
+// Keep only messages within the active contact request time window when chatting with admin
+function filterForActiveContactWindow(list) {
+    try {
+        if (!(selectedUserMeta && selectedUserMeta.is_admin)) return list;
+        const t = window.activeContactThread;
+        if (!t || !t.created_at) return list;
+        const start = new Date(t.created_at).getTime();
+        const end = t.end_at ? new Date(t.end_at).getTime() : null;
+        const filtered = (list || []).filter(m => {
+            try {
+                const ts = new Date(m.sent_at).getTime();
+                if (isNaN(ts)) return false;
+                if (ts < start) return false;
+                if (end && ts >= end) return false;
+                return true;
+            } catch (e) { return false; }
+        });
+        return filtered;
+    } catch (e) { return list; }
 }
 
 // Incrementally apply new messages to the DOM (append/update only what changed)

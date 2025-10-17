@@ -18,6 +18,82 @@
 
   let cameFromList = false;
 
+  // Unread badge on My Contact Requests button
+  function ensureContactBadge() {
+    if (!openBtn) return null;
+    try { openBtn.style.position = 'relative'; } catch (_) {}
+    let badge = openBtn.querySelector('.contact-requests-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'contact-requests-badge';
+      Object.assign(badge.style, {
+        position: 'absolute', top: '-6px', right: '-6px', minWidth: '18px', height: '18px',
+        borderRadius: '999px', background: '#ef4444', color: '#fff', fontSize: '11px', fontWeight: '700',
+        display: 'none', alignItems: 'center', justifyContent: 'center', padding: '0 4px', boxShadow: '0 0 0 2px #fff', lineHeight: '18px'
+      });
+      openBtn.appendChild(badge);
+    }
+    return badge;
+  }
+
+  function updateContactBadgeFromThreads(threads) {
+    const badge = ensureContactBadge();
+    if (!badge) return;
+    const activeCount = (threads || []).filter(t => !t.is_read).length;
+    if (activeCount > 0) {
+      badge.textContent = activeCount > 9 ? '9+' : String(activeCount);
+      badge.style.display = 'inline-flex';
+    } else {
+      badge.textContent = '';
+      badge.style.display = 'none';
+    }
+  }
+
+  function pollContactBadge() {
+    fetch('/user/communication/contact-unread-count/', { method: 'GET', headers: { 'Accept': 'application/json' } })
+      .then(r => r.json())
+      .then(data => {
+        const badge = ensureContactBadge();
+        if (!badge) return;
+        const c = (data && data.unread_count) ? parseInt(data.unread_count, 10) : 0;
+        if (c > 0) {
+          badge.textContent = c > 9 ? '9+' : String(c);
+          badge.style.display = 'inline-flex';
+        } else {
+          badge.textContent = '';
+          badge.style.display = 'none';
+        }
+      })
+      .catch(() => {});
+  }
+
+  // Immediately refresh the global sidebar badge (sum of chats + contact requests)
+  function refreshGlobalCommBadge() {
+    try {
+      const badge = document.getElementById('comm-unread-badge');
+      if (!badge) return;
+      const chatsReq = fetch('/user/communication/recent-chats/', { method: 'GET' }).then(r => r.json()).catch(() => null);
+      const contactReq = fetch('/user/communication/contact-unread-count/', { method: 'GET' }).then(r => r.json()).catch(() => null);
+      Promise.all([chatsReq, contactReq])
+        .then(([chats, contact]) => {
+          const list = (chats && (chats.users || chats)) || [];
+          const chatTotal = Array.isArray(list) ? list.reduce((acc, c) => acc + (parseInt(c.unread_count || 0, 10) || 0), 0) : 0;
+          const contactTotal = (contact && typeof contact.unread_count !== 'undefined') ? (parseInt(contact.unread_count, 10) || 0) : 0;
+          const total = chatTotal + contactTotal;
+          if (total > 0) {
+            const label = total > 99 ? '99+' : String(total);
+            badge.textContent = label;
+            badge.setAttribute('data-count', String(total));
+            badge.style.display = 'inline-flex';
+          } else {
+            badge.style.display = 'none';
+            badge.removeAttribute('data-count');
+          }
+        })
+        .catch(() => {});
+    } catch (_) {}
+  }
+
   function showThreads() {
     const isMobile = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
     // On mobile, the button lives in the left list. Hide it to reveal the panel.
@@ -73,6 +149,17 @@
       const data = await r.json();
       if (!r.ok) throw new Error((data && data.message) || 'Failed to load');
       const threads = Array.isArray(data.threads) ? data.threads : [];
+      try {
+        // Cache threads and build end bounds per thread (next newer created_at)
+        window.contactThreadsCache = threads.slice();
+        const asc = threads.slice().sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+        const endMap = {};
+        for (let i = 0; i < asc.length - 1; i++) {
+          const cur = asc[i], nxt = asc[i+1];
+          endMap[String(cur.id)] = nxt.created_at;
+        }
+        window.contactThreadEndTimes = endMap;
+      } catch (_) { window.contactThreadsCache = threads; window.contactThreadEndTimes = {}; }
       renderThreads(threads);
     } catch (e) {
       listEl.innerHTML = '';
@@ -94,9 +181,28 @@
         </div>`;
       return;
     }
-    threads.forEach(t => {
-      const item = document.createElement('div');
-      item.className = 'ticket-item';
+    // If there are requests but none are active, show an info banner with a Contact Us link
+    try {
+      const hasActive = threads.some(t => !t.is_read);
+      if (!hasActive) {
+        const href = escapeAttr(contactUrl);
+        const banner = document.createElement('div');
+        banner.className = 'contact-alert';
+        banner.style.background = '#e0f2fe';
+        banner.style.color = '#0369a1';
+        banner.style.border = '1px solid #93c5fd';
+        banner.style.margin = '8px 0';
+        banner.style.borderRadius = '10px';
+        banner.style.padding = '10px 12px';
+        banner.innerHTML = `You don't have any active requests. <a href="${href}" style="text-decoration:none; font-weight:600; color:#2563EB;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">Submit a Contact Us</a> to make a new request.`;
+        listEl.appendChild(banner);
+      }
+    } catch (_) {}
+      // Keep badge consistent with unread admin replies only
+        try { pollContactBadge(); } catch (_) {}
+      threads.forEach(t => {
+        const item = document.createElement('div');
+        item.className = 'ticket-item' + (t.is_read ? '' : ' active');
       item.innerHTML = `
         <div class="ticket-main">
           <div class="ticket-subject">${escapeHtml(t.subject || 'Contact')}</div>
@@ -109,10 +215,23 @@
         <div class="ticket-actions">
           <button class="open-admin-chat" data-ticket-id="${t.id}"><i class="fas fa-comments"></i> Chat with Admin</button>
         </div>
-      `;
-      // Open admin chat on click
+        `;
+        // Adjust button label depending on status
+        try {
+          const btn = item.querySelector('.open-admin-chat');
+          if (btn) {
+            if (t.is_read) {
+              btn.innerHTML = '<i class="fas fa-eye"></i> View Conversation';
+            } else {
+              btn.innerHTML = '<i class="fas fa-comments"></i> Chat with Admin';
+            }
+          }
+        } catch (_) {}
+        // Open admin chat on click
       item.querySelector('.open-admin-chat').addEventListener('click', async (ev) => {
         ev.preventDefault();
+        // Attach end bound if known
+        try { t.end_at = (window.contactThreadEndTimes || {})[String(t.id)] || null; } catch(_) { t.end_at = null; }
         await openAdminChat(t);
       });
       listEl.appendChild(item);
@@ -144,6 +263,19 @@
           is_admin: !!(data.admin && (data.admin.is_admin || data.admin.is_superuser || data.admin.is_staff))
         };
       } catch (_) {}
+      // Track the contact thread state so compose can be disabled if Done
+      try {
+        window.activeContactThread = {
+          id: thread.id,
+          subject: thread.subject,
+          created_at: thread.created_at,
+          end_at: thread.end_at || null,
+          is_read: !!thread.is_read
+        };
+        if (typeof window.applyComposeLockIfNeeded === 'function') {
+          window.applyComposeLockIfNeeded();
+        }
+      } catch (_) {}
       // Ensure the original contact message appears in chat by bootstrapping it into Messages
       try {
         await fetch(bootstrapUrl, {
@@ -160,6 +292,9 @@
         window.selectedUser = data.admin.id;
       }
       hideThreads();
+      // After opening the admin chat (which marks incoming messages read), refresh badges promptly
+      setTimeout(() => { try { pollContactBadge(); } catch(_){} }, 400);
+      setTimeout(() => { try { refreshGlobalCommBadge(); } catch(_){} }, 600);
     } catch (e) {
       try {
         // Attempt to extract an error message from a JSON response if available
@@ -183,4 +318,10 @@
   function escapeAttr(s) {
     return String(s || '').replace(/["'<>]/g, c => ({'"':'&quot;','\'':'&#39;','<':'&lt;','>':'&gt;'}[c]));
   }
+  // Start badge immediately and poll even if panel is closed
+  try {
+    ensureContactBadge();
+    pollContactBadge();
+    setInterval(pollContactBadge, 10000);
+  } catch (_) {}
 })();

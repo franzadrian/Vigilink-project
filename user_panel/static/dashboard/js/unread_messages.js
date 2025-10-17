@@ -42,12 +42,13 @@
   }
 
   function tick() {
-    // Endpoint already used by the communication page
-    fetch('/user/communication/recent-chats/', { method: 'GET' })
-      .then(r => r.json())
-      .then(data => {
-        const total = computeTotalUnread(data);
-        renderBadge(total);
+    const chatsReq = fetch('/user/communication/recent-chats/', { method: 'GET' }).then(r => r.json()).catch(() => null);
+    const contactReq = fetch('/user/communication/contact-unread-count/', { method: 'GET' }).then(r => r.json()).catch(() => null);
+    Promise.all([chatsReq, contactReq])
+      .then(([chats, contact]) => {
+        const chatTotal = computeTotalUnread(chats || []);
+        const contactTotal = (contact && typeof contact.unread_count !== 'undefined') ? (parseInt(contact.unread_count, 10) || 0) : 0;
+        renderBadge(chatTotal + contactTotal);
       })
       .catch(() => { /* silent */ });
   }
@@ -68,4 +69,3 @@
     start();
   }
 })();
-

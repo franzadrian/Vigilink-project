@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<html lang="en">
 {% load static %}
 <head>
   <meta charset="UTF-8" />
@@ -52,6 +51,75 @@
       --sidebar-width: 16rem;
       --header-height: 4rem;
     }
+    /* Admin chat-only layout fixes */
+    .chat-content .message-form { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+    .chat-content .input-wrapper { flex: 1 1 auto; display: flex; align-items: center; min-width: 0; }
+    .chat-content .message-input { width: 100%; }
+    .chat-content .send-btn { flex: 0 0 auto; margin-left: 8px; }
+    /* Narrower bubbles on admin chat page */
+    .chat-content .vl-bubble { max-width: min(60%, 32rem); }
+    @media (max-width: 768px) {
+      .chat-content .vl-bubble { max-width: 82%; }
+    }
+
+    /* Responsive table: Contact Requests */
+    .comm-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+    .comm-table th, .comm-table td { vertical-align: middle; }
+    /* Unread row highlight */
+    .comm-table tbody tr.unread { background: #fff7ed; }
+    .comm-table tbody tr.unread td { border-bottom-color: #fde68a; }
+    @media (min-width: 769px) {
+      .comm-table tbody tr.unread { box-shadow: inset 3px 0 0 #f59e0b; }
+    }
+    @media (max-width: 768px) {
+      .comm-table thead { display: none; }
+      .comm-table tbody tr { display: block; border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 12px; background: #fff; overflow: hidden; }
+      .comm-table tbody tr.unread { background: #fff7ed; border-color: #fdba74; }
+      .comm-table tbody tr:last-child { margin-bottom: 0; }
+      .comm-table td { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px !important; }
+      .comm-table td[data-label]::before { content: attr(data-label); color: #6b7280; font-weight: 600; margin-right: 12px; }
+      .comm-table td.actions-cell { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between !important; }
+      .comm-table td.status-cell { justify-content: space-between !important; }
+      .comm-table td.actions-cell .btn { flex: 0 0 auto; min-width: 44px; padding: 8px !important; }
+    }
+
+    /* Modal close "X" button */
+    .modal-close-btn {
+      width: 36px; height: 36px; border-radius: 8px; border: 1px solid #d1d5db; background: #fff; color: #6b7280;
+      cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px;
+      transition: background-color .2s, color .2s, border-color .2s;
+    }
+    .modal-close-btn:hover { 
+      background: #f3f4f6; 
+      color: #111827; 
+      border-color: #cbd5e1; 
+    }     
+    .action-btn i { 
+      display: none; 
+    }   
+    .action-btn .btn-text { 
+      display: inline; 
+    }   
+    @media (max-width: 768px){      
+      .action-btn i { display: inline-block; 
+      }      
+      .action-btn .btn-text { display: none; 
+      }      
+      .action-btn { margin-left: 0 !important; 
+      }
+    }    
+    @media (max-width: 768px)
+    { .action-btn .btn-text{
+      display:none;
+    } 
+    .action-btn i{
+      margin:0;
+    } 
+  }
+    /* Modal user status badge */
+    .user-status-badge{display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; font-size:12px; font-weight:600; border:1px solid #e5e7eb; color:#374151; background:#f9fafb;}
+    .user-status-badge.registered{ background:#d1fae5; border-color:#10b981; color:#065f46; }
+    .user-status-badge.guest{ background:#fff7ed; border-color:#f59e0b; color:#92400e; }
   </style>
 
 </head>
@@ -162,183 +230,112 @@
     <main role="main" class="main-content">
       {% load time_filters %}
       {% csrf_token %}
-      <header class="page" style="margin-bottom: 12px;">
-        <h1 style="margin-bottom: 4px;">Admin Communication</h1>
-        <p style="margin-top: 0;">Manage conversations with residents.</p>
+      <header class="page" style="margin-bottom: 12px; display:flex; align-items:center; justify-content:space-between; gap: 12px;">
+        <div>
+          <h1 style="margin-bottom: 4px;">Admin Communication</h1>
+          <p style="margin-top: 0;">Manage conversations with residents.</p>
+        </div>
       </header>
 
-      <!-- Chat UI (same as user communications) -->
-      <div class="chat-content">
-        <!-- User List (Left Section) -->
-        <div id="user-list" class="user-list">
-          <div class="user-list-header">
-            <h2>Conversations</h2>
-          </div>
-          <div class="user-list-search">
-            <div class="search-wrapper">
-              <i class="fas fa-search search-icon"></i>
-              <input type="text" id="user-search" placeholder="Search users..." class="search-input">
-            </div>
-          </div>
-          <div class="users-container">
-            <div id="search-results">
-              {% for user in users %}
-              <div class="user-item{% if user.unread_count and user.unread_count > 0 %} unread{% endif %}"
-                   data-user-id="{{ user.id }}"
-                   data-username="{{ user.username }}"
-                   data-fullname="{{ user.full_name|default:'' }}"
-                   data-email="{{ user.email }}"
-                   {% if user.last_message_time %}data-last-message-time="{{ user.last_message_time|date:'c' }}"{% endif %}>
-                <div class="user-avatar">
-                  {% if user.profile_picture_url %}
-                    <img src="{{ user.profile_picture_url }}?{% now 'U' %}"
-                         alt="{{ user.username }}"
-                         class="avatar-image"
-                         onerror="this.onerror=null; this.src='/static/accounts/images/profile.png';">
+      <!-- Contact Requests Table -->
+      <section class="comm-table-section" style="background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+          <h2 style="margin:0; font-size:1rem;">Contact Requests</h2>
+        </div>
+        <div class="table-wrapper" style="overflow-x:auto;">
+          <table id="comm-table" class="comm-table" style="width:100%; border-collapse:separate; border-spacing:0; font-size:14px;">
+            <thead>
+              <tr style="background:#f8fafc;">
+                <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e5e7eb;">Full Name</th>
+                <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e5e7eb;">Type</th>
+                <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e5e7eb;">Status</th>
+                  <th style="text-align:right; padding:10px 12px; border-bottom:1px solid #e5e7eb;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for message in contact_messages %}
+              {% with subj=message.subject|lower %}
+                <tr class="comm-row {% if not message.is_read %}unread{% endif %}" data-user-id="{{ message.user.id|default:'' }}" data-message-id="{{ message.contact_id }}" data-name="{{ message.name|escape }}"
+                    data-type="{% if 'feedback' in subj %}Feedback{% elif 'report' in subj %}Report{% elif 'inquiry' in subj or 'enquiry' in subj %}General Inquiry{% else %}General Inquiry{% endif %}"
+                    data-is-read="{% if message.is_read %}1{% else %}0{% endif %}" data-created-at="{{ message.created_at|date:'c' }}">
+                <td style="padding:10px 12px;" data-label="Full Name">{{ message.name }}</td>
+                <td style="padding:10px 12px;" data-label="Type">
+                  <span class="badge" style="display:inline-block; padding:4px 8px; border-radius:999px; background:#eef2ff; color:#1e3a8a; font-weight:600; font-size:12px;">
+                    {% if 'feedback' in subj %}Feedback{% elif 'report' in subj %}Report{% elif 'inquiry' in subj or 'enquiry' in subj %}General Inquiry{% else %}General Inquiry{% endif %}
+                  </span>
+                </td>
+                <td class="status-cell" style="padding:10px 12px;" data-label="Status">
+                  {% if message.is_read %}
+                    <span class="status done" style="color:#065f46; background:#d1fae5; padding:3px 8px; border-radius:6px; font-weight:600; font-size:12px;">Done</span>
                   {% else %}
-                    <span class="avatar-text">{{ user.full_name|default:user.username|make_list|slice:":2"|join:""|upper }}</span>
+                    <span class="status active" style="color:#1e3a8a; background:#e0e7ff; padding:3px 8px; border-radius:6px; font-weight:600; font-size:12px;">Active</span>
                   {% endif %}
-                </div>
-                <div class="user-info">
-                  <div class="user-name">
-                    {% if user.full_name and user.full_name|lower != 'none' %}
-                      {{ user.full_name }}
-                    {% else %}
-                      {{ user.username }}
-                    {% endif %}
-                  </div>
-                  <div class="last-message">
-                    {% if user.unread_count and user.unread_count|add:0 >= 2 %}
-                      {% if user.unread_count > 9 %}
-                        9+ new message
-                      {% else %}
-                        {{ user.unread_count }} new message
+                </td>
+                  <td class="actions-cell" style="padding:10px 12px; text-align:right; display:flex; align-items:center; gap:10px; justify-content:flex-end;" data-label="Actions">
+                    <div class="actions-group" style="display:flex; gap:10px;">
+                      <button class="btn view-btn action-btn" aria-label="View conversation" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer;"><i class="fas fa-eye" aria-hidden="true"></i><span class="btn-text">View</span></button>
+                      {% if not message.is_read %}
+                      <button class="btn mark-btn action-btn" aria-label="Mark as done" style="padding:6px 10px; border:1px solid #10b981; border-radius:6px; background:#d1fae5; color:#065f46; cursor:pointer; "><i class="fas fa-check" aria-hidden="true"></i><span class="btn-text">Mark as Done</span></button>
                       {% endif %}
-                    {% else %}
-                      {% if user.last_message %}
-                        {% with lm=user.last_message|lower %}
-                          {% if lm == 'you deleted a message' or lm == 'message deleted' %}
-                            {{ user.last_message|truncatechars:30 }}
-                          {% elif user.last_message_is_own %}
-                            You: {{ user.last_message|truncatechars:30 }}
-                          {% else %}
-                            {{ user.username }}: {{ user.last_message|truncatechars:30 }}
-                          {% endif %}
-                        {% endwith %}
-                      {% else %}
-                        No messages yet
-                      {% endif %}
-                    {% endif %}
-                  </div>
-                </div>
-                <div class="message-time" {% if user.last_message_time %}data-timestamp="{{ user.last_message_time|date:'c' }}"{% endif %}>
-                  {% if user.last_message_time %}
-                    {{ user.last_message_time|friendly_timesince }}
-                  {% endif %}
-                </div>
-                <button class="remove-user-btn" title="Remove" aria-label="Remove conversation">&times;</button>
-              </div>
-              {% empty %}
-              <div class="no-users">
-                <div class="no-users-icon"><i class="fas fa-user-slash"></i></div>
-                <div class="no-users-text">
-                  <p>No users available for messaging</p>
-                </div>
-              </div>
+                    </div>
+                  </td>
+              </tr>
+              {% endwith %}
               {% endfor %}
-            </div>
-          </div>
+            </tbody>
+          </table>
         </div>
+      </section>
 
-        <!-- Chat Messages (Right Section) -->
-        <div id="chat-messages" class="chat-messages">
-          <div class="chat-header">
-            <button id="back-to-users" class="back-btn" aria-label="Back to users">
-              <i class="fas fa-arrow-left"></i>
-            </button>
-            <div class="selected-user-info">
-              <div class="user-avatar-header">
-                <img src="" alt="User" class="avatar-image" id="selected-user-avatar-img" style="display: none;"
-                     onerror="this.onerror=null; this.src='/static/accounts/images/profile.png';">
-                <span class="avatar-text" id="selected-user-avatar">U</span>
-                <span class="status-indicator online"></span>
-              </div>
-              <div class="user-name-header">
-                <span id="selected-user-name">User</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="messages-container vl-chat">
-            <div id="messages-list" class="messages-list">
-              <div class="no-messages-container"></div>
-            </div>
-          </div>
-
-          <div class="message-input-container">
-            <form id="message-form" class="message-form">
-              <div class="input-wrapper">
-                <input type="text" id="message-input" placeholder="Type a message..." maxlength="500" class="message-input">
-                <div class="input-actions">
-                  <div id="char-count" class="char-count">500</div>
-                  <button type="button" class="input-btn" aria-label="Add image">
-                    <i class="fas fa-image"></i>
-                  </button>
-                  <button type="button" class="input-btn" aria-label="Add emoji">
-                    <i class="far fa-smile"></i>
-                  </button>
-                </div>
-              </div>
-              <button type="submit" id="send-btn" class="send-btn" aria-label="Send message">
-                <i class="fas fa-paper-plane"></i>
-              </button>
-            </form>
-          </div>
+ 
+  <!-- Modal: Chatbox -->
+  <div id="admin-chat-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000;">
+    <div style="width:min(920px, 96vw); height:min(80vh, 780px); background:#fff; margin:6vh auto; border-radius:12px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 40px rgba(0,0,0,0.25);">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid #e5e7eb; background:#f8fafc;">
+        <div>
+          <div id="modal-user-name" style="font-weight:700; color:#111827;">User</div>
+          <div id="modal-user-type" style="font-size:12px; color:#6b7280;">Request: General Inquiry</div>
         </div>
-
-        <div id="welcome-screen" class="welcome-screen hidden">
-          <div class="welcome-content">
-            <div class="welcome-icon"><i class="fas fa-comments"></i></div>
-            <div class="welcome-text">
-              <h3>Welcome to Admin Communications</h3>
-              <p>Select a user to start a conversation</p>
-            </div>
-          </div>
+        <div style="display:flex; gap:8px; align-items:center;"> <span id="modal-user-status" class="user-status-badge" title="User status">Guest</span>
+          <button id="modal-close" class="modal-close-btn" aria-label="Close chat" title="Close">&times;</button>
         </div>
       </div>
-
-    </main>
+      <div id="modal-thread" style="flex:1; overflow:auto; padding:12px 14px; background:#ffffff;">
+        <!-- Messages will render here -->
+      </div>
+      <div style="padding:10px 12px; border-top:1px solid #e5e7eb; background:#f9fafb; display:flex; align-items:center; justify-content:center;">
+        <div id="modal-compose" style="display:flex; gap:8px; align-items:center; width:100%;">
+          <input type="text" id="modal-input" placeholder="Type a message..." maxlength="500" style="flex:1; padding:10px 12px; border:1px solid #d1d5db; border-radius:8px;">
+          <button id="modal-send" style="padding:8px 12px; background:#2563EB; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:600;">Send</button>
+        </div>
+        <div id="modal-disabled-note" style="display:none; text-align:center; color:#6b7280; font-weight:600;">This conversation is marked as done. Messaging is disabled.</div>
+      </div>
+    </div>
   </div>
-</div>
-  
-  {# Replace admin JS with chat UI logic #}
-  <script defer src="{% static 'communication/js/user_communication.js' %}?v=4"></script>
-  <script>
-    // Minimal sidebar toggle for admin layout
-    document.addEventListener('DOMContentLoaded', function () {
-      var btn = document.getElementById('mobile-menu-btn');
-      var sidebar = document.getElementById('sidebar');
-      var overlay = document.getElementById('sidebarOverlay');
-      function openSidebar() {
-        try { if (sidebar) sidebar.classList.add('open'); } catch (_) {}
-        try { if (overlay) overlay.classList.add('active'); } catch (_) {}
-        try { document.body.classList.add('sidebar-open'); } catch (_) {}
-      }
-      function closeSidebar() {
-        try { if (sidebar) sidebar.classList.remove('open'); } catch (_) {}
-        try { if (overlay) overlay.classList.remove('active'); } catch (_) {}
-        try { document.body.classList.remove('sidebar-open'); } catch (_) {}
-      }
-      if (btn) btn.addEventListener('click', function () {
-        if (!sidebar) return;
-        if (sidebar.classList.contains('open')) closeSidebar(); else openSidebar();
-      });
-      if (overlay) overlay.addEventListener('click', closeSidebar);
-      window.addEventListener('resize', function(){ if (window.innerWidth > 768) closeSidebar(); });
-    });
-  </script>
-  
-  <!-- JavaScript code moved to communication.js -->
-  {# Remove admin-specific modals; chat UI handles messaging inline #}
+
+  <!-- Confirm: Mark as Done -->
+  <div id="confirm-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1200; align-items:center; justify-content:center;">
+    <div style="width:min(420px,92vw); background:#fff; border-radius:12px; border:1px solid #e5e7eb; box-shadow:0 20px 60px rgba(0,0,0,.25); padding:14px 16px;">
+      <div id="confirm-title" style="font-weight:700; color:#111827; font-size:16px;">Confirm Action</div>
+      <div id="confirm-message" style="margin:8px 0 14px; color:#374151; font-size:14px;">Are you sure?</div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button id="confirm-cancel" class="btn" style="padding:8px 12px; border:1px solid #d1d5db; border-radius:8px; background:#fff; cursor:pointer;">Cancel</button>
+        <button id="confirm-ok" class="btn" style="padding:8px 12px; border:1px solid #10b981; border-radius:8px; background:#10b981; color:#fff; font-weight:600; cursor:pointer;">Mark as Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div id="toast-root" style="position:fixed; right:16px; top:16px; z-index:1300; display:flex; flex-direction:column; gap:8px;"></div>
+
+  <script defer src="{% static 'admin_communication/js/communication.js' %}"></script>
+  <script defer src="{% static 'admin_dashboard/js/unread_messages.js' %}"></script>
 </body>
 </html>
+
+
+
+
+
+
+

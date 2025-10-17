@@ -393,12 +393,14 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="messages-container">
         {% for message in messages %}
         {% if 'Post created successfully!' != message|stringformat:"s" %}
-        <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-danger{% else %}alert-info{% endif %}">
-            {{ message }}
-            {% if message.tags == 'success' and not user.is_authenticated %}
-            <div class="mt-2">Please check your email from time to time for our response.</div>
-            {% endif %}
-        </div>
+          <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-danger{% else %}alert-info{% endif %}">
+              {{ message }}
+              {% if message.tags == 'success' and not user.is_authenticated %}
+              <div class="mt-2">Please check your email from time to time for our response.</div>
+              {% elif message.tags == 'success' and user.is_authenticated %}
+              <div class="mt-2">You can view our replies in your Communication page. Go to <a href="{% url 'user_panel:communication' %}" style="text-decoration: underline; color: #2563EB; font-weight: 600;">Messages</a> to see updates.</div>
+              {% endif %}
+          </div>
         {% endif %}
         {% endfor %}
     </div>
@@ -469,6 +471,11 @@ document.addEventListener('DOMContentLoaded', function() {
         <!-- Right Side - Contact Form -->
         <div class="form-container">
             <h2 class="form-title">We'd love to hear from you!</h2>
+            {% if request.user.is_authenticated and has_active_contact %}
+              <div class="alert alert-info" role="status" style="margin-bottom:12px;">
+                You currently have {{ active_contact_count }} active request{{ active_contact_count|pluralize }}. Please wait until it is marked as <strong>Done</strong> before sending a new one.
+              </div>
+            {% endif %}
             <form class="contact-form" method="post" action="{% url 'user_panel:contact_submit' %}">{% csrf_token %}
                 {% if not request.user.is_authenticated %}
                 <div class="form-group">
@@ -483,7 +490,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 <div class="form-group">
                     <label for="subject">Subject</label>
-                    <select id="subject" name="subject" required onchange="showSubjectPrompt()">
+                    <select id="subject" name="subject" required onchange="showSubjectPrompt()" {% if request.user.is_authenticated and has_active_contact %}disabled{% endif %}>
                         <option value="" disabled selected>Select a subject</option>
                         <option value="General Inquiry">General Inquiry</option>
                         <option value="Feedback">Feedback</option>
@@ -512,7 +519,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 <div class="form-group">
                     <label for="message">Message <span id="charCount" style="float: right; font-size: 0.85rem; color: #6b7280; font-weight: normal;">0/500</span></label>
-                    <textarea id="message" name="message" placeholder="Your message" style="height: 150px;" maxlength="500" required></textarea>
+                    <textarea id="message" name="message" placeholder="Your message" style="height: 150px;" maxlength="500" required {% if request.user.is_authenticated and has_active_contact %}disabled{% endif %}></textarea>
                 </div>
                 <script>
                     document.getElementById('message').addEventListener('input', function() {
@@ -533,7 +540,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 </script>
                 
-                <button type="submit" class="submit-btn">Send Message</button>
+                <button type="submit" class="submit-btn" {% if request.user.is_authenticated and has_active_contact %}disabled style="opacity:.6; cursor:not-allowed;"{% endif %}>Send Message</button>
             </form>
         </div>
     </div>

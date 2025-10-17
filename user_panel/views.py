@@ -595,7 +595,33 @@ def search_users(request):
 
 def contact(request):
     """Contact page view"""
-    return render(request, 'informational page/contact.html')
+    from admin_panel.models import ContactMessage
+    has_active_contact = False
+    active_count = 0
+    try:
+        if request.user.is_authenticated:
+            qs = ContactMessage.objects.filter(user=request.user, is_read=False)
+            has_active_contact = qs.exists()
+            active_count = qs.count()
+    except Exception:
+        has_active_contact = False
+        active_count = 0
+    return render(request, 'informational page/contact.html', {
+        'has_active_contact': has_active_contact,
+        'active_contact_count': active_count,
+    })
+
+@login_required
+def get_contact_unread_count(request):
+    """Return count of unread admin replies for the current user without marking them read."""
+    try:
+        admin_qs = User.objects.filter(
+            models.Q(role='admin') | models.Q(is_superuser=True) | models.Q(is_staff=True)
+        )
+        cnt = Message.objects.filter(sender__in=admin_qs, receiver=request.user, is_read=False).count()
+        return JsonResponse({'status': 'success', 'unread_count': cnt})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 from django.contrib import messages
 from admin_panel.models import ContactMessage
@@ -630,6 +656,20 @@ def contact_submit(request):
                 return JsonResponse({'status': 'error', 'message': 'Please fill in all required fields'}, status=400)
             messages.error(request, 'Please fill in all required fields')
             return redirect('user_panel:contact')
+
+        # Prevent new contact if there is an active (not done) request
+        try:
+            if request.user.is_authenticated:
+                has_active = ContactMessage.objects.filter(user=request.user, is_read=False).exists()
+                if has_active:
+                    msg = 'You already have an active request. Please wait until it is marked as Done before sending a new one.'
+                    if wants_json:
+                        return JsonResponse({'status': 'error', 'message': msg}, status=400)
+                    messages.error(request, msg)
+                    return redirect('user_panel:contact')
+        except Exception:
+            # Fail open if check fails (do not block)
+            pass
 
         contact_message = ContactMessage(
             name=name,
@@ -1583,11 +1623,11 @@ def bootstrap_contact_chat(request):
         return JsonResponse({'status': 'error', 'message': 'No support admin account exists yet.'}, status=404)
 
     # Check if a matching message already exists (avoid duplicates)
+    # Use the original contact created_at as a stable key (content may change if edited later)
     exists = Message.objects.filter(
         sender=request.user,
-        receiver=admin,
-        message=cm.message
-    ).exists()
+        receiver=admin
+    ).filter(models.Q(sent_at=cm.created_at) | models.Q(message=cm.message)).exists()
     created = False
     if not exists:
         try:
