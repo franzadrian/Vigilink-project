@@ -1,0 +1,177 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}My Community - VigiLink{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'communityowner/css/communityowner_styles.css' %}">
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <header class="co-hero">
+            <div class="co-logo">
+                <div class="co-logo-icon">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+            </div>
+            <h1>My Community</h1>
+            <p class="subtitle">Complete overview of users, reports, and analytics</p>
+        </header>
+        
+        <!-- Stats Section -->
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-icon users">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="total-users">0</h3>
+                    <p>Total Users</p>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon reports">
+                    <i class="fas fa-chart-bar"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="total-reports">0</h3>
+                    <p>Total Reports</p>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon active">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="active-reports">0</h3>
+                    <p>Active Reports</p>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon week">
+                    <i class="fas fa-calendar-week"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="week-reports">0</h3>
+                    <p>Last Week Reports</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="nav-cards">
+            <div class="nav-card active" data-target="users">
+                <div class="card-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="card-title">Manage Users</div>
+                <div class="card-desc">Add, edit, or remove user accounts</div>
+            </div>
+            
+            <div class="nav-card" data-target="reports">
+                <div class="card-icon">
+                    <i class="fas fa-chart-bar"></i>
+                </div>
+                <div class="card-title">View Reports</div>
+                <div class="card-desc">Analyze performance and activity data</div>
+            </div>
+            
+            
+            
+            <div class="nav-card" data-target="secret">
+                <div class="card-icon">
+                    <i class="fas fa-key"></i>
+                </div>
+                <div class="card-title">My Community Code</div>
+                <div class="card-desc">Your permanent owner code (private)</div>
+            </div>
+        </div>
+        
+        <div class="content-area">
+            <!-- Users Section -->
+            <div id="users" class="content-section active">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">User Management</h2>
+                        <p class="section-subtitle">Manage all user accounts and permissions</p>
+                    </div>
+                    <button class="action-btn edit-btn">
+                        <i class="fas fa-plus"></i> Add User
+                    </button>
+                </div>
+                
+                <div class="user-grid">
+                    <!-- User cards will be dynamically generated -->
+                </div>
+            </div>
+            
+            <!-- Reports Section -->
+            <div id="reports" class="content-section">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Reports & Analytics</h2>
+                        <p class="section-subtitle">View and analyze system reports</p>
+                    </div>
+                </div>
+                
+                <div class="report-list">
+                    <!-- Report cards will be dynamically generated -->
+                </div>
+            </div>
+            
+            
+            
+            <!-- Secret Code Section -->
+            <div id="secret" class="content-section">
+                <div class="secret-container">
+                    <div class="secret-icon">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <h2 class="section-title">My Community Code</h2>
+                    <p class="section-subtitle">This is your permanent owner code. Keep it private.</p>
+                    <div id="code-display" class="code-display {% if profile and profile.secret_code %}revealed{% endif %}"
+                         data-code="{{ profile.secret_code|default:'' }}">{{ profile.secret_code|default:'' }}</div>
+                    <button id="copy-code-btn" class="reveal-btn" {% if not profile or not profile.secret_code %}disabled{% endif %}>
+                        <i class="fas fa-copy"></i> Copy Code
+                    </button>
+                    <p class="co-info-note">
+                        Share this code only with your residents. They will use it to join your community in VigiLink —
+                        enabling them to submit reports, view announcements, check calendar events, and stay updated while
+                        you manage members and permissions. Keep this code private to prevent unauthorized access.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% if needs_onboarding %}
+    <div class="co-onboarding-overlay">
+        <div class="co-onboarding-modal">
+            <h3 class="co-onboarding-title">Set Up Your Community</h3>
+            <p class="co-onboarding-subtitle">Please provide your community details to continue.</p>
+            <form method="post" class="co-onboarding-form">
+                {% csrf_token %}
+                <div class="co-field">
+                    <label for="community_name">Community Name</label>
+                    <input type="text" id="community_name" name="community_name" required value="{{ profile.community_name|default:'' }}" />
+                </div>
+                <div class="co-field">
+                    <label for="community_address">Community Address</label>
+                    <input type="text" id="community_address" name="community_address" required value="{{ profile.community_address|default:'' }}" />
+                </div>
+                <button type="submit" class="reveal-btn" style="margin-top: 10px;">
+                    Save and Continue
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script defer src="{% static 'communityowner/js/communityowner_script.js' %}"></script>
+{% endblock %}

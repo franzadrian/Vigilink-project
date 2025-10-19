@@ -22,38 +22,10 @@ from django.utils.safestring import mark_safe
 # Set up logging
 logger = logging.getLogger(__name__)
 
-# PayPal configuration helpers (read fresh from environment/.env when needed)
-def _get_env(name: str, default: str = "") -> str:
-    val = os.environ.get(name)
-    if val:
-        return val
-    # Fallback: lazily load from .env on disk if not present in process env
-    try:
-        env_path = settings.BASE_DIR / '.env'
-        if env_path.exists():
-            with env_path.open('r', encoding='utf-8') as f:
-                for raw in f:
-                    line = raw.strip()
-                    if not line or line.startswith('#') or '=' not in line:
-                        continue
-                    key, value = line.split('=', 1)
-                    key = key.strip()
-                    value = value.strip()
-                    if value and value[0] == value[-1] and value[0] in ('"', "'"):
-                        value = value[1:-1]
-                    if key == name:
-                        os.environ[name] = value
-                        return value
-    except Exception:
-        pass
-    return default
-
-def get_paypal_config():
-    return {
-        'client_id': _get_env('PAYPAL_CLIENT_ID', ''),
-        'client_secret': _get_env('PAYPAL_CLIENT_SECRET', ''),
-        'base_url': _get_env('PAYPAL_BASE_URL', 'https://api-m.sandbox.paypal.com'),
-    }
+# PayPal API Configuration (read from environment; do not hardcode secrets)
+PAYPAL_CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID", "")
+PAYPAL_CLIENT_SECRET = os.environ.get("PAYPAL_CLIENT_SECRET", "")
+PAYPAL_BASE_URL = os.environ.get("PAYPAL_BASE_URL", "https://api-m.sandbox.paypal.com")
 
 def about(request):
     """About page view"""
@@ -741,13 +713,12 @@ def terms(request):
 def get_paypal_access_token():
     """Get PayPal OAuth 2.0 access token"""
     try:
-        cfg = get_paypal_config()
-        url = f"{cfg['base_url']}/v1/oauth2/token"
+        url = f"{PAYPAL_BASE_URL}/v1/oauth2/token"
         headers = {
             "Accept": "application/json",
             "Accept-Language": "en_US"
         }
-        auth = base64.b64encode(f"{cfg['client_id']}:{cfg['client_secret']}".encode()).decode()
+        auth = base64.b64encode(f"{PAYPAL_CLIENT_ID}:{PAYPAL_CLIENT_SECRET}".encode()).decode()
         headers["Authorization"] = f"Basic {auth}"
         
         data = {"grant_type": "client_credentials"}
@@ -775,13 +746,12 @@ def payment(request):
     elif plan_type == 'premium':
         price = 28800 if billing_cycle == 'yearly' else 3000
     
-    cfg = get_paypal_config()
-    paypal_enabled = bool(cfg['client_id'])
+    paypal_enabled = bool(PAYPAL_CLIENT_ID)
     context = {
         'plan_type': plan_type,
         'billing_cycle': billing_cycle,
         'price': price,
-        'client_id': cfg['client_id'],
+        'client_id': PAYPAL_CLIENT_ID,
         'paypal_enabled': paypal_enabled,
     }
     
@@ -813,8 +783,7 @@ def create_payment(request):
             return JsonResponse({'error': 'Failed to authenticate with PayPal'}, status=500)
         
         # Create order
-        cfg = get_paypal_config()
-        url = f"{cfg['base_url']}/v2/checkout/orders"
+        url = f"{PAYPAL_BASE_URL}/v2/checkout/orders"
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {access_token}"
@@ -878,8 +847,7 @@ def capture_payment(request):
             return JsonResponse({'error': 'Failed to authenticate with PayPal'}, status=500)
         
         # Capture order
-        cfg = get_paypal_config()
-        url = f"{cfg['base_url']}/v2/checkout/orders/{order_id}/capture"
+        url = f"{PAYPAL_BASE_URL}/v2/checkout/orders/{order_id}/capture"
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {access_token}"
@@ -889,13 +857,8 @@ def capture_payment(request):
         response_data = response.json()
         
         if response.status_code in [200, 201]:  # Success
-            # Upgrade the current user's role to Community Owner upon successful capture
-            try:
-                if hasattr(request.user, 'role') and request.user.role != 'communityowner':
-                    request.user.role = 'communityowner'
-                    request.user.save(update_fields=['role'])
-            except Exception as _e:
-                logger.error(f"Failed to set user role to communityowner: {_e}")
+            # Here you would update the user's subscription in your database
+            # For now, we'll just return success
             return JsonResponse({
                 'success': True,
                 'transaction_id': response_data.get('id'),
@@ -928,14 +891,6 @@ def payment_success(request):
     elif plan_type == 'premium':
         price = 28800 if billing_cycle == 'yearly' else 3000
     
-    # Ensure user role is upgraded (in case capture step was skipped client-side)
-    try:
-        if hasattr(request.user, 'role') and request.user.role != 'communityowner':
-            request.user.role = 'communityowner'
-            request.user.save(update_fields=['role'])
-    except Exception as _e:
-        logger.error(f"Post-success role ensure failed: {_e}")
-
     context = {
         'order_id': order_id,
         'plan_type': plan_type,
@@ -1691,3 +1646,4 @@ def bootstrap_contact_chat(request):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
     return JsonResponse({'status': 'success', 'admin_id': admin.id, 'created': created})
+

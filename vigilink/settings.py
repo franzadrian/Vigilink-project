@@ -71,7 +71,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'accounts',
     'user_panel',
-    'admin_panel'
+    'admin_panel',
+    'communityowner_panel'
 ]
 
 MIDDLEWARE = [

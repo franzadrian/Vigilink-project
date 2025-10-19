@@ -1,0 +1,26 @@
+from django.db import models
+from django.conf import settings
+import secrets
+import string
+
+
+class CommunityProfile(models.Model):
+    owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='community_profile')
+    community_name = models.CharField(max_length=255, blank=True)
+    community_address = models.CharField(max_length=500, blank=True)
+    secret_code = models.CharField(max_length=24, unique=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.community_name or 'Unnamed Community'} ({self.owner.username})"
+
+    @staticmethod
+    def generate_secret_code(length: int = 16) -> str:
+        alphabet = string.ascii_uppercase + string.digits
+        raw = ''.join(secrets.choice(alphabet) for _ in range(length))
+        # format like XXXX-XXXX-XXXX-XXXX for 16
+        if length == 16:
+            return f"{raw[0:4]}-{raw[4:8]}-{raw[8:12]}-{raw[12:16]}"
+        return raw
+
+# Create your models here.
