@@ -72,7 +72,8 @@ INSTALLED_APPS = [
     'accounts',
     'user_panel',
     'admin_panel',
-    'communityowner_panel'
+    'communityowner_panel',
+    'resident_panel'
 ]
 
 MIDDLEWARE = [
@@ -269,4 +270,3 @@ CSRF_COOKIE_SECURE = not DEBUG
 # Refresh token (preferred for production); optional file path for convenience
 DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
 DROPBOX_REFRESH_TOKEN_FILE = BASE_DIR / 'dropbox_refresh_token.txt'
-

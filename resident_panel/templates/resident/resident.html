@@ -1,0 +1,50 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}Residents - VigiLink{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'resident/css/resident.css' %}">
+{% endblock %}
+
+{% block content %}
+  <div class="resident-page">
+    <div class="resident-toolbar">
+      <div class="resident-search">
+        <label for="resident-search-input" class="sr-only">Search residents</label>
+        <div class="search-input-wrap">
+          <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input id="resident-search-input" type="text" placeholder="Search residents..." autocomplete="off">
+        </div>
+      </div>
+      <a href="{% url 'user_panel:view_profile' %}" class="resident-avatar">
+        <img src="{% if request.user.profile_picture_url %}{{ request.user.profile_picture_url }}{% elif request.user.profile_picture %}{{ request.user.profile_picture.url }}{% else %}/static/accounts/images/profile.png{% endif %}"
+             alt="{{ request.user.full_name|default:request.user.username }}"
+             width="40" height="40" loading="lazy"
+             onerror="this.src='/static/accounts/images/profile.png'">
+      </a>
+    </div>
+
+    <div class="resident-table-card">
+      <table class="resident-table">
+        <thead>
+          <tr>
+            <th>Resident</th>
+            <th>Block/Lot</th>
+            <th class="actions-col">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="resident-table-body">
+          <!-- Rows rendered by resident.js -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script defer src="{% static 'resident/js/resident.js' %}"></script>
+{% endblock %}
+

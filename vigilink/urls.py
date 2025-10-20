@@ -26,6 +26,7 @@ urlpatterns = [
     path('user/', include('user_panel.urls')),
     path('admin-panel/', include('admin_panel.urls')),
     path('community-owner/', include('communityowner_panel.urls')),
+    path('resident/', include('resident_panel.urls')),
 ]
 
 # Serve media files in development

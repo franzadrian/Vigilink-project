@@ -1,0 +1,57 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}Residents - Not Available{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<style>
+  .nm-wrap{max-width:960px;margin:24px auto;padding:24px;background:#fff;border:1px solid #eef2f7;border-radius:16px;box-shadow:0 6px 16px rgba(0,0,0,0.06)}
+  .nm-head{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .nm-head .icon{width:36px;height:36px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;background:#fee2e2;color:#b91c1c}
+  .nm-title{font-size:1.25rem;font-weight:700;color:#111827;margin:0}
+  .nm-text{color:#4b5563;line-height:1.6;margin-top:6px}
+  .nm-actions{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap}
+  .nm-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;color:#374151;text-decoration:none}
+  .nm-btn.primary{border-color:#2563eb;color:#2563eb}
+  .nm-btn:hover{background:#f3f4f6}
+  .nm-form{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .nm-input{flex:1;min-width:240px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px}
+  .nm-submit{padding:10px 16px;border-radius:10px;border:1px solid #2563eb;background:#2563eb;color:#fff;cursor:pointer}
+  .nm-submit:hover{background:#1d4ed8;border-color:#1d4ed8}
+  .nm-messages{margin-top:10px}
+  .nm-message{padding:8px 10px;border-radius:8px;margin-bottom:6px}
+  .nm-message.error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+  .nm-message.success{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
+</style>
+{% endblock %}
+
+{% block content %}
+  <div class="nm-wrap">
+    <div class="nm-head">
+      <div class="icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12" y2="16"></line></svg></div>
+      <h2 class="nm-title">Residents Access Unavailable</h2>
+    </div>
+    <p class="nm-text">
+      You are not part of any community yet. Enter the community code shared by your Community Owner to join.
+    </p>
+    {% if messages %}
+    <div class="nm-messages">
+      {% for message in messages %}
+        <div class="nm-message {% if 'error' in message.tags %}error{% elif 'success' in message.tags %}success{% endif %}">{{ message }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <form class="nm-form" method="post" action="{% url 'resident_panel:join_by_code' %}">
+      {% csrf_token %}
+      <input class="nm-input" type="text" name="community_code" placeholder="Enter community code (e.g., ABCD-EFGH-IJKL-MNOP)" required autocomplete="off">
+      <button class="nm-submit" type="submit">Join Community</button>
+    </form>
+    <div class="nm-actions">
+      <a class="nm-btn" href="{% url 'user_panel:contact' %}">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 8v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8"/></svg>
+        Contact Support
+      </a>
+    </div>
+  </div>
+{% endblock %}

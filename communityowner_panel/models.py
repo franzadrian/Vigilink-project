@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 import secrets
 import string
+from django.db.models.functions import Lower
 
 
 class CommunityProfile(models.Model):
@@ -23,4 +24,31 @@ class CommunityProfile(models.Model):
             return f"{raw[0:4]}-{raw[4:8]}-{raw[8:12]}-{raw[12:16]}"
         return raw
 
+    class Meta:
+        constraints = [
+            # Enforce case-insensitive uniqueness of community_name
+            models.UniqueConstraint(Lower('community_name'), name='uniq_lower_community_name')
+        ]
+
 # Create your models here.
+
+
+class CommunityMembership(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='community_membership',
+    )
+    community = models.ForeignKey(
+        CommunityProfile,
+        on_delete=models.CASCADE,
+        related_name='members',
+    )
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.community.community_name or 'Unnamed Community'}"
+
+    class Meta:
+        verbose_name = 'community membership'
+        verbose_name_plural = 'community memberships'

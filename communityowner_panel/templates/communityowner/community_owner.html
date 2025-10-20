@@ -64,7 +64,23 @@
         </div>
         
         <div class="nav-cards">
-            <div class="nav-card active" data-target="users">
+            <div class="nav-card active" data-target="details">
+                <div class="card-icon">
+                    <i class="fas fa-building"></i>
+                </div>
+                <div class="card-title">Community Details</div>
+                <div class="card-desc">View and edit your community info</div>
+            </div>
+
+            <div class="nav-card" data-target="secret">
+                <div class="card-icon">
+                    <i class="fas fa-key"></i>
+                </div>
+                <div class="card-title">My Community Code</div>
+                <div class="card-desc">Your permanent owner code (private)</div>
+            </div>
+
+            <div class="nav-card" data-target="users">
                 <div class="card-icon">
                     <i class="fas fa-users"></i>
                 </div>
@@ -79,21 +95,46 @@
                 <div class="card-title">View Reports</div>
                 <div class="card-desc">Analyze performance and activity data</div>
             </div>
-            
-            
-            
-            <div class="nav-card" data-target="secret">
-                <div class="card-icon">
-                    <i class="fas fa-key"></i>
-                </div>
-                <div class="card-title">My Community Code</div>
-                <div class="card-desc">Your permanent owner code (private)</div>
-            </div>
         </div>
         
-        <div class="content-area">
+        <div class="content-area" style="display:none;">
+            <!-- Community Details Section -->
+            <div id="details" class="content-section active">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Community Details</h2>
+                        <p class="section-subtitle">Your community information</p>
+                    </div>
+                    <div></div>
+                </div>
+
+                <!-- Inline edit form -->
+                <form id="co-details-form" method="post" class="co-details-card" novalidate>
+                    {% csrf_token %}
+                    <div class="co-details-grid">
+                        <div class="co-field">
+                            <label for="edit_community_name">Community Name</label>
+                            <input type="text" id="edit_community_name" name="community_name" required value="{{ profile.community_name|default:'' }}" autocomplete="off" placeholder="e.g., Greenfield Village" />
+                            <div id="edit_community_name_error" class="co-error-text" style="display:none;">This community name is already taken. Please choose another.</div>
+                        </div>
+                        <div class="co-field">
+                            <label for="edit_community_address">Community Address</label>
+                            <input type="text" id="edit_community_address" name="community_address" required value="{{ profile.community_address|default:'' }}" placeholder="e.g., 123 Palm St, Springfield" />
+                        </div>
+                    </div>
+                    <div class="co-details-actions" id="co-inline-actions" style="display:none;">
+                        <button type="submit" id="co-details-save" class="action-btn edit-btn">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                        <button type="button" id="co-details-cancel" class="action-btn delete-btn">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+
             <!-- Users Section -->
-            <div id="users" class="content-section active">
+            <div id="users" class="content-section">
                 <div class="section-header">
                     <div>
                         <h2 class="section-title">User Management</h2>
@@ -147,22 +188,37 @@
             </div>
         </div>
     </div>
+    
+    <!-- Generic modal overlay shell -->
+    <div id="co-modal-overlay" class="co-onboarding-overlay" style="display:none;">
+        <div class="co-onboarding-modal" role="dialog" aria-modal="true">
+            <div class="co-modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <h3 id="co-modal-title" class="co-onboarding-title" style="margin:0;"></h3>
+                <button type="button" id="co-modal-close" class="co-modal-close" aria-label="Close">&times;</button>
+            </div>
+            <div id="co-modal-shell"></div>
+        </div>
+    </div>
+
+    
+
     {% if needs_onboarding %}
     <div class="co-onboarding-overlay">
         <div class="co-onboarding-modal">
             <h3 class="co-onboarding-title">Set Up Your Community</h3>
             <p class="co-onboarding-subtitle">Please provide your community details to continue.</p>
-            <form method="post" class="co-onboarding-form">
+            <form method="post" class="co-onboarding-form" novalidate>
                 {% csrf_token %}
                 <div class="co-field">
                     <label for="community_name">Community Name</label>
-                    <input type="text" id="community_name" name="community_name" required value="{{ profile.community_name|default:'' }}" />
+                    <input type="text" id="community_name" name="community_name" required value="{{ profile.community_name|default:'' }}" autocomplete="off" />
+                    <div id="community_name_error" class="co-error-text" style="display:none;">This community name is already taken. Please choose another.</div>
                 </div>
                 <div class="co-field">
                     <label for="community_address">Community Address</label>
                     <input type="text" id="community_address" name="community_address" required value="{{ profile.community_address|default:'' }}" />
                 </div>
-                <button type="submit" class="reveal-btn" style="margin-top: 10px;">
+                <button type="submit" id="onboarding-submit" class="reveal-btn" style="margin-top: 10px;">
                     Save and Continue
                 </button>
             </form>
@@ -173,5 +229,9 @@
 
 {% block extra_js %}
 {{ block.super }}
+{% comment %} Embed members data for JS {% endcomment %}
+{{ members|json_script:"co-members-data" }}
+<div id="co-messages-data" data-messages='[{% if messages %}{% for message in messages %}{"text":"{{ message|escapejs }}","tags":"{{ message.tags|default:"info" }}"}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}]'></div>
 <script defer src="{% static 'communityowner/js/communityowner_script.js' %}"></script>
 {% endblock %}
+

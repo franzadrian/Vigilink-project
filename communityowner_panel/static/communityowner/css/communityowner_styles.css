@@ -390,6 +390,9 @@
         /* Improve initial render performance and avoid painting hidden sections */
         .content-section { display: none; content-visibility: auto; contain-intrinsic-size: 600px; }
         .content-section.active { display: block; }
+        /* When a section is inside the modal, avoid large intrinsic placeholder and hide internal header */
+        .co-onboarding-modal #co-modal-shell .content-section.in-modal { content-visibility: visible; contain-intrinsic-size: auto; margin-top: 0; }
+        .co-onboarding-modal #co-modal-shell .content-section.in-modal .section-header { display: none; }
 
         /* Respect reduced motion preferences */
         @media (prefers-reduced-motion: reduce) {
@@ -406,30 +409,32 @@
         }
 
         .secret-icon {
-            width: 100px;
-            height: 100px;
+            width: 72px;
+            height: 72px;
             background: linear-gradient(135deg, var(--primary), var(--secondary));
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 30px;
+            margin: 0 auto 24px;
             color: white;
-            font-size: 40px;
+            font-size: 28px;
         }
+        /* Ensure no inner title shows under the lock icon */
+        .secret-container .section-title { display: none; }
 
         .code-display {
             background: var(--dark);
             color: white;
-            padding: 25px;
-            border-radius: 14px;
-            font-size: 1.8rem;
-            letter-spacing: 3px;
-            margin: 30px auto;
-            max-width: 500px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 1rem;
+            letter-spacing: 1.5px;
+            margin: 12px auto;
+            max-width: 320px;
             font-family: 'Courier New', monospace;
             display: none;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
         }
 
         .code-display.revealed {
@@ -455,7 +460,18 @@
             box-shadow: 0 12px 32px rgba(0,0,0,0.18);
             padding: 24px;
             text-align: left;
+            max-height: 85vh;
+            overflow: auto;
         }
+        /* Disable inner scrolling when explicitly requested (for lightweight views like Secret Code) */
+        .co-onboarding-modal.co-modal-no-scroll {
+            max-height: none;
+            overflow: visible;
+            /* Hide possible platform scrollbars if any container still overflows */
+            scrollbar-width: none;           /* Firefox */
+            -ms-overflow-style: none;        /* IE 10+ */
+        }
+        .co-onboarding-modal.co-modal-no-scroll::-webkit-scrollbar { display: none; }
         .co-onboarding-title { font-size: 1.5rem; margin-bottom: 8px; }
         .co-onboarding-subtitle { color: var(--gray); margin-bottom: 16px; }
         .co-onboarding-form .co-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
@@ -464,6 +480,8 @@
             border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; outline: none;
         }
         .co-onboarding-form input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+        .co-input-error { border-color: #ef4444 !important; box-shadow: 0 0 0 3px rgba(239,68,68,0.15) !important; }
+        .co-error-text { color: #ef4444; font-size: 0.9rem; margin-top: 6px; }
 
         @keyframes pulse {
             0% { transform: scale(1); }
@@ -506,6 +524,80 @@
             margin-right: auto;
             font-size: 0.95rem;
         }
+
+        /* Make the generic modal close button a compact X */
+        .co-modal-close {
+            background: transparent;
+            border: none;
+            color: #6b7280;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            font-size: 20px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background .2s ease, color .2s ease;
+        }
+        .co-modal-close:hover { background: #fee2e2; color: #b91c1c; }
+        .co-modal-close:focus-visible { outline: 2px solid #ef4444; outline-offset: 2px; }
+
+        /* Specifically shrink the Copy Code button */
+        #copy-code-btn {
+            padding: 8px 14px;
+            font-size: 0.9rem;
+            border-radius: 8px;
+            box-shadow: none;
+        }
+
+        /* Toasts */
+        .co-toast-root { position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .co-toast { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #fff; border: 1px solid #e5e7eb; border-left: 4px solid #2563eb; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); opacity: 0; transform: translateY(-6px); transition: opacity .18s ease, transform .18s ease; }
+        .co-toast.in { opacity: 1; transform: translateY(0); }
+        .co-toast.out { opacity: 0; transform: translateY(-6px); }
+        .co-toast.success { border-left-color: #16a34a; }
+        .co-toast.warning { border-left-color: #d97706; }
+        .co-toast.error, .co-toast.danger { border-left-color: #dc2626; }
+        .co-toast-icon { display: inline-flex; align-items: center; font-size: 16px; }
+        .co-toast-msg { color: #111827; font-weight: 600; font-size: 0.95rem; }
+
+        /* Community details */
+        .co-details-card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(0,0,0,0.04);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .co-details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px 24px;
+            align-items: start;
+            margin-bottom: 14px;
+        }
+        .co-details-card .co-field { display: flex; flex-direction: column; gap: 6px; }
+        .co-details-card label { font-weight: 600; color: #374151; font-size: 0.95rem; }
+        .co-details-card input[type="text"] {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 12px 14px;
+            outline: none;
+            background: #fff;
+            transition: border-color .12s ease, box-shadow .12s ease;
+        }
+        .co-details-card input[type="text"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+        }
+        .co-details-card .co-input-error { border-color: #ef4444 !important; box-shadow: 0 0 0 3px rgba(239,68,68,0.15) !important; }
+        .co-detail-item { padding: 8px 0; }
+        .co-detail-label { font-size: 0.85rem; color: var(--gray); margin-bottom: 6px; }
+        .co-detail-value { font-size: 1.05rem; color: #111827; font-weight: 600; }
+        .co-details-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
         /* Performance containment to limit layout/paint scope */
         .stat-card, .nav-card, .report-card { contain: content; }
@@ -570,8 +662,8 @@
             }
             
             .code-display {
-                font-size: 1.4rem;
-                padding: 20px;
+                font-size: 0.9rem;
+                padding: 8px 10px;
             }
             
             .stats-container {
