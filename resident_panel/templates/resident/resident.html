@@ -24,12 +24,16 @@
           <input id="resident-search-input" type="text" placeholder="Search residents..." autocomplete="off">
         </div>
       </div>
-      <a href="{% url 'user_panel:view_profile' %}" class="resident-avatar">
-        <img src="{% if request.user.profile_picture_url %}{{ request.user.profile_picture_url }}{% elif request.user.profile_picture %}{{ request.user.profile_picture.url }}{% else %}/static/accounts/images/profile.png{% endif %}"
-             alt="{{ request.user.full_name|default:request.user.username }}"
-             width="40" height="40" loading="lazy"
-             onerror="this.src='/static/accounts/images/profile.png'">
-      </a>
+      <div class="resident-toolbar-actions">
+        <span class="res-inline-help-text">Found a suspicious person or activity?</span>
+        <button type="button" class="btn btn-danger resident-report-incident-btn">Report Incident</button>
+        <a href="{% url 'user_panel:view_profile' %}" class="resident-avatar">
+          <img src="{% if request.user.profile_picture_url %}{{ request.user.profile_picture_url }}{% elif request.user.profile_picture %}{{ request.user.profile_picture.url }}{% else %}/static/accounts/images/profile.png{% endif %}"
+               alt="{{ request.user.full_name|default:request.user.username }}"
+               width="40" height="40" loading="lazy"
+               onerror="this.src='/static/accounts/images/profile.png'">
+        </a>
+      </div>
     </div>
 
     <div class="resident-table-card">
@@ -53,7 +57,7 @@
 {% block extra_js %}
 {{ block.super }}
 {{ residents|json_script:"residents-data" }}
-<div id="residents-flags" data-is-owner="{% if is_owner %}1{% else %}0{% endif %}" data-remove-url="{% url 'communityowner_panel:member_remove' %}"></div>
+<div id="residents-flags" data-is-owner="{% if is_owner %}1{% else %}0{% endif %}" data-remove-url="{% url 'communityowner_panel:member_remove' %}" data-report-url="{% url 'resident_panel:submit_report' %}"></div>
 {% if toast %}
 {{ toast|json_script:"res-toast-json" }}
 {% endif %}
@@ -69,5 +73,5 @@
   </div>
   
 </div>
-<script defer src="{% static 'resident/js/resident.js' %}"></script>
+<script defer src="{% static 'resident/js/user_resident.js' %}"></script>
 {% endblock %}

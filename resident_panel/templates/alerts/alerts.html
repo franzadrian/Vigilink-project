@@ -1,0 +1,155 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}Alerts - VigiLink{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'resident/css/alerts.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="alerts-page">
+  <header class="alerts-header">
+    <div class="alerts-title-wrap">
+      <h1 class="alerts-title">Community Alerts</h1>
+      <p class="alerts-subtitle">Stay informed with incidents, events, and emergency info.</p>
+    </div>
+  </header>
+
+  <!-- Top spacer (safety tip moved below totals) -->
+
+  <!-- Metrics Row -->
+  <div class="metrics-grid">
+    <div class="metric-card metric-card--residents">
+      <div class="metric-icon"><i class="fa-solid fa-user-group" aria-hidden="true"></i></div>
+      <div class="metric-content">
+        <h3>Total Residents</h3>
+        <div class="metric-value">{{ members_count }}</div>
+      </div>
+    </div>
+
+    <div class="metric-card metric-card--incidents">
+      <div class="metric-icon"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i></div>
+      <div class="metric-content">
+        <h3>Total Incidents</h3>
+        <div class="metric-value">{{ incidents_count }}</div>
+      </div>
+    </div>
+
+    <div class="metric-card metric-card--events">
+      <div class="metric-icon"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></div>
+      <div class="metric-content">
+        <h3>Upcoming Events</h3>
+        <div class="metric-value">{{ events_count }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Emergency + Safety Tip (below totals) -->
+  <div class="below-grid">
+    <aside class="panel-card card--emergency">
+      <header class="panel-card__header">
+        <div class="panel-card__title">
+          <i class="fa-solid fa-phone" aria-hidden="true"></i>
+          <span>Emergency Calls</span>
+        </div>
+      </header>
+      <div class="panel-card__body">
+        {% if emergency_contacts %}
+        <ul class="contacts-list">
+          {% for c in emergency_contacts %}
+          <li class="contact-item">
+            <span class="contact-label">{{ c.label }}</span>
+            <a class="contact-number" href="tel:{{ c.phone }}"><i class="fa-solid fa-phone"></i> {{ c.phone }}</a>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <ul class="contacts-list">
+          <li class="contact-item"><span class="contact-label">Police</span><a class="contact-number" href="tel:5550111"><i class="fa-solid fa-phone"></i> 555-0111</a></li>
+          <li class="contact-item"><span class="contact-label">Local Security</span><a class="contact-number" href="tel:5550122"><i class="fa-solid fa-phone"></i> 555-0122</a></li>
+          <li class="contact-item"><span class="contact-label">Hospital (Ambulance)</span><a class="contact-number" href="tel:5550133"><i class="fa-solid fa-phone"></i> 555-0133</a></li>
+          <li class="contact-item"><span class="contact-label">Fire Department</span><a class="contact-number" href="tel:5550144"><i class="fa-solid fa-phone"></i> 555-0144</a></li>
+        </ul>
+        {% endif %}
+      </div>
+    </aside>
+
+    <article class="panel-card card--tip">
+      <header class="panel-card__header">
+        <div class="panel-card__title">
+          <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+          <span>Safety Tip</span>
+        </div>
+      </header>
+      <div class="panel-card__body">
+        <p class="tip">{{ safety_tip }}</p>
+        <p class="tip-note">Short, practical guidance to keep your home and neighborhood safe.</p>
+      </div>
+    </article>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="content-grid">
+    <!-- Recent Incidents -->
+    <article class="panel-card">
+      <header class="panel-card__header">
+        <div class="panel-card__title">
+          <i class="fa-solid fa-bell" aria-hidden="true"></i>
+          <span>Recent Incidents</span>
+        </div>
+      </header>
+      <div class="panel-card__body">
+        {% if recent_incidents %}
+        <ul class="list list--incidents">
+          {% for inc in recent_incidents %}
+          <li class="list-item">
+            <div class="list-item__icon"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i></div>
+            <div class="list-item__content">
+              <div class="list-item__title">{{ inc.subject }}</div>
+              <div class="list-item__desc">{{ inc.message|truncatechars:120 }}</div>
+              {% if inc.created_at %}
+              <div class="list-item__meta">{{ inc.created_at }}</div>
+              {% endif %}
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">No incidents reported recently.</p>
+        {% endif %}
+      </div>
+    </article>
+
+    <!-- Upcoming Events -->
+    <article class="panel-card">
+      <header class="panel-card__header">
+        <div class="panel-card__title">
+          <i class="fa-solid fa-calendar-check" aria-hidden="true"></i>
+          <span>Upcoming Events</span>
+        </div>
+      </header>
+      <div class="panel-card__body">
+        {% if upcoming_events %}
+        <ul class="list list--events">
+          {% for ev in upcoming_events %}
+          <li class="list-item">
+            <div class="list-item__icon"><i class="fa-solid fa-location-dot" aria-hidden="true"></i></div>
+            <div class="list-item__content">
+              <div class="list-item__title">{{ ev.title }}</div>
+              <div class="list-item__desc">{{ ev.date }}{% if ev.place %} • {{ ev.place }}{% endif %}</div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">No events scheduled yet.</p>
+        {% endif %}
+      </div>
+    </article>
+
+    <!-- (Emergency + Tip moved to top) -->
+  </div>
+</section>
+{% endblock %}

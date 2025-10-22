@@ -158,6 +158,8 @@
                         }
                         const bottom = document.getElementById('co-users-bottom');
                         if (bottom) bottom.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    } else if (targetId === 'emergency') {
+                        if (window.CO_openEmergencyModal) { window.CO_openEmergencyModal(); }
                     } else if (targetId === 'reports') {
                         openModal(targetId);
                     } else {
@@ -458,6 +460,10 @@
                 update: el.dataset.updateUrl,
                 search: el.dataset.searchUrl,
                 add: el.dataset.addUrl,
+                ecList: el.dataset.ecListUrl,
+                ecAdd: el.dataset.ecAddUrl,
+                ecDelete: el.dataset.ecDeleteUrl,
+                ecUpdate: el.dataset.ecUpdateUrl,
             } : {};
         }
 
@@ -559,6 +565,198 @@
             updateStats();
         }
 
+        // Emergency Contacts Modal
+        (function(){
+            function openEmergencyModal(){
+                const { ecList, ecAdd, ecDelete } = endpoints();
+                if (!overlay || !modalShell) return;
+                if (modalTitle) modalTitle.textContent = 'Emergency Calls';
+                modalShell.innerHTML = `
+                    <div class="co-ec-modal" style="width:100%;max-width:620px;margin:0 auto;">
+                        <div class="ec-form" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end;margin-bottom:12px;">
+                            <div style="display:flex;flex-direction:column;">
+                                <label for="ec-label" style="font-size:0.9rem;color:#334155;margin-bottom:6px;">Title</label>
+                                <input id="ec-label" type="text" placeholder="e.g., Police" style="padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;width:100%;min-width:0;" />
+                            </div>
+                            <div style="display:flex;flex-direction:column;">
+                                <label for="ec-phone" style="font-size:0.9rem;color:#334155;margin-bottom:6px;">Phone Number</label>
+                                <input id="ec-phone" type="text" placeholder="e.g., 555-0111" style="padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;width:100%;min-width:0;" />
+                            </div>
+                            <button id=\"ec-add-btn\" class="action-btn edit-btn" type="button" style="grid-column:1 / span 2;justify-self:center;width:80%;max-width:420px;padding:8px 0;font-size:1rem;border-radius:12px;box-shadow:0 8px 16px rgba(2,6,23,0.10);"><i class="fas fa-plus"></i> Add</button>
+                        </div>
+                        <div id="ec-list" style="border:1px solid #f1f5f9;border-radius:8px;overflow:auto;max-height:320px;"></div>
+                    </div>`;
+                overlay.style.display = 'flex';
+                try {
+                    const sbw = window.innerWidth - document.documentElement.clientWidth;
+                    document.documentElement.style.overflow = 'hidden';
+                    document.body.style.overflow = 'hidden';
+                    if (sbw > 0) document.body.style.paddingRight = sbw + 'px';
+                } catch (e) {}
+
+                const listRoot = document.getElementById('ec-list');
+                const addBtn = document.getElementById('ec-add-btn');
+                const labelInput = document.getElementById('ec-label');
+                const phoneInput = document.getElementById('ec-phone');
+
+                function render(items){
+                    listRoot.innerHTML = '';
+                    if (!Array.isArray(items) || !items.length){
+                        listRoot.innerHTML = '<div style="padding:10px;color:#6b7280;">No emergency contacts yet.</div>';
+                        return;
+                    }
+                    const ul = document.createElement('ul');
+                    ul.style.listStyle = 'none'; ul.style.margin = '0'; ul.style.padding = '0';
+                    items.forEach(it => {
+                        const li = document.createElement('li');
+                        li.style.display='flex'; li.style.alignItems='center'; li.style.justifyContent='space-between'; li.style.padding='10px 12px'; li.style.borderBottom='1px solid #f1f5f9';
+                        const left = document.createElement('div');
+                        const title = document.createElement('div'); title.style.fontWeight='600'; title.style.color='#0f172a'; title.textContent = it.label;
+                        const small = document.createElement('div'); small.style.color='#6b7280'; small.textContent = it.phone;
+                        left.appendChild(title); left.appendChild(small);
+                        li.appendChild(left);
+                        const btnWrap = document.createElement('div'); btnWrap.style.display='flex'; btnWrap.style.gap='6px'; btnWrap.style.alignItems='center';
+                        const edit = document.createElement('button');
+                        edit.className = 'action-btn edit-btn';
+                        edit.innerHTML = '<i class="fas fa-pen"></i> Edit';
+                        edit.style.flex='0 0 auto'; edit.style.padding='6px 10px';
+                        edit.addEventListener('click', function(){
+                            // Turn left side into two-column edit fields with labels
+                            left.innerHTML = '';
+                            left.style.display = 'grid';
+                            left.style.gridTemplateColumns = '1fr 1fr';
+                            left.style.gap = '10px';
+                            const labWrap = document.createElement('div');
+                            labWrap.style.display = 'flex'; labWrap.style.flexDirection = 'column';
+                            const labLbl = document.createElement('label'); labLbl.textContent = 'Title'; labLbl.style.fontSize='0.85rem'; labLbl.style.color='#334155'; labLbl.style.marginBottom='4px';
+                            const lab = document.createElement('input'); lab.type='text'; lab.value = it.label; lab.style.padding='8px 10px'; lab.style.border='1px solid #e5e7eb'; lab.style.borderRadius='8px'; lab.style.width='100%'; lab.style.minWidth='0';
+                            labWrap.appendChild(labLbl); labWrap.appendChild(lab);
+                            const phWrap = document.createElement('div');
+                            phWrap.style.display = 'flex'; phWrap.style.flexDirection = 'column';
+                            const phLbl = document.createElement('label'); phLbl.textContent = 'Phone Number'; phLbl.style.fontSize='0.85rem'; phLbl.style.color='#334155'; phLbl.style.marginBottom='4px';
+                            const ph = document.createElement('input'); ph.type='text'; ph.value = it.phone; ph.style.padding='8px 10px'; ph.style.border='1px solid #e5e7eb'; ph.style.borderRadius='8px'; ph.style.width='100%'; ph.style.minWidth='0';
+                            phWrap.appendChild(phLbl); phWrap.appendChild(ph);
+                            left.appendChild(labWrap); left.appendChild(phWrap);
+
+                            // Replace right-side buttons with Save/Cancel
+                            btnWrap.innerHTML = '';
+                            const save = document.createElement('button'); save.className='action-btn edit-btn'; save.innerHTML='<i class="fas fa-save"></i> Save'; save.style.flex='0 0 auto'; save.style.padding='8px 12px';
+                            const cancel = document.createElement('button'); cancel.className='action-btn delete-btn'; cancel.textContent='Cancel'; cancel.style.flex='0 0 auto'; cancel.style.padding='8px 12px';
+                            btnWrap.appendChild(save); btnWrap.appendChild(cancel);
+
+                            save.addEventListener('click', function(){
+                                const label = lab.value.trim(); const phone = ph.value.trim();
+                                if (!label || !phone){ CO_showToast && CO_showToast('Please enter both title and phone.', 'warning'); return; }
+                                const { ecUpdate } = endpoints(); if (!ecUpdate) return;
+                                fetch(ecUpdate, {
+                                    method:'POST', headers:{ 'X-Requested-With':'XMLHttpRequest','Content-Type':'application/x-www-form-urlencoded','X-CSRFToken': getCsrfToken() },
+                                    body: new URLSearchParams({ contact_id: it.id, label, phone }).toString(),
+                                }).then(r=>r.json()).then(data=>{
+                                    if (data && data.ok){ load(); CO_showToast && CO_showToast('Contact updated.', 'success'); }
+                                    else throw new Error((data && data.error)||'Update failed');
+                                }).catch(err=>{ CO_showToast && CO_showToast(err.message||'Update failed','error'); });
+                            });
+                            cancel.addEventListener('click', function(){ load(); });
+                        });
+                        const del = document.createElement('button');
+                        del.className = 'action-btn delete-btn';
+                        del.innerHTML = '<i class="fas fa-trash"></i> Delete';
+                        del.style.flex='0 0 auto'; del.style.padding='6px 10px';
+                        del.addEventListener('click', function(){
+                            if (!ecDelete) return;
+                            fetch(ecDelete, {
+                                method: 'POST',
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                    'X-CSRFToken': getCsrfToken(),
+                                },
+                                body: new URLSearchParams({ contact_id: it.id }).toString(),
+                            }).then(r=>r.json()).then(data=>{
+                                if (data && data.ok){ load(); CO_showToast && CO_showToast('Contact deleted.', 'success'); }
+                                else throw new Error((data && data.error) || 'Delete failed');
+                            }).catch(err => { CO_showToast && CO_showToast(err.message || 'Delete failed', 'error'); });
+                        });
+                        btnWrap.appendChild(edit); btnWrap.appendChild(del);
+                        li.appendChild(btnWrap);
+                        ul.appendChild(li);
+                    });
+                    listRoot.appendChild(ul);
+                }
+
+                function updateEmergencyCardState(count){
+                    try {
+                        const card = document.querySelector('.nav-card[data-target="emergency"]');
+                        if (!card) return;
+                        const icon = card.querySelector('.card-icon');
+                        const titleEl = card.querySelector('.card-title');
+                        const descEl = card.querySelector('.card-desc');
+                        if (count && count > 0){
+                            card.classList.remove('nav-card-warning');
+                            icon && icon.classList.remove('warn-icon');
+                            const b = titleEl && titleEl.querySelector('.warn-badge'); if (b) b.remove();
+                            if (descEl) descEl.textContent = 'Add and manage emergency numbers';
+                        } else {
+                            card.classList.add('nav-card-warning');
+                            icon && icon.classList.add('warn-icon');
+                            if (titleEl && !titleEl.querySelector('.warn-badge')){
+                                const badge = document.createElement('span');
+                                badge.className = 'warn-badge';
+                                badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Missing';
+                                titleEl.appendChild(badge);
+                            }
+                            if (descEl) descEl.innerHTML = '<span class="warn-text">No contacts set — click to add now</span>';
+                        }
+                    } catch(e){}
+                }
+
+                function load(){
+                    if (!ecList) { render([]); updateEmergencyCardState(0); return; }
+                    fetch(ecList, { headers:{ 'X-Requested-With':'XMLHttpRequest' }})
+                        .then(r=>r.json()).then(data => {
+                            const items = (data && data.ok && Array.isArray(data.contacts)) ? data.contacts : [];
+                            render(items);
+                            updateEmergencyCardState(items.length || 0);
+                        })
+                        .catch(()=>{ render([]); updateEmergencyCardState(0); });
+                }
+
+                addBtn.addEventListener('click', function(){
+                    const label = (labelInput.value || '').trim();
+                    const phone = (phoneInput.value || '').trim();
+                    if (!label || !phone){ CO_showToast && CO_showToast('Please enter both title and phone.', 'warning'); return; }
+                    if (!ecAdd) return;
+                    fetch(ecAdd, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-CSRFToken': getCsrfToken(),
+                        },
+                        body: new URLSearchParams({ label, phone }).toString(),
+                    }).then(r=>r.json()).then(data=>{
+                        if (data && data.ok){
+                            labelInput.value = '';
+                            phoneInput.value = '';
+                            load();
+                            CO_showToast && CO_showToast('Contact added.', 'success');
+                        } else {
+                            throw new Error((data && data.error) || 'Add failed');
+                        }
+                    }).catch(err => { CO_showToast && CO_showToast(err.message || 'Add failed', 'error'); });
+                });
+
+                load();
+            }
+
+            // Expose for nav-card usage
+            window.CO_openEmergencyModal = openEmergencyModal;
+
+            // Also wire any inline manage button if present
+            const btn = document.getElementById('co-ec-manage-btn');
+            if (btn) btn.addEventListener('click', openEmergencyModal);
+        })();
+
         function findUserInState(id){
             return users.find(x => String(x.id) === String(id));
         }
@@ -575,13 +773,15 @@
                 const sel = row.querySelector('.co-role');
                 const blk = row.querySelector('.co-block');
                 const lot = row.querySelector('.co-lot');
-                // Record initial values
-                if (sel) sel.dataset.init = sel.value;
-                if (blk) blk.dataset.init = blk.value || '';
-                if (lot) lot.dataset.init = lot.value || '';
+                // Record initial values (avoid dataset writes to prevent undefined errors)
+                const init = {
+                    role: sel ? (sel.value || '') : '',
+                    block: blk ? ((blk.value || '')) : '',
+                    lot: lot ? ((lot.value || '')) : '',
+                };
                 // Helper to toggle button state
                 const updateState = () => {
-                    const changed = ((sel && sel.value !== (sel.dataset.init||'')) || (blk && (blk.value||'') !== (blk.dataset.init||'')) || (lot && (lot.value||'') !== (lot.dataset.init||'')));
+                    const changed = ((sel && (sel.value || '') !== init.role) || (blk && (blk.value || '') !== init.block) || (lot && (lot.value || '') !== init.lot));
                     btn.disabled = !changed;
                 };
                 updateState();
@@ -611,9 +811,9 @@
                             if (u) { u.role = m.role; u.block = m.block; u.lot = m.lot; }
                             CO_showToast && CO_showToast('Member updated.', 'success');
                             // Reset initial values and disable button again
-                            if (sel) sel.dataset.init = sel.value;
-                            if (blk) blk.dataset.init = blk.value || '';
-                            if (lot) lot.dataset.init = lot.value || '';
+                            init.role = sel ? (sel.value || '') : init.role;
+                            init.block = blk ? ((blk.value || '')) : init.block;
+                            init.lot = lot ? ((lot.value || '')) : init.lot;
                             updateState();
                         } else {
                             throw new Error((data && data.error) || 'Update failed');
@@ -860,6 +1060,15 @@
             revealBtn.innerHTML = '<i class="fas fa-check"></i> Code Revealed!';
             revealBtn.classList.add('revealed');
         }
+
+
+
+
+
+
+
+
+
 
 
 

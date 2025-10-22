@@ -52,3 +52,23 @@ class CommunityMembership(models.Model):
     class Meta:
         verbose_name = 'community membership'
         verbose_name_plural = 'community memberships'
+
+
+class EmergencyContact(models.Model):
+    community = models.ForeignKey(
+        CommunityProfile,
+        on_delete=models.CASCADE,
+        related_name='emergency_contacts',
+    )
+    label = models.CharField(max_length=100)
+    phone = models.CharField(max_length=50)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.label}: {self.phone}"
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'emergency contact'
+        verbose_name_plural = 'emergency contacts'

@@ -1,0 +1,117 @@
+/* Alerts page styles - light blue/white theme */
+
+:root {
+  --bg: #f8fafc;            /* slate-50 */
+  --panel: #ffffff;         /* white */
+  --text: #0f172a;          /* slate-900 */
+  --muted: #64748b;         /* slate-500 */
+  --primary: #2563eb;       /* blue-600 */
+  --primary-2: #1d4ed8;     /* blue-700 */
+  --accent: #38bdf8;        /* sky-400 */
+  --success: #10b981;       /* emerald-500 */
+  --warning: #f59e0b;       /* amber-500 */
+  --danger: #ef4444;        /* red-500 */
+  --card-border: #e5e7eb;   /* gray-200 */
+  --shadow: 0 6px 14px rgba(2, 6, 23, 0.08);
+}
+
+.alerts-page { padding: 16px 20px 28px; background: transparent; }
+.alerts-header { margin-bottom: 18px; }
+.alerts-title { margin: 0 0 6px; font-size: 1.6rem; line-height: 1.2; color: var(--text); }
+.alerts-subtitle { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+/* Top grid for Emergency + Tip */
+.top-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.card--emergency { grid-column: span 6; }
+.card--tip { grid-column: span 6; }
+
+/* Below grid (emergency + tip) */
+.below-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+/* Metrics */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.metric-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--panel);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+
+.metric-icon {
+  width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+}
+.metric-card--incidents .metric-icon { background: linear-gradient(135deg, var(--warning), #f97316); }
+.metric-card--events .metric-icon { background: linear-gradient(135deg, var(--success), #34d399); }
+.metric-content h3 { margin: 0; font-size: 0.9rem; color: var(--muted); }
+.metric-value { font-size: 1.6rem; font-weight: 700; color: var(--text); }
+
+/* Content grid */
+.content-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+
+.panel-card {
+  grid-column: span 6;
+  background: var(--panel);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.panel-card__header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #eef2f7; }
+.panel-card__title { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font-weight: 600; }
+.panel-card__title i { color: var(--primary); }
+.panel-card__body { padding: 14px 16px; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px dashed #eef2f7; }
+.list-item:last-child { border-bottom: 0; }
+.list-item__icon { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--primary), var(--primary-2)); }
+.list--incidents .list-item__icon { background: linear-gradient(135deg, var(--warning), #f97316); }
+.list--events .list-item__icon { background: linear-gradient(135deg, var(--success), #34d399); }
+.list-item__title { color: var(--text); font-weight: 600; }
+.list-item__desc { color: var(--muted); font-size: 0.95rem; margin-top: 2px; }
+.list-item__meta { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+.empty { color: var(--muted); margin: 8px 0; }
+
+.tip { color: var(--text); font-size: 1rem; line-height: 1.6; margin: 0 0 8px; }
+.tip-note { color: var(--muted); font-size: 0.9rem; margin: 0; }
+
+/* Emergency card - blue header, numbers list */
+.card--emergency .panel-card__header { background: transparent; color: inherit; }
+.card--emergency .panel-card__title, .card--emergency .panel-card__title i { color: var(--danger); }
+.contacts-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.contact-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px dashed #eef2f7; }
+.contact-item:last-child { border-bottom: none; }
+.contact-label { color: var(--text); font-weight: 600; }
+.contact-number { color: var(--primary-2); text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+.contact-number:hover { text-decoration: underline; }
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .panel-card { grid-column: span 12; }
+  .card--emergency, .card--tip { grid-column: span 12; }
+}
+
+@media (max-width: 640px) {
+  .metrics-grid { grid-template-columns: 1fr; }
+}

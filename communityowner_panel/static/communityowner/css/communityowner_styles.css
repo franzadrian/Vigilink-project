@@ -198,6 +198,49 @@
             color: rgba(255, 255, 255, 0.8);
         }
 
+        /* When Emergency Calls is empty, keep warning look even if active */
+        .nav-card-warning.active {
+            background: #fff !important;
+            color: inherit !important;
+        }
+        .nav-card-warning.active .card-icon {
+            background: rgba(245, 158, 11, 0.15) !important;
+            color: var(--warning) !important;
+        }
+        .nav-card-warning.active .card-desc {
+            color: var(--gray) !important;
+        }
+
+        /* Emergency warning state */
+        .nav-card-warning {
+            border: 2px dashed var(--warning);
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15), var(--card-shadow);
+            position: relative;
+            animation: pulseWarn 1.6s ease-in-out infinite;
+        }
+        .nav-card-warning .card-icon,
+        .warn-icon {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+        .warn-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: 8px;
+            font-size: 0.8rem;
+            color: #92400e; /* amber-800 */
+            background: #FEF3C7; /* amber-100 */
+            border: 1px solid #F59E0B; /* amber-500 */
+            border-radius: 999px;
+            padding: 3px 8px;
+        }
+        .warn-text { color: #b45309; }
+        @keyframes pulseWarn {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.22), var(--card-shadow); }
+            50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.10), var(--card-shadow); }
+        }
+
         /* Content Area */
         .content-area {
             background: white;

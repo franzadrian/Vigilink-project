@@ -5,7 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
 from django.db import transaction
 from django.contrib.auth import get_user_model
-from .models import CommunityProfile, CommunityMembership
+from .models import CommunityProfile, CommunityMembership, EmergencyContact
 from django.middleware.csrf import get_token
 from django.http import JsonResponse
 from django.db.models import Q
@@ -118,11 +118,20 @@ def community_owner_dashboard(request):
             'initials': _initials(display_name) or (u.username[:2] if u.username else '').upper(),
         })
 
+    # Emergency contacts count to highlight empty state
+    ec_count = 0
+    try:
+        if profile:
+            ec_count = EmergencyContact.objects.filter(community=profile).count()
+    except Exception:
+        ec_count = 0
+
     context = {
         'profile': profile,
         'needs_onboarding': needs_onboarding,
         'csrf_token': get_token(request),
         'members': members_data,
+        'ec_count': ec_count,
     }
     return render(request, 'communityowner/community_owner.html', context)
 
@@ -350,3 +359,72 @@ def member_remove(request):
         return JsonResponse({'ok': False, 'error': 'User not found in your community.'}, status=404)
     mem.delete()
     return JsonResponse({'ok': True})
+
+
+@login_required
+@require_GET
+def emergency_list(request):
+    profile, err = _ensure_owner_and_profile(request)
+    if err:
+        return err
+    data = []
+    for c in EmergencyContact.objects.filter(community=profile).order_by('order', 'id'):
+        data.append({'id': c.id, 'label': c.label, 'phone': c.phone})
+    return JsonResponse({'ok': True, 'contacts': data})
+
+
+@login_required
+@require_POST
+def emergency_add(request):
+    profile, err = _ensure_owner_and_profile(request)
+    if err:
+        return err
+    label = (request.POST.get('label') or '').strip()
+    phone = (request.POST.get('phone') or '').strip()
+    if not label or not phone:
+        return JsonResponse({'ok': False, 'error': 'Both label and phone are required.'}, status=400)
+    try:
+        max_order = EmergencyContact.objects.filter(community=profile).order_by('-order').values_list('order', flat=True).first() or 0
+    except Exception:
+        max_order = 0
+    c = EmergencyContact.objects.create(community=profile, label=label, phone=phone, order=max_order + 1)
+    return JsonResponse({'ok': True, 'contact': {'id': c.id, 'label': c.label, 'phone': c.phone}})
+
+
+@login_required
+@require_POST
+def emergency_delete(request):
+    profile, err = _ensure_owner_and_profile(request)
+    if err:
+        return err
+    try:
+        cid = int(request.POST.get('contact_id'))
+    except (TypeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Invalid contact id.'}, status=400)
+    deleted, _ = EmergencyContact.objects.filter(community=profile, id=cid).delete()
+    if not deleted:
+        return JsonResponse({'ok': False, 'error': 'Contact not found.'}, status=404)
+    return JsonResponse({'ok': True})
+
+
+@login_required
+@require_POST
+def emergency_update(request):
+    profile, err = _ensure_owner_and_profile(request)
+    if err:
+        return err
+    try:
+        cid = int(request.POST.get('contact_id'))
+    except (TypeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Invalid contact id.'}, status=400)
+    label = (request.POST.get('label') or '').strip()
+    phone = (request.POST.get('phone') or '').strip()
+    if not label or not phone:
+        return JsonResponse({'ok': False, 'error': 'Both label and phone are required.'}, status=400)
+    c = EmergencyContact.objects.filter(community=profile, id=cid).first()
+    if not c:
+        return JsonResponse({'ok': False, 'error': 'Contact not found.'}, status=404)
+    c.label = label
+    c.phone = phone
+    c.save(update_fields=['label', 'phone'])
+    return JsonResponse({'ok': True, 'contact': {'id': c.id, 'label': c.label, 'phone': c.phone}})

@@ -87,9 +87,28 @@
                 <div class="card-title">View Reports</div>
                 <div class="card-desc">Analyze performance and activity data</div>
             </div>
+            
+            <div class="nav-card{% if ec_count == 0 %} nav-card-warning{% endif %}" data-target="emergency">
+                <div class="card-icon {% if ec_count == 0 %}warn-icon{% endif %}">
+                    <i class="fas fa-phone"></i>
+                </div>
+                <div class="card-title">
+                    Emergency Calls
+                    {% if ec_count == 0 %}
+                    <span class="warn-badge"><i class="fas fa-exclamation-triangle"></i> Missing</span>
+                    {% endif %}
+                </div>
+                <div class="card-desc">
+                    {% if ec_count == 0 %}
+                    <span class="warn-text">No contacts set — click to add now</span>
+                    {% else %}
+                    Add and manage emergency numbers
+                    {% endif %}
+                </div>
+            </div>
         </div>
         
-        <div class="content-area" style="display:none;">
+            <div class="content-area" style="display:none;">
             <!-- Community Details Section -->
             <div id="details" class="content-section active">
                 <div class="section-header">
@@ -123,6 +142,7 @@
                         </button>
                     </div>
                 </form>
+
             </div>
 
             <!-- Users Section -->
@@ -257,8 +277,13 @@
      data-list-url="{% url 'communityowner_panel:members_list' %}"
      data-update-url="{% url 'communityowner_panel:member_update' %}"
      data-search-url="{% url 'communityowner_panel:user_search' %}"
-     data-add-url="{% url 'communityowner_panel:member_add' %}"></div>
+     data-add-url="{% url 'communityowner_panel:member_add' %}"
+     data-ec-list-url="{% url 'communityowner_panel:emergency_list' %}"
+     data-ec-add-url="{% url 'communityowner_panel:emergency_add' %}"
+     data-ec-delete-url="{% url 'communityowner_panel:emergency_delete' %}"
+     data-ec-update-url="{% url 'communityowner_panel:emergency_update' %}"></div>
 <div id="co-messages-data" data-messages='[{% if messages %}{% for message in messages %}{"text":"{{ message|escapejs }}","tags":"{{ message.tags|default:"info" }}"}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}]'></div>
 <script defer src="{% static 'communityowner/js/communityowner_script.js' %}"></script>
 {% endblock %}
+
 

@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+﻿document.addEventListener('DOMContentLoaded', function() {
   const tbody = document.getElementById('resident-table-body');
   const input = document.getElementById('resident-search-input');
   const pager = document.getElementById('resident-pagination');
@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const flagsEl = document.getElementById('residents-flags');
   const isOwner = flagsEl && flagsEl.dataset && flagsEl.dataset.isOwner === '1';
   const removeUrl = flagsEl && flagsEl.dataset && flagsEl.dataset.removeUrl;
+  const reportUrl = flagsEl && flagsEl.dataset && flagsEl.dataset.reportUrl;
 
   // Modal helpers
   const overlay = document.getElementById('res-modal-overlay');
@@ -24,13 +25,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (bodyNode) mBody.appendChild(bodyNode);
     mActions.innerHTML = '';
     (actions||[]).forEach(btn => mActions.appendChild(btn));
-    overlay.style.display = 'flex';
-    overlay.classList.add('open');
+    overlay.style.display = 'flex'; requestAnimationFrame(()=> overlay.classList.add('open'));
   }
   function closeModal(){
     if (!overlay) return;
-    overlay.classList.remove('open');
-    overlay.style.display = 'none';
+    overlay.classList.remove('open'); setTimeout(()=>{ if (overlay) overlay.style.display='none'; }, 200);
   }
   if (mClose) mClose.addEventListener('click', closeModal);
   if (overlay) overlay.addEventListener('click', (e)=> { if (e.target === overlay) closeModal(); });
@@ -49,6 +48,130 @@ document.addEventListener('DOMContentLoaded', function() {
     root.appendChild(el);
     requestAnimationFrame(()=> el.classList.add('in'));
     setTimeout(()=>{ el.classList.remove('in'); el.classList.add('out'); setTimeout(()=> el.remove(), 220); }, 3200);
+  }
+
+  // Build report modal content
+  const REPORT_REASONS = [
+    'Suspicious behavior',
+    'Vandalism or property damage',
+    'Noise disturbance',
+    'Animal-related concern',
+    'Possible criminal activity',
+    'Impersonation or identity misuse',
+    'Harassment or threats',
+    'False information / impersonation',
+    'Trespassing',
+    'Reckless driving or speeding',
+    'Improper garbage disposal or dumping',
+    'Observations',
+    'Other (please specify)'
+  ];
+  function buildReportForm(config){
+    const wrap = document.createElement('div');
+    wrap.className = 'res-form';
+
+    // Target block
+    if (config && config.mode === 'resident' && config.resident){
+      const tgt = document.createElement('div');
+      tgt.className = 'res-target-chip';
+      tgt.textContent = `Reporting: ${config.resident.name || ''} (Block ${config.resident.block||''} / Lot ${config.resident.lot||''})`;
+      wrap.appendChild(tgt);
+    } else {
+      // Generic incident reporting (non-resident only)
+      // Put brief description at the top of the form
+      const outsiderFieldTop = document.createElement('div'); outsiderFieldTop.className = 'res-field';
+      const outLblTop = document.createElement('label'); outLblTop.className = 'res-label'; outLblTop.textContent = 'Brief description (who/what)';
+      const outInTop = document.createElement('textarea'); outInTop.id = 'report-outsider-desc'; outInTop.className = 'res-textarea'; outInTop.rows = 3; outInTop.placeholder = 'Describe who/what you saw, location, attire, behavior...';
+      outsiderFieldTop.appendChild(outLblTop); outsiderFieldTop.appendChild(outInTop); wrap.appendChild(outsiderFieldTop);
+    }
+
+    // Quick actions (top-right): Anonymous switch
+    const toolbar = document.createElement('div');
+    toolbar.className = 'res-form-toolbar';
+    const anonWrap = document.createElement('label');
+    anonWrap.className = 'res-switch';
+    const anon = document.createElement('input');
+    anon.type = 'checkbox';
+    anon.id = 'report-anon';
+    anon.className = 'res-switch-input';
+    const track = document.createElement('span'); track.className = 'res-switch-track';
+    const thumb = document.createElement('span'); thumb.className = 'res-switch-thumb'; track.appendChild(thumb);
+    const anonText = document.createElement('span'); anonText.className = 'res-switch-label'; anonText.textContent = 'Submit anonymously';
+    anonWrap.appendChild(anon); anonWrap.appendChild(track); anonWrap.appendChild(anonText);
+    toolbar.appendChild(anonWrap);
+    wrap.appendChild(toolbar);
+
+    // Reasons checkboxes
+    const reasonsWrap = document.createElement('div'); reasonsWrap.className = 'res-field';
+    const reasonsLbl = document.createElement('div'); reasonsLbl.className = 'res-label'; reasonsLbl.textContent = 'Reason(s) for report:';
+    const list = document.createElement('div'); list.className = 'res-checkbox-grid';
+    // Removed inline 'Other' text field; use the Details field instead when 'Other' is selected.
+    REPORT_REASONS.forEach(label => {
+      const lab = document.createElement('label');
+      lab.className = 'res-check';
+      const cb = document.createElement('input'); cb.type='checkbox'; cb.value = label;
+      const chip = document.createElement('span'); chip.className = 'res-check-chip'; chip.textContent = label;
+      lab.appendChild(cb); lab.appendChild(chip); list.appendChild(lab);
+    });
+    reasonsWrap.appendChild(reasonsLbl); reasonsWrap.appendChild(list);
+    wrap.appendChild(reasonsWrap);
+
+    // Details
+    const detField = document.createElement('div'); detField.className = 'res-field';
+    const detLbl = document.createElement('label'); detLbl.className = 'res-label'; detLbl.textContent = 'Details (required if selecting Other)';
+    const det = document.createElement('textarea'); det.id='report-details'; det.rows = 4; det.className = 'res-textarea';
+    detField.appendChild(detLbl); detField.appendChild(det); wrap.appendChild(detField);
+
+    // (brief description for outsiders already added at the top)
+
+    // Anonymous toggle now lives in toolbar above
+
+    // Actions
+    const cancel = document.createElement('button'); cancel.className = 'btn btn-soft'; cancel.type='button'; cancel.textContent='Cancel'; cancel.addEventListener('click', closeModal);
+    const submit = document.createElement('button'); submit.className = 'btn btn-primary'; submit.type='button'; submit.textContent='Submit Report';
+    submit.addEventListener('click', () => {
+      // Collect selections
+      const selected = Array.from(list.querySelectorAll('input[type="checkbox"]:checked')).map(x => x.value);
+      // If 'Other' is selected, Details must be provided (validated below)
+      let target_type = 'resident'; let target_user_id = '';
+      let outsider_desc = '';
+      if (config && config.mode === 'resident' && config.resident){
+        target_type = 'resident'; target_user_id = config.resident.id;
+      } else {
+        // Generic incident: always outsider
+        target_type = 'outsider';
+        const out = wrap.querySelector('#report-outsider-desc');
+        outsider_desc = out && out.value ? out.value.trim() : '';
+      }
+      const details = det.value.trim();
+      const selectedOther = selected.some(v => (v||'').toLowerCase().startsWith('other'));
+      if (selectedOther && !details){
+        showToast('Please provide details when selecting "Other (please specify)".', 'error');
+        try { det.focus(); det.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
+        return;
+      }
+      const anonymous = anon.checked ? '1' : '0';
+
+      const payload = {
+        target_type,
+        target_user_id,
+        reasons: JSON.stringify(selected),
+        details,
+        outsider_desc,
+        anonymous
+      };
+      const url = reportUrl || '/resident/report/';
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': getCsrfToken() },
+        body: new URLSearchParams(payload).toString(),
+      }).then(res => res.json()).then(data => {
+        if (data && data.ok){ closeModal(); showToast('Report submitted. Thank you.', 'success'); }
+        else { showToast((data && data.error) || 'Unable to submit report', 'error'); }
+      }).catch(() => showToast('Unable to submit report', 'error'));
+    });
+
+    return { body: wrap, actions: [cancel, submit] };
   }
 
   // Pagination state
@@ -153,7 +276,8 @@ document.addEventListener('DOMContentLoaded', function() {
         reportBtn.type = 'button';
         reportBtn.textContent = 'Report';
         reportBtn.addEventListener('click', () => {
-          alert('Report submitted.');
+          const built = buildReportForm({ mode: 'resident', resident: r });
+          openModal('Report Resident', built.body, built.actions);
         });
         actions.appendChild(reportBtn);
       }
@@ -233,4 +357,30 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     if (msg) showToast(msg, 'success');
   })();
+
+  // Global "Report Incident" (non-resident or choose resident)
+  const topReportBtn = document.getElementById('resident-report-incident');
+  if (topReportBtn){
+    topReportBtn.addEventListener('click', function(){
+      const built = buildReportForm({ mode: 'generic' });
+      openModal('Report Incident', built.body, built.actions);
+    });
+  }
+  const extraReportBtns = document.querySelectorAll('.resident-report-incident-btn');
+  extraReportBtns.forEach(btn => btn.addEventListener('click', function(){
+    const built = buildReportForm({ mode: 'generic' });
+    openModal('Report Incident', built.body, built.actions);
+  }));
 });
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,47 @@
+.alerts-page{display:flex;flex-direction:column;gap:16px}
+.alerts-header{display:flex;align-items:center;justify-content:space-between}
+.alerts-heading{font-size:1.5rem;font-weight:800;color:#111827;margin:0}
+.alerts-actions .btn{display:inline-flex;align-items:center;gap:8px}
+.alerts-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+.card{background:#fff;border:1px solid #eef2f7;border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,.06);padding:16px}
+.card-title{font-weight:700;color:#111827;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.stat-card{grid-column:span 3}
+.incidents-card{grid-column:span 6}
+.events-card{grid-column:span 3}
+.tip-card{grid-column:span 12}
+.stat-value{font-size:2rem;font-weight:800;color:#2563eb}
+.stat-sub{color:#6b7280}
+.incidents-list,.events-list{list-style:none;margin:0;padding:0;display:grid;gap:10px;max-height:360px;overflow:auto}
+.incident-item{border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;background:#fafafa}
+.incident-meta{font-size:12px;color:#6b7280;margin-bottom:6px}
+.incident-text{color:#111827;white-space:pre-wrap}
+.event-item{border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;background:#fafafa}
+.event-sub{color:#6b7280;font-size:12px}
+.tip-text{padding:12px;border-radius:10px;background:#f8fafc;border:1px solid #e5e7eb;color:#0f172a}
+@media (max-width: 900px){.stat-card{grid-column:span 6}.incidents-card{grid-column:span 12}.events-card{grid-column:span 6}.tip-card{grid-column:span 12}}
+@media (max-width: 520px){.stat-card{grid-column:span 12}.events-card{grid-column:span 12}}
+/* Emergency calls emphasis */
+.alerts-actions .btn.btn-danger{background:#ef4444;color:#fff;border-color:#ef4444}
+.alerts-actions .btn.btn-danger:hover{background:#dc2626;border-color:#dc2626}
+
+/* Mini stats */
+.mini-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.mini-stat{display:grid;gap:4px;align-content:center;border:1px solid #e5e7eb;border-radius:10px;padding:10px;background:#fafafa;text-align:center}
+.mini-value{font-size:1.5rem;font-weight:800;color:#2563eb}
+.mini-label{color:#6b7280;font-size:12px}
+
+/* Emergency modal */
+.alerts-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:10000;padding:16px}
+.alerts-modal-overlay.open{display:flex}
+.alerts-modal{width:100%;max-width:520px;background:#fff;border-radius:12px;box-shadow:0 20px 40px rgba(2,6,23,.18);overflow:hidden}
+.alerts-modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #eef2f7}
+.alerts-modal-title{font-weight:800;color:#111827}
+.alerts-modal-close{background:transparent;border:none;font-size:22px;line-height:1;cursor:pointer;color:#6b7280}
+.alerts-modal-close:hover{color:#111827}
+.alerts-modal-body{padding:16px}
+.contacts-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.contacts-list li{display:flex;align-items:center;justify-content:space-between;border:1px solid #e5e7eb;border-radius:10px;padding:10px;background:#fafafa}
+.call-link{color:#2563eb;text-decoration:none;font-weight:700}
+.call-link:hover{text-decoration:underline}
+.contact-note{margin-top:8px;color:#6b7280;font-size:12px}
+@media (max-width:520px){.mini-stats{grid-template-columns:1fr}}
