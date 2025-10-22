@@ -212,19 +212,8 @@ def login_view(request):
             messages.error(request, f'Too many failed login attempts from your IP address. Please try again in {time_msg}.')
             return render(request, 'accounts/login.html')
         
-        # Check if input is an email (contains @)
-        if '@' in email_or_username:
-            # Validate email domain
-            valid_domains = [
-                'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'aol.com',
-                'icloud.com', 'protonmail.com', 'mail.com', 'zoho.com', 'yandex.com',
-                'live.com', 'msn.com', 'me.com', 'gmx.com', 'mail.ru'
-            ]
-            
-            email_domain = email_or_username.split('@')[-1].lower()
-            if email_domain not in valid_domains:
-                messages.error(request, f'Invalid email format. Please use a valid email domain.')
-                return render(request, 'accounts/login.html')
+        # Allow any email domain on login; domain checks are enforced only on registration
+        # (Do not block login attempts purely based on domain formatting.)
         
         # Try to authenticate with username
         user = authenticate(request, username=email_or_username, password=password)

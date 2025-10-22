@@ -4,10 +4,13 @@ from django.http import HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
 from django.db import transaction
+from django.contrib.auth import get_user_model
 from .models import CommunityProfile, CommunityMembership
 from django.middleware.csrf import get_token
 from django.http import JsonResponse
 from django.db.models import Q
+from django.views.decorators.http import require_GET, require_POST
+from django.db.models.functions import Lower
 
 
 @login_required
@@ -51,6 +54,21 @@ def community_owner_dashboard(request):
                             code = CommunityProfile.generate_secret_code()
                         profile.secret_code = code
                     profile.save()
+                    # Auto-apply address to owner and all current members
+                    try:
+                        # Update owner address
+                        if getattr(request.user, 'address', None) != profile.community_address:
+                            request.user.address = profile.community_address
+                            request.user.save(update_fields=['address'])
+
+                        # Update all members' addresses to match community address
+                        User = get_user_model()
+                        member_ids = CommunityMembership.objects.filter(community=profile).values_list('user_id', flat=True)
+                        if member_ids:
+                            User.objects.filter(id__in=list(member_ids)).update(address=profile.community_address)
+                    except Exception:
+                        # Non-fatal; continue even if bulk update fails
+                        pass
                     if is_ajax:
                         return JsonResponse({
                             'ok': True,
@@ -68,7 +86,12 @@ def community_owner_dashboard(request):
     members_qs = []
     if profile:
         try:
-            members_qs = CommunityMembership.objects.select_related('user').filter(community=profile)
+            members_qs = (
+                CommunityMembership.objects
+                .select_related('user')
+                .filter(community=profile)
+                .order_by(Lower('user__full_name'), 'user__username')
+            )
         except Exception:
             members_qs = []
 
@@ -88,7 +111,10 @@ def community_owner_dashboard(request):
             'id': u.id,
             'name': display_name,
             'email': getattr(u, 'email', ''),
-            'role': 'Resident',
+            'role': getattr(u, 'role', '') or '',
+            'role_display': dict(getattr(get_user_model(), 'ROLE_CHOICES', ())) .get(getattr(u, 'role', ''), getattr(u, 'role', '')),
+            'block': getattr(u, 'block', ''),
+            'lot': getattr(u, 'lot', ''),
             'initials': _initials(display_name) or (u.username[:2] if u.username else '').upper(),
         })
 
@@ -117,3 +143,210 @@ def check_community_name(request):
         pass
     available = not qs.exists()
     return JsonResponse({'available': available})
+
+
+def _ensure_owner_and_profile(request):
+    if not getattr(request.user, 'role', None) == 'communityowner':
+        return None, HttpResponseForbidden('You are not authorized to view this page.')
+    profile = CommunityProfile.objects.filter(owner=request.user).first()
+    if not profile:
+        return None, JsonResponse({'ok': False, 'error': 'No community profile found.'}, status=404)
+    return profile, None
+
+
+@login_required
+@require_GET
+def members_list(request):
+    profile, err = _ensure_owner_and_profile(request)
+    if err:
+        return err
+    members_qs = (
+        CommunityMembership.objects
+        .select_related('user')
+        .filter(community=profile)
+        .order_by(Lower('user__full_name'), 'user__username')
+    )
+    User = get_user_model()
+    role_map = dict(getattr(User, 'ROLE_CHOICES', ()))
+    data = []
+    for m in members_qs:
+        u = m.user
+        name = (getattr(u, 'full_name', '') or u.username).strip()
+        data.append({
+            'id': u.id,
+            'name': name,
+            'email': getattr(u, 'email', ''),
+            'role': getattr(u, 'role', '') or '',
+            'role_display': role_map.get(getattr(u, 'role', ''), getattr(u, 'role', '')),
+            'block': getattr(u, 'block', ''),
+            'lot': getattr(u, 'lot', ''),
+        })
+    return JsonResponse({'ok': True, 'members': data})
+
+
+@login_required
+@require_POST
+def member_update(request):
+    profile, err = _ensure_owner_and_profile(request)
+    if err:
+        return err
+    try:
+        user_id = int(request.POST.get('user_id'))
+    except (TypeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Invalid user id.'}, status=400)
+
+    # Ensure the user is a member of this community
+    mem = CommunityMembership.objects.select_related('user').filter(community=profile, user_id=user_id).first()
+    if not mem:
+        return JsonResponse({'ok': False, 'error': 'User is not a member of your community.'}, status=404)
+
+    u = mem.user
+    # Allowed role options (restrict from elevating to admin/owner)
+    allowed_roles = {'resident', 'security'}
+    role = request.POST.get('role')
+    block = (request.POST.get('block') or '').strip()
+    lot = (request.POST.get('lot') or '').strip()
+
+    updates = []
+    if role:
+        if role not in allowed_roles:
+            return JsonResponse({'ok': False, 'error': 'Invalid role change.'}, status=400)
+        if getattr(u, 'role', None) != role:
+            u.role = role
+            updates.append('role')
+    if getattr(u, 'block', None) != block:
+        u.block = block
+        updates.append('block')
+    if getattr(u, 'lot', None) != lot:
+        u.lot = lot
+        updates.append('lot')
+    if updates:
+        u.save(update_fields=updates)
+
+    User = get_user_model()
+    role_map = dict(getattr(User, 'ROLE_CHOICES', ()))
+    return JsonResponse({
+        'ok': True,
+        'member': {
+            'id': u.id,
+            'name': (getattr(u, 'full_name', '') or u.username).strip(),
+            'email': getattr(u, 'email', ''),
+            'role': getattr(u, 'role', ''),
+            'role_display': role_map.get(getattr(u, 'role', ''), getattr(u, 'role', '')),
+            'block': getattr(u, 'block', ''),
+            'lot': getattr(u, 'lot', ''),
+        }
+    })
+
+
+@login_required
+@require_GET
+def user_search(request):
+    profile, err = _ensure_owner_and_profile(request)
+    if err:
+        return err
+    q = (request.GET.get('q') or '').strip()
+    if not q:
+        return JsonResponse({'ok': True, 'results': []})
+    User = get_user_model()
+    # Exclude users already in any community
+    in_any = CommunityMembership.objects.values_list('user_id', flat=True)
+    qs = User.objects.exclude(id__in=in_any).filter(
+        Q(email__iexact=q) | Q(full_name__icontains=q) | Q(username__icontains=q)
+    ).order_by(Lower('full_name'), 'username')[:10]
+    results = []
+    role_map = dict(getattr(User, 'ROLE_CHOICES', ()))
+    for u in qs:
+        # Derive avatar/profile picture URL when available
+        avatar = ''
+        try:
+            if hasattr(u, 'get_profile_picture_url'):
+                avatar = u.get_profile_picture_url() or ''
+            elif getattr(u, 'profile_picture_url', ''):
+                avatar = u.profile_picture_url
+            elif getattr(u, 'profile_picture', None):
+                avatar = u.profile_picture.url
+        except Exception:
+            avatar = ''
+        results.append({
+            'id': u.id,
+            'name': (getattr(u, 'full_name', '') or u.username).strip(),
+            'email': getattr(u, 'email', ''),
+            'role': getattr(u, 'role', ''),
+            'role_display': role_map.get(getattr(u, 'role', ''), getattr(u, 'role', '')),
+            'avatar': avatar,
+        })
+    return JsonResponse({'ok': True, 'results': results})
+
+
+@login_required
+@require_POST
+def member_add(request):
+    profile, err = _ensure_owner_and_profile(request)
+    if err:
+        return err
+    try:
+        user_id = int(request.POST.get('user_id'))
+    except (TypeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Invalid user id.'}, status=400)
+    User = get_user_model()
+    u = User.objects.filter(id=user_id).first()
+    if not u:
+        return JsonResponse({'ok': False, 'error': 'User not found.'}, status=404)
+    if CommunityMembership.objects.filter(user=u).exists():
+        return JsonResponse({'ok': False, 'error': 'User already belongs to a community.'}, status=409)
+    with transaction.atomic():
+        CommunityMembership.objects.create(user=u, community=profile)
+        # Align address to community address if available
+        if getattr(profile, 'community_address', ''):
+            u.address = profile.community_address
+            u.save(update_fields=['address'])
+        # Auto-promote guests to resident when owner adds them to community
+        try:
+            if (getattr(u, 'role', '') or '').lower() in ('', 'guest'):
+                u.role = 'resident'
+                u.save(update_fields=['role'])
+        except Exception:
+            pass
+    role_map = dict(getattr(User, 'ROLE_CHOICES', ()))
+    # Derive avatar for response
+    avatar = ''
+    try:
+        if hasattr(u, 'get_profile_picture_url'):
+            avatar = u.get_profile_picture_url() or ''
+        elif getattr(u, 'profile_picture_url', ''):
+            avatar = u.profile_picture_url
+        elif getattr(u, 'profile_picture', None):
+            avatar = u.profile_picture.url
+    except Exception:
+        avatar = ''
+    return JsonResponse({
+        'ok': True,
+        'member': {
+            'id': u.id,
+            'name': (getattr(u, 'full_name', '') or u.username).strip(),
+            'email': getattr(u, 'email', ''),
+            'role': getattr(u, 'role', ''),
+            'role_display': role_map.get(getattr(u, 'role', ''), getattr(u, 'role', '')),
+            'block': getattr(u, 'block', ''),
+            'lot': getattr(u, 'lot', ''),
+            'avatar': avatar,
+        }
+    })
+
+
+@login_required
+@require_POST
+def member_remove(request):
+    profile, err = _ensure_owner_and_profile(request)
+    if err:
+        return err
+    try:
+        user_id = int(request.POST.get('user_id'))
+    except (TypeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Invalid user id.'}, status=400)
+    mem = CommunityMembership.objects.filter(community=profile, user_id=user_id).first()
+    if not mem:
+        return JsonResponse({'ok': False, 'error': 'User not found in your community.'}, status=404)
+    mem.delete()
+    return JsonResponse({'ok': True})

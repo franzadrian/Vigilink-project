@@ -79,14 +79,6 @@
                 <div class="card-title">My Community Code</div>
                 <div class="card-desc">Your permanent owner code (private)</div>
             </div>
-
-            <div class="nav-card" data-target="users">
-                <div class="card-icon">
-                    <i class="fas fa-users"></i>
-                </div>
-                <div class="card-title">Manage Users</div>
-                <div class="card-desc">Add, edit, or remove user accounts</div>
-            </div>
             
             <div class="nav-card" data-target="reports">
                 <div class="card-icon">
@@ -140,14 +132,9 @@
                         <h2 class="section-title">User Management</h2>
                         <p class="section-subtitle">Manage all user accounts and permissions</p>
                     </div>
-                    <button class="action-btn edit-btn">
-                        <i class="fas fa-plus"></i> Add User
-                    </button>
+                    <div></div>
                 </div>
-                
-                <div class="user-grid">
-                    <!-- User cards will be dynamically generated -->
-                </div>
+                <div class="user-grid" style="display:none;"></div>
             </div>
             
             <!-- Reports Section -->
@@ -200,6 +187,41 @@
         </div>
     </div>
 
+    <!-- Manage Users Bottom Section (no modal) -->
+    <div id="co-users-bottom" class="co-users-bottom-section">
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">Manage Users</h2>
+                <p class="section-subtitle">View members and edit role, block, and lot</p>
+            </div>
+            <div></div>
+        </div>
+
+        <div class="co-users-controls" style="display:flex;gap:10px;align-items:center;margin-bottom:15px;">
+            <div class="co-search-wrap" style="position:relative;flex:1;min-width:280px;display:flex;align-items:center;">
+                <svg class="co-search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" aria-hidden="true" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6b7280;pointer-events:none;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <input id="co-user-filter" type="text" placeholder="Filter members by name or email" style="flex:1;min-width:0;padding:10px 12px 10px 28px;border:1px solid #e5e7eb;border-radius:8px;" />
+            </div>
+            <button id="co-user-add-btn" class="action-btn edit-btn"><i class="fas fa-user-plus"></i> Add User</button>
+        </div>
+
+        <div class="co-table-wrap" style="overflow:auto;">
+            <table class="co-table" id="co-users-table" style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr style="text-align:left;border-bottom:1px solid #f1f5f9;">
+                        <th style="padding:10px 8px;">Full Name</th>
+                        <th style="padding:10px 8px;">Role</th>
+                        <th style="padding:10px 8px;">Block</th>
+                        <th style="padding:10px 8px;">Lot</th>
+                        <th style="padding:10px 8px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="co-users-pagination" class="co-users-pagination" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;padding:10px 0;"></div>
+    </div>
+
     
 
     {% if needs_onboarding %}
@@ -231,6 +253,11 @@
 {{ block.super }}
 {% comment %} Embed members data for JS {% endcomment %}
 {{ members|json_script:"co-members-data" }}
+<div id="co-api-endpoints"
+     data-list-url="{% url 'communityowner_panel:members_list' %}"
+     data-update-url="{% url 'communityowner_panel:member_update' %}"
+     data-search-url="{% url 'communityowner_panel:user_search' %}"
+     data-add-url="{% url 'communityowner_panel:member_add' %}"></div>
 <div id="co-messages-data" data-messages='[{% if messages %}{% for message in messages %}{"text":"{{ message|escapejs }}","tags":"{{ message.tags|default:"info" }}"}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}]'></div>
 <script defer src="{% static 'communityowner/js/communityowner_script.js' %}"></script>
 {% endblock %}

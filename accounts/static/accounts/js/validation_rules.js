@@ -225,7 +225,7 @@ function validateFullNameLength(fullName) {
                         parent.removeChild(successDiv);
                     }
                     this.classList.remove('input-success-field');
-                } else if (email.includes('@') && !validateEmailDomain(email)) {
+                } else if (!isLoginForm && email.includes('@') && !validateEmailDomain(email)) {
                     showError(this, 'Please use a valid email domain (e.g., gmail.com, yahoo.com, outlook.com).');
                 } else if (email.includes('@') && isRegistrationForm) {
                     // Only check for existing emails on registration form, not login form
@@ -275,7 +275,7 @@ function validateFullNameLength(fullName) {
                 }
                 
                 // For login form, just show success message if email format is valid
-                if (isLoginForm && email !== '' && email.includes('@') && validateEmailDomain(email)) {
+                if (isLoginForm && email !== '' && email.includes('@')) {
                     this.classList.add('input-success-field');
                 }
             });
@@ -294,7 +294,7 @@ function validateFullNameLength(fullName) {
                 // Check email format
                 if (emailInput) {
                     const email = emailInput.value.trim();
-                    if (!email.includes('@') || !validateEmailDomain(email)) {
+                    if (!email.includes('@')) {
                         return false;
                     }
                 }
@@ -454,8 +454,8 @@ function validateFullNameLength(fullName) {
                 }
             }
             
-            // Validate email domain on both forms if it's an email (not a username)
-            if (!hasError && emailInput && emailInput.value.includes('@') && !validateEmailDomain(emailInput.value.trim())) {
+            // Validate email domain only on registration form; allow any email on login
+            if (!hasError && !isLoginForm && emailInput && emailInput.value.includes('@') && !validateEmailDomain(emailInput.value.trim())) {
                 event.preventDefault();
                 showError(emailInput, 'Please use a valid email domain (e.g., gmail.com, yahoo.com, outlook.com).');
                 emailInput.focus();

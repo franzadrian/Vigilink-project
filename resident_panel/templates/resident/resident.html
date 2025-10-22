@@ -10,11 +10,17 @@
 
 {% block content %}
   <div class="resident-page">
+    <div class="resident-header">
+      <h1 class="resident-heading">Community Residents</h1>
+      {% if community and community.community_name %}
+      <p class="resident-subtitle">Showing residents in {{ community.community_name }}</p>
+      {% endif %}
+    </div>
     <div class="resident-toolbar">
       <div class="resident-search">
         <label for="resident-search-input" class="sr-only">Search residents</label>
         <div class="search-input-wrap">
-          <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           <input id="resident-search-input" type="text" placeholder="Search residents..." autocomplete="off">
         </div>
       </div>
@@ -40,11 +46,28 @@
         </tbody>
       </table>
     </div>
+    <div id="resident-pagination" class="resident-pagination"></div>
   </div>
 {% endblock %}
 
 {% block extra_js %}
 {{ block.super }}
+{{ residents|json_script:"residents-data" }}
+<div id="residents-flags" data-is-owner="{% if is_owner %}1{% else %}0{% endif %}" data-remove-url="{% url 'communityowner_panel:member_remove' %}"></div>
+{% if toast %}
+{{ toast|json_script:"res-toast-json" }}
+{% endif %}
+<!-- Modal overlay for resident page -->
+<div id="res-modal-overlay" class="res-modal-overlay" style="display:none;">
+  <div class="res-modal" role="dialog" aria-modal="true" aria-labelledby="res-modal-title">
+    <div class="res-modal-header">
+      <div id="res-modal-title" class="res-modal-title"></div>
+      <button id="res-modal-close" class="res-modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div id="res-modal-body" class="res-modal-body"></div>
+    <div id="res-modal-actions" class="res-modal-actions"></div>
+  </div>
+  
+</div>
 <script defer src="{% static 'resident/js/resident.js' %}"></script>
 {% endblock %}
-
