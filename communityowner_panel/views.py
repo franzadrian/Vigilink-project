@@ -11,6 +11,8 @@ from django.http import JsonResponse
 from django.db.models import Q
 from django.views.decorators.http import require_GET, require_POST
 from django.db.models.functions import Lower
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 
 
 @login_required
@@ -107,6 +109,19 @@ def community_owner_dashboard(request):
     for m in members_qs:
         u = m.user
         display_name = (getattr(u, 'full_name', '') or u.username).strip()
+        
+        # Get avatar/profile picture URL
+        avatar = ''
+        try:
+            if hasattr(u, 'get_profile_picture_url'):
+                avatar = u.get_profile_picture_url() or ''
+            elif getattr(u, 'profile_picture_url', ''):
+                avatar = u.profile_picture_url
+            elif getattr(u, 'profile_picture', None):
+                avatar = u.profile_picture.url
+        except Exception:
+            avatar = ''
+        
         members_data.append({
             'id': u.id,
             'name': display_name,
@@ -116,6 +131,7 @@ def community_owner_dashboard(request):
             'block': getattr(u, 'block', ''),
             'lot': getattr(u, 'lot', ''),
             'initials': _initials(display_name) or (u.username[:2] if u.username else '').upper(),
+            'avatar': avatar,
         })
 
     # Emergency contacts count to highlight empty state
@@ -181,6 +197,19 @@ def members_list(request):
     for m in members_qs:
         u = m.user
         name = (getattr(u, 'full_name', '') or u.username).strip()
+        
+        # Get avatar/profile picture URL
+        avatar = ''
+        try:
+            if hasattr(u, 'get_profile_picture_url'):
+                avatar = u.get_profile_picture_url() or ''
+            elif getattr(u, 'profile_picture_url', ''):
+                avatar = u.profile_picture_url
+            elif getattr(u, 'profile_picture', None):
+                avatar = u.profile_picture.url
+        except Exception:
+            avatar = ''
+        
         data.append({
             'id': u.id,
             'name': name,
@@ -189,6 +218,7 @@ def members_list(request):
             'role_display': role_map.get(getattr(u, 'role', ''), getattr(u, 'role', '')),
             'block': getattr(u, 'block', ''),
             'lot': getattr(u, 'lot', ''),
+            'avatar': avatar,
         })
     return JsonResponse({'ok': True, 'members': data})
 
@@ -357,7 +387,21 @@ def member_remove(request):
     mem = CommunityMembership.objects.filter(community=profile, user_id=user_id).first()
     if not mem:
         return JsonResponse({'ok': False, 'error': 'User not found in your community.'}, status=404)
+    
+    # Get the user before deleting membership
+    user = mem.user
+    
+    # Delete the membership
     mem.delete()
+    
+    # Revert user role to 'guest' if they're not a special role
+    try:
+        if user.role in ['resident', 'security']:
+            user.role = 'guest'
+            user.save(update_fields=['role'])
+    except Exception:
+        pass
+    
     return JsonResponse({'ok': True})
 
 
@@ -428,3 +472,20 @@ def emergency_update(request):
     c.phone = phone
     c.save(update_fields=['label', 'phone'])
     return JsonResponse({'ok': True, 'contact': {'id': c.id, 'label': c.label, 'phone': c.phone}})
+
+
+# Signal handler for automatic role reversion when users are removed from communities
+@receiver(post_delete, sender=CommunityMembership)
+def handle_membership_deletion(sender, instance, **kwargs):
+    """
+    Automatically revert user role to 'guest' when they are removed from a community
+    """
+    try:
+        user = instance.user
+        # Only revert if user is a resident or security (not community owner or admin)
+        if user.role in ['resident', 'security']:
+            user.role = 'guest'
+            user.save(update_fields=['role'])
+    except Exception:
+        # Silently handle any errors to avoid breaking the deletion process
+        pass

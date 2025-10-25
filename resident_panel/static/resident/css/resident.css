@@ -21,8 +21,13 @@
 .resident-table thead th { text-align: left; font-weight: 700; color: #374151; font-size: 14px; padding: 14px 16px; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
 .resident-table tbody td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #111827; vertical-align: middle; }
 .resident-table tbody tr:hover { background: #f9fafb; }
+.resident-table tbody tr { transition: background-color 0.15s ease; }
 .resident-name { display: flex; align-items: center; gap: 10px; }
 .resident-name .avatar { width: 36px; height: 36px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: #e5edff; color: #2563eb; font-weight: 700; }
+.resident-avatar-clickable { transition: transform 0.15s ease, opacity 0.15s ease; }
+.resident-avatar-clickable:hover { transform: scale(1.05); opacity: 0.8; }
+.resident-name-clickable { transition: color 0.15s ease; }
+.resident-name-clickable:hover { color: #2563eb; }
 .actions-col { width: 220px; }
 .actions { display: inline-flex; gap: 8px; }
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 8px; border: 1px solid #e5e7eb; background: #fff; color: #374151; cursor: pointer; text-decoration: none; font-size: 13px; }
@@ -131,3 +136,111 @@
 .res-switch-input:checked + .res-switch-track .res-switch-thumb { transform: translateX(20px); }
 .res-switch-input:focus-visible + .res-switch-track { box-shadow: 0 0 0 3px rgba(37,99,235,0.25); }
 .res-switch-label { font-size: 13px; color: #111827; font-weight: 600; }
+
+/* Guest info section styles */
+.guest-info-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 30px;
+  padding: 20px 0;
+}
+
+.guest-emergency-card, .guest-safety-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.guest-card-header {
+  background: #f8fafc;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.guest-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.guest-card-title i {
+  color: #dc2626;
+  font-size: 16px;
+}
+
+.guest-card-body {
+  padding: 20px;
+}
+
+.guest-contacts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.guest-contact-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dashed #e5e7eb;
+}
+
+.guest-contact-item:last-child {
+  border-bottom: none;
+}
+
+.guest-contact-label {
+  color: #374151;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.guest-contact-number {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.guest-contact-number:hover {
+  text-decoration: underline;
+}
+
+.guest-safety-tip {
+  color: #374151;
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+
+.guest-safety-note {
+  color: #6b7280;
+  font-size: 13px;
+  margin: 0;
+  font-style: italic;
+}
+
+/* Responsive design for guest info */
+@media (max-width: 768px) {
+  .guest-info-section {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 20px;
+  }
+  
+  .guest-card-body {
+    padding: 16px;
+  }
+}

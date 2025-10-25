@@ -1,0 +1,222 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}Report #{{ report.id }} - VigiLink{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'security_panel/css/security.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="report-detail">
+  <header class="report-header">
+    <div class="report-header-content">
+      <div class="report-title-wrap">
+        <h1 class="report-title">Report #{{ report.id }}</h1>
+        <div class="report-meta">
+          <span class="status-badge status-{{ report.status }}">{{ report.get_status_display }}</span>
+          <span class="priority-badge priority-{{ report.priority }}">{{ report.get_priority_display }}</span>
+          <span class="date-badge">{{ report.created_at|date:"M d, Y H:i" }}</span>
+        </div>
+      </div>
+      <div class="report-actions">
+        <a href="{% url 'security_panel:dashboard' %}" class="btn btn-secondary">Back to Dashboard</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="report-content">
+    <div class="report-main">
+      <!-- Report Information -->
+      <section class="report-section">
+        <h2 class="section-title">Report Information</h2>
+        <div class="report-info-grid">
+          <div class="info-item">
+            <label>Subject</label>
+            <div class="info-value">{{ report.subject }}</div>
+          </div>
+          <div class="info-item">
+            <label>Message</label>
+            <div class="info-value">{{ report.message|linebreaks }}</div>
+          </div>
+          <div class="info-item">
+            <label>Reasons</label>
+            <div class="info-value">{{ report.get_reasons_display }}</div>
+          </div>
+          {% if report.details %}
+          <div class="info-item">
+            <label>Additional Details</label>
+            <div class="info-value">{{ report.details|linebreaks }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <!-- Target Information -->
+      <section class="report-section">
+        <h2 class="section-title">Target Information</h2>
+        <div class="report-info-grid">
+          <div class="info-item">
+            <label>Target Type</label>
+            <div class="info-value">{{ report.get_target_type_display }}</div>
+          </div>
+          <div class="info-item">
+            <label>Target Description</label>
+            <div class="info-value">{{ report.get_target_display }}</div>
+          </div>
+          {% if report.target_description %}
+          <div class="info-item">
+            <label>Target Details</label>
+            <div class="info-value">{{ report.target_description|linebreaks }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <!-- Reporter Information -->
+      <section class="report-section">
+        <h2 class="section-title">Reporter Information</h2>
+        <div class="report-info-grid">
+          <div class="info-item">
+            <label>Reporter</label>
+            <div class="info-value">{{ report.get_reporter_display }}</div>
+          </div>
+          {% if not report.is_anonymous %}
+          <div class="info-item">
+            <label>Email</label>
+            <div class="info-value">{{ report.reporter_email }}</div>
+          </div>
+          {% endif %}
+          <div class="info-item">
+            <label>Anonymous</label>
+            <div class="info-value">{{ report.is_anonymous|yesno:"Yes,No" }}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Security Management -->
+      <section class="report-section">
+        <h2 class="section-title">Security Management</h2>
+        <form id="report-update-form" class="security-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="status">Status</label>
+              <select id="status" name="status" class="form-control">
+                {% for value, label in report.STATUS_CHOICES %}
+                <option value="{{ value }}" {% if report.status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="priority">Priority</label>
+              <select id="priority" name="priority" class="form-control">
+                {% for value, label in report.PRIORITY_CHOICES %}
+                <option value="{{ value }}" {% if report.priority == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="assigned_to">Assigned To</label>
+              <select id="assigned_to" name="assigned_to" class="form-control">
+                <option value="">Unassigned</option>
+                <!-- Security users will be loaded via AJAX -->
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="security_notes">Security Notes</label>
+            <textarea id="security_notes" name="security_notes" class="form-control" rows="4" placeholder="Add internal notes about this report...">{{ report.security_notes }}</textarea>
+          </div>
+          
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Update Report</button>
+            <button type="button" class="btn btn-secondary" onclick="history.back()">Cancel</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <!-- Report Timeline -->
+    <div class="report-sidebar">
+      <section class="report-section">
+        <h2 class="section-title">Report Timeline</h2>
+        <div class="timeline">
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <div class="timeline-title">Report Created</div>
+              <div class="timeline-date">{{ report.created_at|date:"M d, Y H:i" }}</div>
+            </div>
+          </div>
+          
+          {% if report.updated_at != report.created_at %}
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <div class="timeline-title">Last Updated</div>
+              <div class="timeline-date">{{ report.updated_at|date:"M d, Y H:i" }}</div>
+            </div>
+          </div>
+          {% endif %}
+          
+          {% if report.resolved_at %}
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <div class="timeline-title">Resolved</div>
+              <div class="timeline-date">{{ report.resolved_at|date:"M d, Y H:i" }}</div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <!-- Report Statistics -->
+      <section class="report-section">
+        <h2 class="section-title">Report Details</h2>
+        <div class="report-stats">
+          <div class="stat-item">
+            <label>Report ID</label>
+            <div class="stat-value">#{{ report.id }}</div>
+          </div>
+          <div class="stat-item">
+            <label>Community</label>
+            <div class="stat-value">{{ report.community.community_name }}</div>
+          </div>
+          {% if report.assigned_to %}
+          <div class="stat-item">
+            <label>Assigned To</label>
+            <div class="stat-value">{{ report.assigned_to.full_name|default:report.assigned_to.username }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'security_panel/js/security.js' %}"></script>
+<script>
+  // Report-specific JavaScript
+  document.addEventListener('DOMContentLoaded', function() {
+    const reportId = {{ report.id }};
+    const updateUrl = "{% url 'security_panel:update_report_status' report.id %}";
+    
+    // Load security users for assignment
+    loadSecurityUsers();
+    
+    // Handle form submission
+    document.getElementById('report-update-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      updateReportStatus(reportId, updateUrl);
+    });
+  });
+</script>
+{% endblock %}

@@ -9,6 +9,7 @@
   } catch (e) { rowsData = []; }
   const flagsEl = document.getElementById('residents-flags');
   const isOwner = flagsEl && flagsEl.dataset && flagsEl.dataset.isOwner === '1';
+  const isSecurity = flagsEl && flagsEl.dataset && flagsEl.dataset.isSecurity === '1';
   const removeUrl = flagsEl && flagsEl.dataset && flagsEl.dataset.removeUrl;
   const reportUrl = flagsEl && flagsEl.dataset && flagsEl.dataset.reportUrl;
 
@@ -210,13 +211,16 @@
 
       colResident.innerHTML = `
         <div class="resident-name">
-          ${avatarHtml(r)}
-          <span>${r.name}</span>
+          <div class="resident-avatar-clickable" data-user-id="${r.id}">
+            ${avatarHtml(r)}
+          </div>
+          <span class="resident-name-clickable" data-user-id="${r.id}">${r.name}</span>
         </div>`;
       colBlockLot.textContent = `${r.block||''}/${r.lot||''}`;
       const actions = document.createElement('div');
       actions.className = 'actions';
-      if (isOwner) {
+      // Show View button for owners and security
+      if (isOwner || isSecurity) {
         const viewBtn = document.createElement('button');
         viewBtn.className = 'btn btn-primary';
         viewBtn.type = 'button';
@@ -231,10 +235,11 @@
           const nm = document.createElement('div'); nm.className = 'name'; nm.textContent = r.name||'';
           const sb = document.createElement('div'); sb.className = 'sub'; sb.textContent = (r.email||'');
           const bl = document.createElement('div'); bl.className = 'sub'; bl.textContent = `Block: ${r.block||''}   Lot: ${r.lot||''}`;
-          meta.appendChild(nm); if (r.email) meta.appendChild(sb); meta.appendChild(bl);
+          const role = document.createElement('div'); role.className = 'sub'; role.textContent = `Role: ${r.role||'Unknown'}`;
+          meta.appendChild(nm); if (r.email) meta.appendChild(sb); meta.appendChild(bl); meta.appendChild(role);
           card.appendChild(ava); card.appendChild(meta);
           wrap.appendChild(card);
-          openModal('Resident Details', wrap);
+          openModal('User Details', wrap);
         });
         actions.appendChild(viewBtn);
       }
@@ -270,7 +275,7 @@
           openModal('Confirm Removal', body, [cancel, confirmBtn]);
         });
         actions.appendChild(removeBtn);
-      } else {
+      } else if (!isSecurity && r.role === 'resident') {
         const reportBtn = document.createElement('button');
         reportBtn.className = 'btn btn-danger';
         reportBtn.type = 'button';
@@ -286,6 +291,31 @@
       tr.appendChild(colResident);
       tr.appendChild(colBlockLot);
       tr.appendChild(colActions);
+      
+      // Add click events to name and avatar elements
+      const avatarClickable = colResident.querySelector('.resident-avatar-clickable');
+      const nameClickable = colResident.querySelector('.resident-name-clickable');
+      
+      const navigateToProfile = (userId) => {
+        window.location.href = `/user/profile/${userId}/`;
+      };
+      
+      if (avatarClickable) {
+        avatarClickable.style.cursor = 'pointer';
+        avatarClickable.addEventListener('click', (e) => {
+          e.stopPropagation();
+          navigateToProfile(r.id);
+        });
+      }
+      
+      if (nameClickable) {
+        nameClickable.style.cursor = 'pointer';
+        nameClickable.addEventListener('click', (e) => {
+          e.stopPropagation();
+          navigateToProfile(r.id);
+        });
+      }
+      
       frag.appendChild(tr);
     });
     tbody.appendChild(frag);
@@ -297,22 +327,34 @@
     const pageCount = Math.max(1, Math.ceil(total / pageSize));
     if (page > pageCount) page = pageCount;
 
-    const mkBtn = (label, p, disabled, active) => {
+    const mkBtn = (label, p, disabled, active, isPageNumber = false) => {
       const b = document.createElement('button');
       b.className = 'page-btn' + (active ? ' active' : '');
       b.textContent = label;
+      
+      if (isPageNumber) {
+        // Page numbers are unclickable but look normal
+        b.style.cursor = 'default';
+      } else {
+        b.style.cursor = 'pointer';
+      }
+      
       if (disabled) { b.disabled = true; }
-      else { b.addEventListener('click', () => setPage(p)); }
+      else if (!isPageNumber) { b.addEventListener('click', () => setPage(p)); }
       return b;
     };
-    pager.appendChild(mkBtn('Prev', Math.max(1, page-1), page<=1, false));
-    const span = 2;
-    const start = Math.max(1, page - span);
-    const end = Math.min(Math.max(1, Math.ceil(total / pageSize)), page + span);
-    for (let p = start; p <= end; p++) {
-      pager.appendChild(mkBtn(String(p), p, false, p===page));
+    // Only show Previous button if not on first page
+    if (page > 1) {
+      pager.appendChild(mkBtn('Prev', Math.max(1, page-1), false, false));
     }
-    pager.appendChild(mkBtn('Next', Math.min(Math.max(1, Math.ceil(total / pageSize)), page+1), page>=Math.ceil(total / pageSize), false));
+    
+    // Show only current page number
+    pager.appendChild(mkBtn(String(page), page, false, true, true));
+    
+    // Only show Next button if not on last page
+    if (page < pageCount) {
+      pager.appendChild(mkBtn('Next', Math.min(pageCount, page+1), false, false));
+    }
   }
 
   function setPage(p) {

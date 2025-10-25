@@ -484,22 +484,36 @@
             if (!root) return;
             root.innerHTML = '';
             const pageCount = Math.max(1, Math.ceil(total / coPageSize));
-            const mk = (label, p, disabled, active) => {
+            const mk = (label, p, disabled, active, isPageNumber = false) => {
                 const b = document.createElement('button');
                 b.className = 'page-btn' + (active ? ' active' : '');
                 b.textContent = label;
-                b.style.border = '1px solid #e5e7eb'; b.style.background = '#fff'; b.style.color = '#374151'; b.style.borderRadius = '8px'; b.style.padding = '6px 10px'; b.style.fontSize = '13px'; b.style.cursor = 'pointer';
+                b.style.border = '1px solid #e5e7eb'; b.style.background = '#fff'; b.style.color = '#374151'; b.style.borderRadius = '8px'; b.style.padding = '6px 10px'; b.style.fontSize = '13px';
+                
+                if (isPageNumber) {
+                    // Page numbers are unclickable but look normal
+                    b.style.cursor = 'default';
+                } else {
+                    b.style.cursor = 'pointer';
+                }
+                
                 if (active){ b.style.borderColor = '#2563eb'; b.style.color = '#2563eb'; b.style.background = '#eff6ff'; }
                 if (disabled){ b.disabled = true; b.style.opacity = '.5'; b.style.cursor = 'default'; }
-                else { b.addEventListener('click', ()=> { coCurrentPage = p; coPaginateRows(); }); }
+                else if (!isPageNumber) { b.addEventListener('click', ()=> { coCurrentPage = p; coPaginateRows(); }); }
                 return b;
             };
-            root.appendChild(mk('Prev', Math.max(1, coCurrentPage-1), coCurrentPage<=1, false));
-            const span = 2;
-            const start = Math.max(1, coCurrentPage - span);
-            const end = Math.min(pageCount, coCurrentPage + span);
-            for (let p = start; p <= end; p++) root.appendChild(mk(String(p), p, false, p===coCurrentPage));
-            root.appendChild(mk('Next', Math.min(pageCount, coCurrentPage+1), coCurrentPage>=pageCount, false));
+            // Only show Previous button if not on first page
+            if (coCurrentPage > 1) {
+                root.appendChild(mk('Prev', Math.max(1, coCurrentPage-1), false, false));
+            }
+            
+            // Show only current page number
+            root.appendChild(mk(String(coCurrentPage), coCurrentPage, false, true, true));
+            
+            // Only show Next button if not on last page
+            if (coCurrentPage < pageCount) {
+                root.appendChild(mk('Next', Math.min(pageCount, coCurrentPage+1), false, false));
+            }
         }
 
         function coPaginateRows(){
@@ -546,8 +560,20 @@
             (users||[]).slice().sort((a,b)=>{var an=(a.name||'').toLowerCase(),bn=(b.name||'').toLowerCase();return an<bn?-1:an>bn?1:0;}).forEach(u => {
                 const tr = document.createElement('tr');
                 tr.setAttribute('data-email', (u.email||''));
+                // Create initials fallback
+                const initials = (u.name || '').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                
                 tr.innerHTML = `
-                    <td style="padding:10px 8px;">${u.name || ''}</td>
+                    <td style="padding:10px 8px;">
+                        <div style="display:flex;align-items:center;">
+                            ${u.avatar ? 
+                                `<img src="${u.avatar}" alt="${u.name || ''}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex';" />` :
+                                ''
+                            }
+                            <div style="display:${u.avatar ? 'none' : 'inline-flex'};width:32px;height:32px;border-radius:50%;background:#e5edff;color:#2563eb;align-items:center;justify-content:center;font-weight:700;font-size:12px;margin-right:8px;" class="initials-fallback">${initials}</div>
+                            <a href="/user/profile/${u.id}/" style="color:#000;text-decoration:none;cursor:pointer;font-weight:500;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${u.name || ''}</a>
+                        </div>
+                    </td>
                     <td style="padding:10px 8px;"><select class="co-role" data-id="${u.id}" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;">${roleOptions(u.role||'')}</select></td>
                     <td style="padding:10px 8px;"><input class="co-block" data-id="${u.id}" type="text" value="${u.block||''}" placeholder="Block" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;width:120px;" /></td>
                     <td style="padding:10px 8px;"><input class="co-lot" data-id="${u.id}" type="text" value="${u.lot||''}" placeholder="Lot" style="padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;width:120px;" /></td>

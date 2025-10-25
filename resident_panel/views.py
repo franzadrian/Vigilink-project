@@ -4,6 +4,8 @@ from django.http import HttpResponseForbidden
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
 from communityowner_panel.models import CommunityProfile, CommunityMembership, EmergencyContact
+from accounts.models import LocationEmergencyContact
+from security_panel.models import SecurityReport
 from django.contrib.auth import get_user_model
 from django.middleware.csrf import get_token
 from django.http import JsonResponse
@@ -16,8 +18,10 @@ from django.db.models.functions import Lower
 @login_required
 def residents(request):
     role = getattr(request.user, 'role', '')
+    
     is_owner = role == 'communityowner'
     is_resident = role == 'resident'
+    is_security = role == 'security'
 
     community = None
     if is_owner:
@@ -27,10 +31,43 @@ def residents(request):
     else:
         mem = CommunityMembership.objects.select_related('community').filter(user=request.user).first()
         if not mem or not mem.community:
-            return render(request, 'resident/not_member.html', {'reason': 'no_membership'}, status=403)
+            # Get location-based emergency contacts for guest users
+            location_contacts = []
+            try:
+                if request.user.city or request.user.district:
+                    # Get district-specific contacts first (more specific)
+                    if request.user.district:
+                        district_contacts = LocationEmergencyContact.objects.filter(
+                            district=request.user.district,
+                            is_active=True
+                        ).order_by('order', 'id')
+                        for c in district_contacts:
+                            location_contacts.append({
+                                'label': c.label, 
+                                'phone': c.phone
+                            })
+                    
+                    # If no district contacts, get city-specific contacts
+                    if not location_contacts and request.user.city:
+                        city_contacts = LocationEmergencyContact.objects.filter(
+                            city=request.user.city,
+                            is_active=True
+                        ).order_by('order', 'id')
+                        for c in city_contacts:
+                            location_contacts.append({
+                                'label': c.label, 
+                                'phone': c.phone
+                            })
+            except Exception:
+                location_contacts = []
+            
+            return render(request, 'resident/not_member.html', {
+                'reason': 'no_membership',
+                'location_contacts': location_contacts
+            }, status=403)
         community = mem.community
 
-    # Build members list for this community (all roles)
+    # Build members list for this community
     User = get_user_model()
     members_qs = (
         CommunityMembership.objects
@@ -38,6 +75,15 @@ def residents(request):
         .filter(community=community)
         .order_by(Lower('user__full_name'), 'user__username')
     )
+    
+    # Filter based on user role
+    if is_owner:
+        # Community owners can see ALL members (including security)
+        pass
+    else:
+        # Non-owners (residents, security) exclude security users
+        members_qs = members_qs.exclude(user__role='security')
+    
     # Residents should not see themselves in the list
     if is_resident:
         members_qs = members_qs.exclude(user=request.user)
@@ -73,6 +119,7 @@ def residents(request):
             'block': getattr(u, 'block', ''),
             'lot': getattr(u, 'lot', ''),
             'avatar': avatar,
+            'role': getattr(u, 'role', ''),
         })
 
     context = {
@@ -80,6 +127,7 @@ def residents(request):
         'community': community,
         'is_owner': is_owner,
         'is_resident': is_resident,
+        'is_security': is_security,
         'csrf_token': get_token(request),
         'toast': request.session.pop('res_toast', ''),
     }
@@ -108,9 +156,10 @@ def join_by_code(request):
         defaults={'community': community},
     )
 
-    # If user is a guest, promote to resident
+    # If user is a guest or has no role, promote to resident
     try:
-        if getattr(request.user, 'role', 'guest') == 'guest':
+        user_role = getattr(request.user, 'role', '') or ''
+        if user_role.lower() in ('', 'guest'):
             request.user.role = 'resident'
             # Also ensure address is stamped below
             request.user.save(update_fields=['role'])
@@ -148,6 +197,10 @@ def alerts(request):
                     community = owner_cp
         except Exception:
             pass
+    
+    # Check if user is part of a community - redirect guests without community access
+    if not community:
+        return render(request, 'resident/not_member.html', {'reason': 'no_membership'}, status=403)
     if community:
         try:
             members_count = CommunityMembership.objects.filter(community=community).count()
@@ -155,8 +208,11 @@ def alerts(request):
             members_count = 0
 
     try:
-        # Count all reports submitted via the resident report flow
-        base_incidents_qs = ContactMessage.objects.filter(subject__istartswith='Report:')
+        # Count reports from this specific community only
+        base_incidents_qs = ContactMessage.objects.filter(
+            subject__istartswith='Report:',
+            community=community
+        )
         incidents_count = base_incidents_qs.count()
         recent_incidents_qs = base_incidents_qs.order_by('-created_at')[:10]
     except Exception:
@@ -201,14 +257,65 @@ def alerts(request):
     second_index = (day_index + 7) % len(tips)
     safety_tip = f"{tips[day_index]} {tips[second_index]}"
 
-    # Emergency contacts (from owner-managed list)
+    # Emergency contacts (from owner-managed list and location-based)
     emergency_contacts = []
+    community_contacts = []
+    location_contacts = []
+    
     try:
+        # Get community-specific emergency contacts
         if community:
             for c in EmergencyContact.objects.filter(community=community).order_by('order', 'id'):
-                emergency_contacts.append({'label': c.label, 'phone': c.phone})
+                community_contacts.append({
+                    'label': c.label, 
+                    'phone': c.phone, 
+                    'source': 'community',
+                    'id': c.id
+                })
+        
+        # Get location-based contacts
+        if request.user.city or request.user.district:
+            # Get district-specific contacts first (more specific)
+            if request.user.district:
+                district_contacts = LocationEmergencyContact.objects.filter(
+                    district=request.user.district,
+                    is_active=True
+                ).order_by('order', 'id')
+                for c in district_contacts:
+                    location_contacts.append({
+                        'label': c.label, 
+                        'phone': c.phone, 
+                        'source': 'location',
+                        'location_type': 'district',
+                        'location_name': request.user.district.name
+                    })
+            
+            # If no district contacts, get city-specific contacts
+            if not location_contacts and request.user.city:
+                city_contacts = LocationEmergencyContact.objects.filter(
+                    city=request.user.city,
+                    is_active=True
+                ).order_by('order', 'id')
+                for c in city_contacts:
+                    location_contacts.append({
+                        'label': c.label, 
+                        'phone': c.phone, 
+                        'source': 'location',
+                        'location_type': 'city',
+                        'location_name': request.user.city.name
+                    })
+        
+        # Determine which contacts to show based on priority
+        # Community contacts override location contacts
+        if community_contacts:
+            emergency_contacts = community_contacts
+        else:
+            emergency_contacts = location_contacts
+            
     except Exception:
         emergency_contacts = []
+        community_contacts = []
+        location_contacts = []
 
     context = {
         'members_count': members_count,
@@ -218,6 +325,10 @@ def alerts(request):
         'events_count': len(upcoming_events),
         'safety_tip': safety_tip,
         'emergency_contacts': emergency_contacts,
+        'community_contacts': community_contacts,
+        'location_contacts': location_contacts,
+        'has_community_contacts': len(community_contacts) > 0,
+        'has_location_contacts': len(location_contacts) > 0,
     }
     return render(request, 'alerts/alerts.html', context)
 def submit_report(request):
@@ -260,12 +371,13 @@ def submit_report(request):
             community = mem.community
 
         reported_name = ''
+        target_user = None
         # If target is resident, ensure they belong to the same community (if possible)
         if target_type == 'resident' and target_user_id and community:
             try:
                 target_mem = CommunityMembership.objects.select_related('user').get(community=community, user_id=target_user_id)
-                u = target_mem.user
-                reported_name = (getattr(u, 'full_name', '') or getattr(u, 'username', '') or '').strip()
+                target_user = target_mem.user
+                reported_name = (getattr(target_user, 'full_name', '') or getattr(target_user, 'username', '') or '').strip()
             except CommunityMembership.DoesNotExist:
                 # If not found, still record using ID fallback
                 reported_name = f"User #{target_user_id}"
@@ -301,12 +413,20 @@ def submit_report(request):
             f"Submitted by: {reporter_name} ({'hidden' if anonymous else reporter_email})",
         ])
 
-        ContactMessage.objects.create(
-            user=user_ref,
-            name=reporter_name,
-            email=reporter_email,
+        # Create SecurityReport for private security access
+        SecurityReport.objects.create(
             subject=subject,
             message=message,
+            target_type=target_type,
+            target_user=target_user if target_type == 'resident' and target_user else None,
+            target_description=outsider_desc if target_type == 'outsider' else '',
+            reporter=request.user,
+            is_anonymous=anonymous,
+            reporter_name=reporter_name,
+            reporter_email=reporter_email,
+            community=community,
+            reasons=reasons_list,
+            details=details,
         )
 
         return JsonResponse({'ok': True, 'message': 'Report submitted. Thank you.'})

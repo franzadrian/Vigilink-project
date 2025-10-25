@@ -96,13 +96,85 @@
 .tip-note { color: var(--muted); font-size: 0.9rem; margin: 0; }
 
 /* Emergency card - blue header, numbers list */
-.card--emergency .panel-card__header { background: transparent; color: inherit; }
+.card--emergency .panel-card__header { 
+  background: transparent; 
+  color: inherit; 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  flex-wrap: wrap; 
+  gap: 10px; 
+}
 .card--emergency .panel-card__title, .card--emergency .panel-card__title i { color: var(--danger); }
+
+/* Contact filter toggle */
+.contact-filter-toggle {
+  display: flex;
+  gap: 4px;
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-btn:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.filter-btn.active {
+  background: #3b82f6;
+  color: white;
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
+}
+
+.filter-btn i {
+  font-size: 0.75rem;
+}
+
+/* Contact list styling */
 .contacts-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.contact-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px dashed #eef2f7; }
+.contact-item { 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  gap: 12px; 
+  padding: 10px 0; 
+  border-bottom: 1px dashed #eef2f7; 
+  transition: opacity 0.3s ease;
+}
 .contact-item:last-child { border-bottom: none; }
-.contact-label { color: var(--text); font-weight: 600; }
-.contact-number { color: var(--primary-2); text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+.contact-item.hidden { opacity: 0.3; pointer-events: none; }
+
+.contact-label { 
+  color: var(--text); 
+  font-weight: 600; 
+  font-size: 0.95rem;
+}
+
+.contact-number { 
+  color: var(--primary-2); 
+  text-decoration: none; 
+  font-weight: 700; 
+  display: inline-flex; 
+  align-items: center; 
+  gap: 8px; 
+  white-space: nowrap;
+}
 .contact-number:hover { text-decoration: underline; }
 
 /* Responsive */
@@ -113,5 +185,28 @@
 }
 
 @media (max-width: 640px) {
-  .metrics-grid { grid-template-columns: 1fr; }
+  .metrics-grid { 
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  
+  .metric-card {
+    flex-direction: column;
+    text-align: center;
+    padding: 12px 8px;
+    gap: 8px;
+  }
+  
+  .metric-icon {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .metric-content h3 {
+    font-size: 0.8rem;
+  }
+  
+  .metric-value {
+    font-size: 1.3rem;
+  }
 }

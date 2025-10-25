@@ -25,14 +25,10 @@
         </div>
       </div>
       <div class="resident-toolbar-actions">
+        {% if request.user.role != 'security' %}
         <span class="res-inline-help-text">Found a suspicious person or activity?</span>
         <button type="button" class="btn btn-danger resident-report-incident-btn">Report Incident</button>
-        <a href="{% url 'user_panel:view_profile' %}" class="resident-avatar">
-          <img src="{% if request.user.profile_picture_url %}{{ request.user.profile_picture_url }}{% elif request.user.profile_picture %}{{ request.user.profile_picture.url }}{% else %}/static/accounts/images/profile.png{% endif %}"
-               alt="{{ request.user.full_name|default:request.user.username }}"
-               width="40" height="40" loading="lazy"
-               onerror="this.src='/static/accounts/images/profile.png'">
-        </a>
+        {% endif %}
       </div>
     </div>
 
@@ -51,13 +47,60 @@
       </table>
     </div>
     <div id="resident-pagination" class="resident-pagination"></div>
+    
+    <!-- Emergency Calls and Safety Tip for guest users -->
+    {% if not community %}
+    <div class="guest-info-section">
+      <div class="guest-emergency-card">
+        <header class="guest-card-header">
+          <div class="guest-card-title">
+            <i class="fa-solid fa-phone" aria-hidden="true"></i>
+            <span>Emergency Calls</span>
+          </div>
+        </header>
+        <div class="guest-card-body">
+          <ul class="guest-contacts-list">
+            <li class="guest-contact-item">
+              <span class="guest-contact-label">Police Emergency</span>
+              <a class="guest-contact-number" href="tel:166"><i class="fa-solid fa-phone"></i> 166</a>
+            </li>
+            <li class="guest-contact-item">
+              <span class="guest-contact-label">Fire Department</span>
+              <a class="guest-contact-number" href="tel:160"><i class="fa-solid fa-phone"></i> 160</a>
+            </li>
+            <li class="guest-contact-item">
+              <span class="guest-contact-label">Hospital Emergency</span>
+              <a class="guest-contact-number" href="tel:161"><i class="fa-solid fa-phone"></i> 161</a>
+            </li>
+            <li class="guest-contact-item">
+              <span class="guest-contact-label">Emergency Hotline</span>
+              <a class="guest-contact-number" href="tel:911"><i class="fa-solid fa-phone"></i> 911</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="guest-safety-card">
+        <header class="guest-card-header">
+          <div class="guest-card-title">
+            <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+            <span>Safety Tip</span>
+          </div>
+        </header>
+        <div class="guest-card-body">
+          <p class="guest-safety-tip">Always verify the identity of service personnel before allowing them into your home. Ask for official identification and call their company to confirm their visit.</p>
+          <p class="guest-safety-note">Join a community to get personalized safety tips and emergency contacts for your area.</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
   </div>
 {% endblock %}
 
 {% block extra_js %}
 {{ block.super }}
 {{ residents|json_script:"residents-data" }}
-<div id="residents-flags" data-is-owner="{% if is_owner %}1{% else %}0{% endif %}" data-remove-url="{% url 'communityowner_panel:member_remove' %}" data-report-url="{% url 'resident_panel:submit_report' %}"></div>
+<div id="residents-flags" data-is-owner="{% if is_owner %}1{% else %}0{% endif %}" data-is-security="{% if is_security %}1{% else %}0{% endif %}" data-remove-url="{% url 'communityowner_panel:member_remove' %}" data-report-url="{% url 'resident_panel:submit_report' %}"></div>
 {% if toast %}
 {{ toast|json_script:"res-toast-json" }}
 {% endif %}
