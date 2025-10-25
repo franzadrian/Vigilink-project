@@ -153,7 +153,3 @@ Ensure your `.env` contains production-safe values (secret key, database, email,
   - Verify `collectstatic` ran and WhiteNoise is enabled (see `settings.py`).
 - Email delivery
   - Use console backend in dev or configure SMTP creds via `.env`.
-
-## License
-
-This project is proprietary to your organization. Add license terms here as appropriate.
