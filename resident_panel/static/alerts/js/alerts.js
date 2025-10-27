@@ -21,14 +21,18 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     
-    // Only show filter if both types exist
-    if (communityContacts.length === 0 || locationContacts.length === 0) {
+    // Only show filter if community contacts exist
+    if (communityContacts.length === 0) {
         return;
     }
     
-    // Show filter buttons
-    if (communityBtn && locationBtn) {
+    // Show community filter button
+    if (communityBtn) {
         communityBtn.style.display = 'flex';
+    }
+    
+    // Show location filter button only if location contacts exist
+    if (locationBtn && locationContacts.length > 0) {
         locationBtn.style.display = 'flex';
     }
     

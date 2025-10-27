@@ -208,11 +208,9 @@ def alerts(request):
             members_count = 0
 
     try:
-        # Count reports from this specific community only
-        base_incidents_qs = ContactMessage.objects.filter(
-            subject__istartswith='Report:',
-            community=community
-        )
+        # Get public incidents for this community
+        from security_panel.models import Incident
+        base_incidents_qs = Incident.objects.filter(community=community)
         incidents_count = base_incidents_qs.count()
         recent_incidents_qs = base_incidents_qs.order_by('-created_at')[:10]
     except Exception:
@@ -220,12 +218,50 @@ def alerts(request):
         incidents_count = 0
 
     recent_incidents = []
-    for m in recent_incidents_qs:
+    for incident in recent_incidents_qs:
+        # Clean up the message by removing reporter names and formatting properly
+        clean_message = incident.description
+        
+        # Remove reporter names and change to "Report:"
+        if 'Reported by Guest' in clean_message:
+            import re
+            clean_message = re.sub(r'Reported by Guest \d+', 'Report:', clean_message)
+        elif 'by Guest' in clean_message:
+            import re
+            clean_message = re.sub(r'by Guest \d+', '', clean_message)
+            # If the message doesn't start with "Report:", add it
+            if not clean_message.strip().startswith('Report:'):
+                clean_message = 'Report: ' + clean_message.strip()
+        
+        # Fix double colons
+        clean_message = clean_message.replace('::', ':')
+        
+        # Separate Location: from Report: if they're together
+        if 'Report: Location:' in clean_message:
+            clean_message = clean_message.replace('Report: Location:', 'Report:\nLocation:')
+        elif 'Report:Location:' in clean_message:
+            clean_message = clean_message.replace('Report:Location:', 'Report:\nLocation:')
+        
+        # Ensure Location: is always on a new line if it exists
+        if 'Location:' in clean_message and not clean_message.startswith('Location:'):
+            # Find where Location: appears and ensure it's on a new line
+            location_index = clean_message.find('Location:')
+            if location_index > 0:
+                # Check if there's already a newline before Location:
+                before_location = clean_message[:location_index].rstrip()
+                after_location = clean_message[location_index:]
+                
+                # If Location: is not already on a new line, add one
+                if not before_location.endswith('\n'):
+                    clean_message = before_location + '\n' + after_location
+        
         recent_incidents.append({
-            'id': getattr(m, 'contact_id', None),
-            'subject': m.subject,
-            'message': m.message,
-            'created_at': getattr(m, 'created_at', None),
+            'id': incident.id,
+            'subject': incident.title,
+            'message': clean_message,
+            'created_at': incident.created_at,
+            'incident_type': incident.get_incident_type_display_short(),
+            'status': incident.get_status_display(),
         })
 
     upcoming_events = [
@@ -369,6 +405,10 @@ def submit_report(request):
         mem = CommunityMembership.objects.select_related('community').filter(user=request.user).first()
         if mem and mem.community:
             community = mem.community
+        
+        # Ensure user is part of a community to submit reports
+        if not community:
+            return JsonResponse({'ok': False, 'error': 'You must be a member of a community to submit reports.'}, status=403)
 
         reported_name = ''
         target_user = None
@@ -387,13 +427,14 @@ def submit_report(request):
         # Compose subject and message
         if target_type == 'resident':
             subject = f"Report: Resident {reported_name or ('#' + str(target_user_id))}"
-            target_line = f"Target: Resident {reported_name or ('#' + str(target_user_id))}"
+            # No target_line for residents - they're identified in the "Who" field
+            target_line = None
         else:
-            subject = "Report: Non-resident / Unknown person"
-            target_line = f"Target: Non-resident / Unknown person{(' — ' + outsider_desc) if outsider_desc else ''}"
+            subject = "Report: Non-resident"
+            target_line = f"Target Details: {outsider_desc}" if outsider_desc else "Target Details: (no description provided)"
 
-        reasons_line = f"Reasons: {', '.join(reasons_list)}" if reasons_list else "Reasons: (not specified)"
-        details_line = f"Details: {details}" if details else "Details: (none)"
+        # Only include details if there's actual content
+        details_line = f"Details: {details}" if details and details.strip() else None
 
         # Reporter identity
         if anonymous:
@@ -406,15 +447,17 @@ def submit_report(request):
             reporter_email = getattr(request.user, 'email', '') or 'unknown@vigilink.local'
             user_ref = request.user
 
-        message = "\n".join([
-            target_line,
-            reasons_line,
-            details_line,
-            f"Submitted by: {reporter_name} ({'hidden' if anonymous else reporter_email})",
-        ])
+        # Build message with only non-empty lines
+        message_lines = []
+        if target_line:
+            message_lines.append(target_line)
+        if details_line:
+            message_lines.append(details_line)
+        
+        message = "\n".join(message_lines) if message_lines else ""
 
         # Create SecurityReport for private security access
-        SecurityReport.objects.create(
+        security_report = SecurityReport.objects.create(
             subject=subject,
             message=message,
             target_type=target_type,
@@ -428,6 +471,35 @@ def submit_report(request):
             reasons=reasons_list,
             details=details,
         )
+
+        # If this is a general incident report (outsider/unknown person), also create a public Incident
+        if target_type == 'outsider' and community:
+            from security_panel.models import Incident
+            
+            # Determine incident type based on reasons
+            incident_type = 'suspicious_activity'  # default
+            if any('theft' in reason.lower() for reason in reasons_list):
+                incident_type = 'theft'
+            elif any('vandalism' in reason.lower() for reason in reasons_list):
+                incident_type = 'vandalism'
+            elif any('disturbance' in reason.lower() for reason in reasons_list):
+                incident_type = 'disturbance'
+            elif any('breach' in reason.lower() for reason in reasons_list):
+                incident_type = 'security_breach'
+            
+            # Create public incident
+            Incident.objects.create(
+                title=f"Suspicious Activity Reported",
+                description=f"Reported by {reporter_name}: {details or 'Suspicious activity observed'}. Location: {outsider_desc or 'Community area'}",
+                incident_type=incident_type,
+                status='reported',
+                location=outsider_desc or 'Community area',
+                community=community,
+                reporter=request.user,
+                is_anonymous=anonymous,
+                reporter_name=reporter_name,
+                security_report=security_report,
+            )
 
         return JsonResponse({'ok': True, 'message': 'Report submitted. Thank you.'})
     except Exception as e:

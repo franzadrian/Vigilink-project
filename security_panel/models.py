@@ -16,10 +16,10 @@ class SecurityReport(models.Model):
     ]
     
     STATUS_CHOICES = [
-        ('new', 'New'),
-        ('investigating', 'Investigating'),
+        ('pending', 'Pending'),
+        ('investigating', 'Under Investigation'),
         ('resolved', 'Resolved'),
-        ('closed', 'Closed'),
+        ('false_alarm', 'False Alarm'),
     ]
     
     TARGET_TYPE_CHOICES = [
@@ -31,7 +31,7 @@ class SecurityReport(models.Model):
     subject = models.CharField(max_length=200)
     message = models.TextField()
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
-    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='new')
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
     
     # Target information
     target_type = models.CharField(max_length=10, choices=TARGET_TYPE_CHOICES)
@@ -76,7 +76,7 @@ class SecurityReport(models.Model):
     
     def get_reporter_display(self):
         """Return reporter name or 'Anonymous'"""
-        if self.is_anonymous:
+        if self.is_anonymous or (self.reporter_name and '(anonymous)' in self.reporter_name.lower()):
             return 'Anonymous'
         return self.reporter_name or self.reporter.full_name or self.reporter.username
     
@@ -87,3 +87,76 @@ class SecurityReport(models.Model):
         elif self.target_type == 'outsider':
             return f"Non-Resident: {self.target_description}"
         return "Unknown"
+
+
+class Incident(models.Model):
+    """Public incident reports visible to all community members in alerts"""
+    
+    INCIDENT_TYPE_CHOICES = [
+        ('suspicious_activity', 'Suspicious Activity'),
+        ('security_breach', 'Security Breach'),
+        ('vandalism', 'Vandalism'),
+        ('theft', 'Theft'),
+        ('disturbance', 'Disturbance'),
+        ('other', 'Other'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('investigating', 'Under Investigation'),
+        ('resolved', 'Resolved'),
+        ('false_alarm', 'False Alarm'),
+    ]
+    
+    # Incident details
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    incident_type = models.CharField(max_length=20, choices=INCIDENT_TYPE_CHOICES, default='suspicious_activity')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Location and context
+    location = models.CharField(max_length=200, blank=True, help_text="Specific location within community")
+    community = models.ForeignKey(CommunityProfile, on_delete=models.CASCADE, related_name='incidents')
+    
+    # Reporter information
+    reporter = models.ForeignKey(User, on_delete=models.CASCADE, related_name='incident_reports')
+    is_anonymous = models.BooleanField(default=False)
+    reporter_name = models.CharField(max_length=100, blank=True)
+    
+    # Security handling
+    security_notes = models.TextField(blank=True, help_text="Notes from security personnel")
+    handled_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='handled_incidents')
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    
+    # Related security report (if this incident was created from a security report)
+    security_report = models.OneToOneField(SecurityReport, on_delete=models.SET_NULL, null=True, blank=True, related_name='public_incident')
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Public Incident'
+        verbose_name_plural = 'Public Incidents'
+    
+    def __str__(self):
+        return f"Incident #{self.id}: {self.title}"
+    
+    def get_reporter_display(self):
+        """Return reporter name or 'Anonymous'"""
+        if self.is_anonymous or (self.reporter_name and '(anonymous)' in self.reporter_name.lower()):
+            return 'Anonymous'
+        return self.reporter_name or self.reporter.full_name or self.reporter.username
+    
+    def get_incident_type_display_short(self):
+        """Return short form of incident type"""
+        type_map = {
+            'suspicious_activity': 'Suspicious Activity',
+            'security_breach': 'Security Breach',
+            'vandalism': 'Vandalism',
+            'theft': 'Theft',
+            'disturbance': 'Disturbance',
+            'other': 'Other',
+        }
+        return type_map.get(self.incident_type, self.incident_type)

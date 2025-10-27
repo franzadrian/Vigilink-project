@@ -10,33 +10,6 @@ function initializeSecurityPanel() {
     console.log('Security panel initialized');
 }
 
-// Load security users for assignment dropdown
-function loadSecurityUsers() {
-    fetch('/security/api/security-users/')
-        .then(response => response.json())
-        .then(data => {
-            if (data.users) {
-                const select = document.getElementById('assigned_to');
-                if (select) {
-                    // Clear existing options except the first one
-                    while (select.children.length > 1) {
-                        select.removeChild(select.lastChild);
-                    }
-                    
-                    // Add security users
-                    data.users.forEach(user => {
-                        const option = document.createElement('option');
-                        option.value = user.id;
-                        option.textContent = user.full_name || user.username;
-                        select.appendChild(option);
-                    });
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Error loading security users:', error);
-        });
-}
 
 // Update report status
 function updateReportStatus(reportId, updateUrl) {
@@ -47,8 +20,7 @@ function updateReportStatus(reportId, updateUrl) {
     const data = {
         status: formData.get('status'),
         priority: formData.get('priority'),
-        security_notes: formData.get('security_notes'),
-        assigned_to: formData.get('assigned_to')
+        security_notes: formData.get('security_notes')
     };
     
     // Remove empty values
@@ -66,7 +38,12 @@ function updateReportStatus(reportId, updateUrl) {
         },
         body: JSON.stringify(data)
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.ok) {
             showNotification('Report updated successfully', 'success');
@@ -80,7 +57,13 @@ function updateReportStatus(reportId, updateUrl) {
     })
     .catch(error => {
         console.error('Error updating report:', error);
-        showNotification('Failed to update report', 'error');
+        if (error.message.includes('403')) {
+            showNotification('Access denied. Please check your permissions.', 'error');
+        } else if (error.message.includes('401')) {
+            showNotification('Please log in again.', 'error');
+        } else {
+            showNotification('Failed to update report: ' + error.message, 'error');
+        }
     });
 }
 
@@ -152,68 +135,30 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
-// Filter reports with debouncing
-let filterTimeout;
-function setupReportFilters() {
-    const searchInput = document.getElementById('search');
+// Auto-submit form when dropdowns change
+function setupAutoSubmit() {
     const statusSelect = document.getElementById('status');
     const prioritySelect = document.getElementById('priority');
     
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            clearTimeout(filterTimeout);
-            filterTimeout = setTimeout(() => {
-                applyFilters();
-            }, 500);
-        });
-    }
-    
     if (statusSelect) {
-        statusSelect.addEventListener('change', applyFilters);
+        statusSelect.addEventListener('change', function() {
+            this.form.submit();
+        });
     }
     
     if (prioritySelect) {
-        prioritySelect.addEventListener('change', applyFilters);
-    }
-}
-
-function applyFilters() {
-    const form = document.querySelector('.filters-form');
-    if (form) {
-        form.submit();
-    }
-}
-
-// Initialize filters if on dashboard page
-if (document.querySelector('.filters-form')) {
-    setupReportFilters();
-}
-
-// Handle report row clicks for better UX
-function setupReportRowClicks() {
-    const reportRows = document.querySelectorAll('.report-row');
-    reportRows.forEach(row => {
-        row.addEventListener('click', function(e) {
-            // Don't trigger if clicking on a button or link
-            if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A') {
-                return;
-            }
-            
-            const reportId = this.dataset.reportId;
-            if (reportId) {
-                window.location.href = `/security/report/${reportId}/`;
-            }
+        prioritySelect.addEventListener('change', function() {
+            this.form.submit();
         });
-        
-        // Add hover effect
-        row.style.cursor = 'pointer';
-    });
+    }
 }
 
-// Initialize report row clicks if on dashboard
-if (document.querySelector('.reports-table')) {
-    setupReportRowClicks();
+// Initialize auto-submit if on dashboard page
+if (document.querySelector('.filters-form')) {
+    setupAutoSubmit();
 }
+
+// Report rows are no longer clickable - only the View button is clickable
 
 // Auto-refresh dashboard every 30 seconds
 function setupAutoRefresh() {
@@ -231,26 +176,7 @@ function setupAutoRefresh() {
 // Initialize auto-refresh
 setupAutoRefresh();
 
-// Handle keyboard shortcuts
-document.addEventListener('keydown', function(e) {
-    // Ctrl/Cmd + K to focus search
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        const searchInput = document.getElementById('search');
-        if (searchInput) {
-            searchInput.focus();
-        }
-    }
-    
-    // Escape to clear search
-    if (e.key === 'Escape') {
-        const searchInput = document.getElementById('search');
-        if (searchInput && searchInput === document.activeElement) {
-            searchInput.value = '';
-            applyFilters();
-        }
-    }
-});
+// Keyboard shortcuts removed - no search functionality
 
 // Add loading states to buttons
 function setupLoadingStates() {

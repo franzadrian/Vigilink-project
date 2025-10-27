@@ -30,7 +30,7 @@
     <div class="stat-card stat-card--new">
       <div class="stat-icon"><i class="fa-solid fa-exclamation-circle" aria-hidden="true"></i></div>
       <div class="stat-content">
-        <h3>New Reports</h3>
+        <h3>Pending Reports</h3>
         <div class="stat-value">{{ stats.new_reports }}</div>
       </div>
     </div>
@@ -56,18 +56,13 @@
   <div class="filters-section">
     <form method="GET" class="filters-form">
       <div class="filter-group">
-        <label for="search">Search Reports</label>
-        <input type="text" id="search" name="search" value="{{ search_query }}" placeholder="Search by subject, message, or reporter...">
-      </div>
-      
-      <div class="filter-group">
         <label for="status">Status</label>
         <select id="status" name="status">
           <option value="">All Status</option>
-          <option value="new" {% if status_filter == 'new' %}selected{% endif %}>New</option>
-          <option value="investigating" {% if status_filter == 'investigating' %}selected{% endif %}>Investigating</option>
+          <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+          <option value="investigating" {% if status_filter == 'investigating' %}selected{% endif %}>Under Investigation</option>
           <option value="resolved" {% if status_filter == 'resolved' %}selected{% endif %}>Resolved</option>
-          <option value="closed" {% if status_filter == 'closed' %}selected{% endif %}>Closed</option>
+          <option value="false_alarm" {% if status_filter == 'false_alarm' %}selected{% endif %}>False Alarm</option>
         </select>
       </div>
       
@@ -82,8 +77,6 @@
         </select>
       </div>
       
-      <button type="submit" class="btn btn-primary">Filter</button>
-      <a href="{% url 'security_panel:dashboard' %}" class="btn btn-secondary">Clear</a>
     </form>
   </div>
 
@@ -99,9 +92,8 @@
       <table class="reports-table">
         <thead>
           <tr>
-            <th>Report ID</th>
-            <th>Subject</th>
             <th>Reporter</th>
+            <th>Reason</th>
             <th>Target</th>
             <th>Status</th>
             <th>Priority</th>
@@ -111,21 +103,34 @@
         </thead>
         <tbody>
           {% for report in page_obj %}
-          <tr class="report-row" data-report-id="{{ report.id }}">
-            <td class="report-id">#{{ report.id }}</td>
-            <td class="report-subject">
-              <div class="subject-text">{{ report.subject }}</div>
-              {% if report.details %}
-              <div class="subject-preview">{{ report.details|truncatechars:50 }}</div>
-              {% endif %}
-            </td>
+          <tr class="report-row {% if report.status == 'pending' %}pending-highlight{% endif %}">
             <td class="report-reporter">
               <div class="reporter-name">{{ report.get_reporter_display }}</div>
-              {% if report.is_anonymous %}
-              <div class="reporter-badge">Anonymous</div>
+            </td>
+            <td class="report-subject">
+              <div class="subject-text">
+                {% if report.target_type == 'outsider' and report.public_incident %}
+                  {% if report.public_incident.incident_type == 'other' %}
+                    {{ report.details|truncatechars:30 }}...
+                  {% else %}
+                    {{ report.public_incident.get_incident_type_display_short }}
+                  {% endif %}
+                {% else %}
+                  {% if 'other' in report.reasons|default:'' %}
+                    {{ report.details|truncatechars:30 }}...
+                  {% else %}
+                    {{ report.get_reasons_display|default:"Report" }}
+                  {% endif %}
+                {% endif %}
+              </div>
+            </td>
+            <td class="report-target">
+              {% if report.target_type == 'resident' and report.target_user %}
+                <div class="target-name">{{ report.target_user.full_name|default:report.target_user.username }}</div>
+              {% else %}
+                <div class="target-badge target-outsider">Non-Resident</div>
               {% endif %}
             </td>
-            <td class="report-target">{{ report.get_target_display }}</td>
             <td class="report-status">
               <span class="status-badge status-{{ report.status }}">{{ report.get_status_display }}</span>
             </td>
@@ -134,7 +139,10 @@
             </td>
             <td class="report-date">{{ report.created_at|date:"M d, Y H:i" }}</td>
             <td class="report-actions">
-              <a href="{% url 'security_panel:report_detail' report.id %}" class="btn btn-sm btn-primary">View</a>
+              <a href="{% url 'security_panel:report_detail' report.id %}" class="btn btn-view">
+                <i class="fa-solid fa-eye"></i>
+                <span>View</span>
+              </a>
             </td>
           </tr>
           {% endfor %}

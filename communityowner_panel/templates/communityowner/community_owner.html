@@ -5,7 +5,28 @@
 
 {% block extra_css %}
 {{ block.super }}
-<link rel="stylesheet" href="{% static 'communityowner/css/communityowner_styles.css' %}">
+<!-- Critical CSS inline for faster rendering -->
+<style>
+/* Critical styles for above-the-fold content */
+:root {
+    --primary: #3b82f6;
+    --dark: #1f2937;
+    --transition: all 0.3s ease;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.co-hero { text-align: center; margin-bottom: 30px; }
+.co-hero h1 { font-size: 2.5rem; margin-bottom: 10px; color: var(--dark); }
+.stats-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+.stat-card { background: #fff; padding: 20px; border-radius: 12px; box-shadow: var(--card-shadow); display: flex; align-items: center; gap: 15px; }
+.nav-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 30px; }
+.nav-card { background: #fff; padding: 20px; border-radius: 12px; box-shadow: var(--card-shadow); cursor: pointer; transition: var(--transition); }
+.nav-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
+</style>
+<!-- Non-critical CSS loaded asynchronously -->
+<link rel="preload" href="{% static 'communityowner/css/communityowner_styles.css' %}" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="{% static 'communityowner/css/communityowner_styles.css' %}"></noscript>
 {% endblock %}
 
 {% block content %}
@@ -37,7 +58,7 @@
                     <i class="fas fa-chart-bar"></i>
                 </div>
                 <div class="stat-info">
-                    <h3 id="total-reports">0</h3>
+                    <h3 id="total-reports">{{ reports_stats.total_reports|default:0 }}</h3>
                     <p>Total Reports</p>
                 </div>
             </div>
@@ -47,18 +68,18 @@
                     <i class="fas fa-check-circle"></i>
                 </div>
                 <div class="stat-info">
-                    <h3 id="active-reports">0</h3>
+                    <h3 id="active-reports">{{ reports_stats.active_reports|default:0 }}</h3>
                     <p>Active Reports</p>
                 </div>
             </div>
             
             <div class="stat-card">
-                <div class="stat-icon week">
-                    <i class="fas fa-calendar-week"></i>
+                <div class="stat-icon month">
+                    <i class="fas fa-calendar-alt"></i>
                 </div>
                 <div class="stat-info">
-                    <h3 id="week-reports">0</h3>
-                    <p>Last Week Reports</p>
+                    <h3 id="month-reports">{{ reports_stats.month_reports|default:0 }}</h3>
+                    <p>Last Month Reports</p>
                 </div>
             </div>
         </div>
@@ -84,8 +105,8 @@
                 <div class="card-icon">
                     <i class="fas fa-chart-bar"></i>
                 </div>
-                <div class="card-title">View Reports</div>
-                <div class="card-desc">Analyze performance and activity data</div>
+                <div class="card-title">Security Reports</div>
+                <div class="card-desc">Download and analyze security incident reports</div>
             </div>
             
             <div class="nav-card{% if ec_count == 0 %} nav-card-warning{% endif %}" data-target="emergency">
@@ -110,7 +131,7 @@
         
             <div class="content-area" style="display:none;">
             <!-- Community Details Section -->
-            <div id="details" class="content-section active">
+            <div id="details" class="content-section active" data-loaded="true">
                 <div class="section-header">
                     <div>
                         <h2 class="section-title">Community Details</h2>
@@ -146,7 +167,7 @@
             </div>
 
             <!-- Users Section -->
-            <div id="users" class="content-section">
+            <div id="users" class="content-section" data-loaded="false">
                 <div class="section-header">
                     <div>
                         <h2 class="section-title">User Management</h2>
@@ -158,7 +179,7 @@
             </div>
             
             <!-- Reports Section -->
-            <div id="reports" class="content-section">
+            <div id="reports" class="content-section" data-loaded="false">
                 <div class="section-header">
                     <div>
                         <h2 class="section-title">Reports & Analytics</h2>
@@ -174,7 +195,7 @@
             
             
             <!-- Secret Code Section -->
-            <div id="secret" class="content-section">
+            <div id="secret" class="content-section" data-loaded="true">
                 <div class="secret-container">
                     <div class="secret-icon">
                         <i class="fas fa-lock"></i>
@@ -281,9 +302,12 @@
      data-ec-list-url="{% url 'communityowner_panel:emergency_list' %}"
      data-ec-add-url="{% url 'communityowner_panel:emergency_add' %}"
      data-ec-delete-url="{% url 'communityowner_panel:emergency_delete' %}"
-     data-ec-update-url="{% url 'communityowner_panel:emergency_update' %}"></div>
+     data-ec-update-url="{% url 'communityowner_panel:emergency_update' %}"
+     data-reports-list-url="{% url 'communityowner_panel:reports_list' %}"
+     data-reports-download-pdf-url="{% url 'communityowner_panel:reports_download_pdf' %}"
+     data-reports-analytics-url="{% url 'communityowner_panel:reports_analytics' %}"></div>
 <div id="co-messages-data" data-messages='[{% if messages %}{% for message in messages %}{"text":"{{ message|escapejs }}","tags":"{{ message.tags|default:"info" }}"}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}]'></div>
-<script defer src="{% static 'communityowner/js/communityowner_script.js' %}"></script>
+<script defer src="{% static 'communityowner/js/communityowner_script.js' %}" onload="window.CO_SCRIPT_LOADED=true;"></script>
 {% endblock %}
 
 

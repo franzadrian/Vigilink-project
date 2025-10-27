@@ -54,21 +54,23 @@
           <i class="fa-solid fa-phone" aria-hidden="true"></i>
           <span>Emergency Calls</span>
         </div>
-        {% if has_community_contacts and has_location_contacts %}
+        {% if has_community_contacts %}
         <div class="contact-filter-toggle">
           <button id="show-community-contacts" class="filter-btn active" data-filter="community">
             <i class="fa-solid fa-building"></i> Community
           </button>
+          {% if has_location_contacts %}
           <button id="show-location-contacts" class="filter-btn" data-filter="location">
-            <i class="fa-solid fa-map-marker-alt"></i> Location
+            <i class="fa-solid fa-map-marker-alt"></i> District
           </button>
+          {% endif %}
         </div>
         {% endif %}
       </header>
       <div class="panel-card__body">
         {% if emergency_contacts %}
         <ul class="contacts-list" id="emergency-contacts-list">
-          {% if has_community_contacts and has_location_contacts %}
+          {% if has_community_contacts %}
           <!-- Contacts will be rendered by JavaScript -->
           {% else %}
           {% for c in emergency_contacts %}
@@ -122,10 +124,11 @@
             <div class="list-item__icon"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i></div>
             <div class="list-item__content">
               <div class="list-item__title">{{ inc.subject }}</div>
-              <div class="list-item__desc">{{ inc.message|truncatechars:120 }}</div>
-              {% if inc.created_at %}
-              <div class="list-item__meta">{{ inc.created_at }}</div>
-              {% endif %}
+              <div class="list-item__desc">{{ inc.message|truncatechars:120|linebreaksbr }}</div>
+              <div class="list-item__meta">
+                {% if inc.incident_type %}<span class="incident-type">{{ inc.incident_type }}</span>{% endif %}
+                {% if inc.created_at %}<span class="incident-date">{{ inc.created_at }}</span>{% endif %}
+              </div>
             </div>
           </li>
           {% endfor %}

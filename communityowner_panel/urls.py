@@ -16,4 +16,8 @@ urlpatterns = [
     path('emergency/add/', views.emergency_add, name='emergency_add'),
     path('emergency/delete/', views.emergency_delete, name='emergency_delete'),
     path('emergency/update/', views.emergency_update, name='emergency_update'),
+    # Reports API endpoints
+    path('reports/list/', views.reports_list, name='reports_list'),
+    path('reports/download/pdf/', views.reports_download_pdf, name='reports_download_pdf'),
+    path('reports/analytics/', views.reports_analytics, name='reports_analytics'),
 ]

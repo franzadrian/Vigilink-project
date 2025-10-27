@@ -13,7 +13,6 @@
   <header class="report-header">
     <div class="report-header-content">
       <div class="report-title-wrap">
-        <h1 class="report-title">Report #{{ report.id }}</h1>
         <div class="report-meta">
           <span class="status-badge status-{{ report.status }}">{{ report.get_status_display }}</span>
           <span class="priority-badge priority-{{ report.priority }}">{{ report.get_priority_display }}</span>
@@ -21,10 +20,75 @@
         </div>
       </div>
       <div class="report-actions">
-        <a href="{% url 'security_panel:dashboard' %}" class="btn btn-secondary">Back to Dashboard</a>
+        <a href="{% url 'security_panel:dashboard' %}" class="btn btn-back">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Back to Security Dashboard</span>
+        </a>
       </div>
     </div>
   </header>
+
+  <!-- Mobile Timeline and Details Section -->
+  <div class="mobile-timeline-details">
+    <!-- Report Timeline -->
+    <div class="mobile-timeline">
+      <section class="report-section">
+        <h2 class="section-title">Report Timeline</h2>
+        <div class="timeline">
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <div class="timeline-title">Report Created</div>
+              <div class="timeline-date">{{ report.created_at|date:"M d, Y H:i" }}</div>
+            </div>
+          </div>
+          
+          {% if report.updated_at != report.created_at %}
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <div class="timeline-title">Last Updated</div>
+              <div class="timeline-date">{{ report.updated_at|date:"M d, Y H:i" }}</div>
+            </div>
+          </div>
+          {% endif %}
+          
+          {% if report.resolved_at %}
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <div class="timeline-title">Resolved</div>
+              <div class="timeline-date">{{ report.resolved_at|date:"M d, Y H:i" }}</div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+
+    <!-- Report Statistics -->
+    <div class="mobile-details">
+      <section class="report-section">
+        <h2 class="section-title">Report Details</h2>
+        <div class="report-stats">
+          <div class="stat-item">
+            <label>Report ID</label>
+            <div class="stat-value">#{{ report.id }}</div>
+          </div>
+          <div class="stat-item">
+            <label>Community</label>
+            <div class="stat-value">{{ report.community.community_name }}</div>
+          </div>
+          {% if report.assigned_to %}
+          <div class="stat-item">
+            <label>Assigned To</label>
+            <div class="stat-value">{{ report.assigned_to.full_name|default:report.assigned_to.username }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+  </div>
 
   <div class="report-content">
     <div class="report-main">
@@ -33,46 +97,36 @@
         <h2 class="section-title">Report Information</h2>
         <div class="report-info-grid">
           <div class="info-item">
-            <label>Subject</label>
-            <div class="info-value">{{ report.subject }}</div>
+            <label>Who</label>
+            <div class="info-value">
+              {% if report.target_type == 'resident' and report.target_user %}
+                {{ report.target_user.full_name|default:report.target_user.username }}
+              {% else %}
+                Non-resident
+              {% endif %}
+            </div>
           </div>
+          {% if report.target_type == 'resident' and report.target_user and report.target_user.block and report.target_user.lot %}
           <div class="info-item">
-            <label>Message</label>
-            <div class="info-value">{{ report.message|linebreaks }}</div>
+            <label>Block & Lot</label>
+            <div class="info-value">
+              Block {{ report.target_user.block }}, Lot {{ report.target_user.lot }}
+            </div>
           </div>
+          {% endif %}
           <div class="info-item">
             <label>Reasons</label>
             <div class="info-value">{{ report.get_reasons_display }}</div>
           </div>
-          {% if report.details %}
+          {% if report.message and report.message.strip %}
           <div class="info-item">
-            <label>Additional Details</label>
-            <div class="info-value">{{ report.details|linebreaks }}</div>
+            <label>Additional Information</label>
+            <div class="info-value">{{ report.message|linebreaks }}</div>
           </div>
           {% endif %}
         </div>
       </section>
 
-      <!-- Target Information -->
-      <section class="report-section">
-        <h2 class="section-title">Target Information</h2>
-        <div class="report-info-grid">
-          <div class="info-item">
-            <label>Target Type</label>
-            <div class="info-value">{{ report.get_target_type_display }}</div>
-          </div>
-          <div class="info-item">
-            <label>Target Description</label>
-            <div class="info-value">{{ report.get_target_display }}</div>
-          </div>
-          {% if report.target_description %}
-          <div class="info-item">
-            <label>Target Details</label>
-            <div class="info-value">{{ report.target_description|linebreaks }}</div>
-          </div>
-          {% endif %}
-        </div>
-      </section>
 
       <!-- Reporter Information -->
       <section class="report-section">
@@ -80,7 +134,13 @@
         <div class="report-info-grid">
           <div class="info-item">
             <label>Reporter</label>
-            <div class="info-value">{{ report.get_reporter_display }}</div>
+            <div class="info-value">
+              {% if report.is_anonymous %}
+                Anonymous
+              {% else %}
+                {{ report.get_reporter_display }}
+              {% endif %}
+            </div>
           </div>
           {% if not report.is_anonymous %}
           <div class="info-item">
@@ -88,10 +148,6 @@
             <div class="info-value">{{ report.reporter_email }}</div>
           </div>
           {% endif %}
-          <div class="info-item">
-            <label>Anonymous</label>
-            <div class="info-value">{{ report.is_anonymous|yesno:"Yes,No" }}</div>
-          </div>
         </div>
       </section>
 
@@ -99,6 +155,7 @@
       <section class="report-section">
         <h2 class="section-title">Security Management</h2>
         <form id="report-update-form" class="security-form">
+          {% csrf_token %}
           <div class="form-grid">
             <div class="form-group">
               <label for="status">Status</label>
@@ -118,13 +175,6 @@
               </select>
             </div>
             
-            <div class="form-group">
-              <label for="assigned_to">Assigned To</label>
-              <select id="assigned_to" name="assigned_to" class="form-control">
-                <option value="">Unassigned</option>
-                <!-- Security users will be loaded via AJAX -->
-              </select>
-            </div>
           </div>
           
           <div class="form-group">
@@ -133,15 +183,18 @@
           </div>
           
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Update Report</button>
-            <button type="button" class="btn btn-secondary" onclick="history.back()">Cancel</button>
+            <button type="submit" class="btn btn-update">
+              <i class="fa-solid fa-save"></i>
+              <span>Update Report</span>
+            </button>
           </div>
         </form>
       </section>
     </div>
 
-    <!-- Report Timeline -->
+    <!-- Desktop Timeline and Details Sidebar -->
     <div class="report-sidebar">
+      <!-- Report Timeline -->
       <section class="report-section">
         <h2 class="section-title">Report Timeline</h2>
         <div class="timeline">
@@ -209,8 +262,6 @@
     const reportId = {{ report.id }};
     const updateUrl = "{% url 'security_panel:update_report_status' report.id %}";
     
-    // Load security users for assignment
-    loadSecurityUsers();
     
     // Handle form submission
     document.getElementById('report-update-form').addEventListener('submit', function(e) {

@@ -1,3 +1,72 @@
+        // Performance optimization functions
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+        
+        function throttle(func, limit) {
+            let inThrottle;
+            return function() {
+                const args = arguments;
+                const context = this;
+                if (!inThrottle) {
+                    func.apply(context, args);
+                    inThrottle = true;
+                    setTimeout(() => inThrottle = false, limit);
+                }
+            };
+        }
+        
+        function lazyLoad(callback, delay = 0) {
+            if (delay > 0) {
+                setTimeout(callback, delay);
+            } else {
+                requestAnimationFrame(callback);
+            }
+        }
+        
+        // Cache DOM elements to avoid repeated queries
+        const DOM_CACHE = {};
+        
+        function initDOMCache() {
+            DOM_CACHE.navCards = document.querySelectorAll('.nav-card');
+            DOM_CACHE.overlay = document.getElementById('co-modal-overlay');
+            DOM_CACHE.modalShell = document.getElementById('co-modal-shell');
+            DOM_CACHE.modalTitle = document.getElementById('co-modal-title');
+            DOM_CACHE.modalClose = document.getElementById('co-modal-close');
+            DOM_CACHE.userGrid = document.querySelector('.user-grid');
+            DOM_CACHE.reportList = document.querySelector('.report-list');
+            DOM_CACHE.codeDisplay = document.getElementById('code-display');
+            DOM_CACHE.copyBtn = document.getElementById('copy-code-btn');
+        }
+        
+        // Lazy load content sections
+        function lazyLoadSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            if (!section) return;
+            
+            // Always allow reports to be re-rendered
+            if (sectionId === 'reports') {
+                renderReports();
+                return;
+            }
+            
+            // For other sections, only load once
+            if (section.getAttribute('data-loaded') === 'true') return;
+            section.setAttribute('data-loaded', 'true');
+            
+            if (sectionId === 'users' && typeof renderUsers === 'function') {
+                renderUsers();
+            }
+        }
+
         // Real data: members embedded via json_script in HTML
         let users = [];
         try {
@@ -9,8 +78,104 @@
             users = [];
         }
 
-        // Placeholder reports (replace when backend exists)
-        const reports = [];
+        // Reports data (for stats only)
+        let reports = [];
+
+        // Load reports data for stats from server-side data
+        function loadReportsData() {
+            // Get stats directly from server-side data in the HTML
+            const totalReportsEl = document.getElementById('total-reports');
+            const activeReportsEl = document.getElementById('active-reports');
+            const monthReportsEl = document.getElementById('month-reports');
+            
+            console.log('Reading stats from HTML elements:');
+            console.log('totalReportsEl:', totalReportsEl);
+            console.log('activeReportsEl:', activeReportsEl);
+            console.log('monthReportsEl:', monthReportsEl);
+            
+            if (totalReportsEl && activeReportsEl && monthReportsEl) {
+                const totalReports = parseInt(totalReportsEl.textContent) || 0;
+                const activeReports = parseInt(activeReportsEl.textContent) || 0;
+                const monthReports = parseInt(monthReportsEl.textContent) || 0;
+                
+                console.log('Raw text content:');
+                console.log('totalReportsEl.textContent:', totalReportsEl.textContent);
+                console.log('activeReportsEl.textContent:', activeReportsEl.textContent);
+                console.log('monthReportsEl.textContent:', monthReportsEl.textContent);
+                
+                console.log('Parsed values:');
+                console.log('totalReports:', totalReports);
+                console.log('activeReports:', activeReports);
+                console.log('monthReports:', monthReports);
+                
+                // Update stats directly without animation (since we're using server data)
+                updateStatsFromServer(totalReports, activeReports, monthReports);
+                return;
+            }
+            
+            console.log('Elements not found, falling back to AJAX');
+            
+            // Fallback to AJAX if server-side data not available
+            const { reportsList } = endpoints();
+            if (!reportsList) {
+                console.log('No reportsList endpoint found');
+                return;
+            }
+            
+            console.log('Loading reports data from:', reportsList);
+            
+            fetch(`${reportsList}?per_page=1000`, { 
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                console.log('Reports API response:', data);
+                if (data && data.ok && Array.isArray(data.reports)) {
+                    reports = data.reports;
+                    console.log('Loaded reports:', reports.length, 'reports');
+                    updateStats();
+                } else {
+                    console.log('Invalid reports data:', data);
+                    // Still update stats with empty data
+                    updateStats();
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load reports data:', err);
+                // Still update stats with empty data
+                updateStats();
+            });
+        }
+
+        // Update stats using server-side data
+        function updateStatsFromServer(totalReports, activeReports, monthReports) {
+            const totalUsers = Array.isArray(users) ? users.length : 0;
+            
+            console.log('Updating stats from server:', {
+                totalUsers,
+                totalReports,
+                activeReports,
+                monthReports
+            });
+            
+            // Only animate if elements exist and haven't been animated yet
+            if (totalUsersEl && !totalUsersEl.hasAttribute('data-animated')) {
+                animateValue(totalUsersEl, 0, totalUsers, 1000);
+                totalUsersEl.setAttribute('data-animated', 'true');
+            }
+            if (totalReportsEl && !totalReportsEl.hasAttribute('data-animated')) {
+                animateValue(totalReportsEl, 0, totalReports, 1000);
+                totalReportsEl.setAttribute('data-animated', 'true');
+            }
+            if (activeReportsEl && !activeReportsEl.hasAttribute('data-animated')) {
+                animateValue(activeReportsEl, 0, activeReports, 1000);
+                activeReportsEl.setAttribute('data-animated', 'true');
+            }
+            if (monthReportsEl && !monthReportsEl.hasAttribute('data-animated')) {
+                animateValue(monthReportsEl, 0, monthReports, 1000);
+                monthReportsEl.setAttribute('data-animated', 'true');
+            }
+        }
 
         // Removed downloadOptions and billingHistory as Download & Billing sections were removed
 
@@ -33,22 +198,33 @@
         const totalUsersEl = document.getElementById('total-users');
         const totalReportsEl = document.getElementById('total-reports');
         const activeReportsEl = document.getElementById('active-reports');
-        const weekReportsEl = document.getElementById('week-reports');
+        const monthReportsEl = document.getElementById('month-reports');
 
-        // Initialize the dashboard
+        // Initialize the dashboard with performance optimizations
         document.addEventListener('DOMContentLoaded', function() {
-            updateStats();
-            // Always render bottom Manage Users table on load
-            if (typeof renderUsersTable === 'function') { renderUsersTable(); coPaginateRows(); }
-            // Optionally refresh from API to ensure fresh data
-            if (typeof refreshMembersList === 'function') {
-                refreshMembersList();
-            }
+            // Initialize DOM cache first
+            initDOMCache();
+            
+            // Load reports data and update stats
+            loadReportsData();
+            
+            // Lazy load non-critical content
+            lazyLoad(() => {
+                // Always render bottom Manage Users table on load
+                if (typeof renderUsersTable === 'function') { 
+                    renderUsersTable(); 
+                    coPaginateRows(); 
+                }
+                // Optionally refresh from API to ensure fresh data
+                if (typeof refreshMembersList === 'function') {
+                    refreshMembersList();
+                }
+            }, 50);
 
-            // Local filter for current members table
+            // Debounced filter for better performance
             const filterInput = document.getElementById('co-user-filter');
             if (filterInput){
-                filterInput.addEventListener('input', function(){
+                const debouncedFilter = debounce(function(){
                     const termRaw = (filterInput.value || '').trim();
                     const term = termRaw.toLowerCase();
                     // Re-render then filter rows by term
@@ -65,7 +241,9 @@
                     }
                     coCurrentPage = 1;
                     coPaginateRows();
-                });
+                }, 300);
+                
+                filterInput.addEventListener('input', debouncedFilter);
             }
 
             // Add User via modal with server search
@@ -81,6 +259,10 @@
             function openModal(targetId) {
                 const section = document.getElementById(targetId);
                 if (!section || !overlay || !modalShell) return;
+                
+                // First ensure any existing modal is properly closed
+                closeAllModals();
+                
                 // set title preferring nav card label, fallback to section title
                 let titleText = '';
                 try {
@@ -93,12 +275,15 @@
                     titleText = (section.querySelector('.section-title')?.textContent || '').trim();
                 }
                 if (modalTitle) modalTitle.textContent = titleText;
+                
                 // ensure section appears
                 section.classList.add('active');
                 section.classList.add('in-modal');
+                
                 // mount into shell
                 modalShell.innerHTML = '';
                 modalShell.appendChild(section);
+                
                 if (modalContainer) {
                     if (targetId === 'secret') {
                         modalContainer.classList.add('co-modal-no-scroll');
@@ -106,21 +291,29 @@
                         modalContainer.classList.remove('co-modal-no-scroll');
                     }
                 }
+                
+                // Show overlay with proper state
                 overlay.style.display = 'flex';
+                overlay.style.visibility = 'visible';
+                overlay.style.opacity = '1';
+                overlay.classList.add('active');
+                
+                // Set body styles for modal
                 try {
                     const sbw = window.innerWidth - document.documentElement.clientWidth;
                     document.documentElement.style.overflow = 'hidden';
                     document.body.style.overflow = 'hidden';
+                    document.body.classList.add('modal-open');
                     if (sbw > 0) {
                         document.body.style.paddingRight = sbw + 'px';
                     }
                 } catch (e) {}
+                
                 currentSection = section;
                 if (targetId === 'users') {
                     renderUsers();
-                } else if (targetId === 'reports' && !reportsRendered) {
+                } else if (targetId === 'reports') {
                     renderReports();
-                    reportsRendered = true;
                 }
             }
 
@@ -133,37 +326,43 @@
                     currentSection = null;
                 }
                 if (modalContainer) modalContainer.classList.remove('co-modal-no-scroll');
-                overlay.style.display = 'none';
-                try {
-                    document.documentElement.style.overflow = '';
-                    document.body.style.overflow = '';
-                    document.body.style.paddingRight = '';
-                } catch (e) {}
-                if (modalTitle) modalTitle.textContent = '';
+                
+                // Use the comprehensive cleanup function
+                closeAllModals();
             }
 
-            // Special handling: for 'users', render in bottom section (no modal)
+            // Optimized navigation with lazy loading
             navCards.forEach(card => {
                 card.addEventListener('click', function() {
                     const targetId = this.getAttribute('data-target');
                     // Toggle active highlight
                     navCards.forEach(c => c.classList.remove('active'));
                     this.classList.add('active');
+                    
                     if (targetId === 'users') {
                         // Close modal if open
                         try { closeModal(); } catch(e){}
-                        // Render bottom users table and scroll
-                        if (typeof renderUsersTable === 'function') {
-                            renderUsersTable();
-                        }
+                        // Lazy load users table
+                        lazyLoad(() => {
+                            if (typeof renderUsersTable === 'function') {
+                                renderUsersTable();
+                            }
+                        }, 50);
                         const bottom = document.getElementById('co-users-bottom');
                         if (bottom) bottom.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     } else if (targetId === 'emergency') {
                         if (window.CO_openEmergencyModal) { window.CO_openEmergencyModal(); }
                     } else if (targetId === 'reports') {
-                        openModal(targetId);
+                        // Always render reports section and open modal
+                        lazyLoad(() => {
+                            openReportsModal();
+                        }, 100);
                     } else {
-                        openModal(targetId);
+                        // Lazy load other sections
+                        lazyLoad(() => {
+                            lazyLoadSection(targetId);
+                            openModal(targetId);
+                        }, 50);
                     }
                 });
             });
@@ -370,28 +569,63 @@
             // Calculate stats
             const totalUsers = Array.isArray(users) ? users.length : 0;
             const totalReports = Array.isArray(reports) ? reports.length : 0;
-            const activeReports = 0;
-            const weekReports = 0;
+            const activeReports = Array.isArray(reports) ? reports.filter(r => r.status === 'pending' || r.status === 'investigating').length : 0;
+            const monthReports = Array.isArray(reports) ? reports.filter(r => {
+                const reportDate = new Date(r.created_at);
+                const monthAgo = new Date();
+                monthAgo.setMonth(monthAgo.getMonth() - 1);
+                return reportDate >= monthAgo;
+            }).length : 0;
             
-            // Animate stats counting up
-            animateValue(totalUsersEl, 0, totalUsers, 1000);
-            animateValue(totalReportsEl, 0, totalReports, 1000);
-            animateValue(activeReportsEl, 0, activeReports, 1000);
-            animateValue(weekReportsEl, 0, weekReports, 1000);
+            console.log('Stats calculation:', {
+                totalUsers,
+                totalReports,
+                activeReports,
+                monthReports,
+                reportsArray: reports,
+                usersArray: users
+            });
+            
+            // Only animate if elements exist and haven't been animated yet
+            if (totalUsersEl && !totalUsersEl.hasAttribute('data-animated')) {
+                animateValue(totalUsersEl, 0, totalUsers, 1000);
+                totalUsersEl.setAttribute('data-animated', 'true');
+            }
+            if (totalReportsEl && !totalReportsEl.hasAttribute('data-animated')) {
+                animateValue(totalReportsEl, 0, totalReports, 1000);
+                totalReportsEl.setAttribute('data-animated', 'true');
+            }
+            if (activeReportsEl && !activeReportsEl.hasAttribute('data-animated')) {
+                animateValue(activeReportsEl, 0, activeReports, 1000);
+                activeReportsEl.setAttribute('data-animated', 'true');
+            }
+            if (monthReportsEl && !monthReportsEl.hasAttribute('data-animated')) {
+                animateValue(monthReportsEl, 0, monthReports, 1000);
+                monthReportsEl.setAttribute('data-animated', 'true');
+            }
         }
 
         // Animate value counting up
         function animateValue(element, start, end, duration) {
+            if (!element) return;
+            
+            // Stop any existing animation on this element
+            if (element.animationId) {
+                cancelAnimationFrame(element.animationId);
+            }
+            
             let startTimestamp = null;
             const step = (timestamp) => {
                 if (!startTimestamp) startTimestamp = timestamp;
                 const progress = Math.min((timestamp - startTimestamp) / duration, 1);
                 element.innerHTML = Math.floor(progress * (end - start) + start);
                 if (progress < 1) {
-                    window.requestAnimationFrame(step);
+                    element.animationId = window.requestAnimationFrame(step);
+                } else {
+                    element.animationId = null;
                 }
             };
-            window.requestAnimationFrame(step);
+            element.animationId = window.requestAnimationFrame(step);
         }
 
         // Render user cards (legacy in-modal UI; hidden now)
@@ -447,10 +681,13 @@
                         renderUsersTable();
                         coCurrentPage = 1;
                         coPaginateRows();
-                        updateStats();
+                        // Don't call updateStats here to prevent animation restart
                     }
                 })
                 .catch(()=>{});
+            
+            // Also refresh reports data
+            loadReportsData();
         }
 
         function endpoints() {
@@ -464,6 +701,9 @@
                 ecAdd: el.dataset.ecAddUrl,
                 ecDelete: el.dataset.ecDeleteUrl,
                 ecUpdate: el.dataset.ecUpdateUrl,
+                reportsList: el.dataset.reportsListUrl,
+                reportsDownloadPdf: el.dataset.reportsDownloadPdfUrl,
+                reportsAnalytics: el.dataset.reportsAnalyticsUrl,
             } : {};
         }
 
@@ -596,6 +836,10 @@
             function openEmergencyModal(){
                 const { ecList, ecAdd, ecDelete } = endpoints();
                 if (!overlay || !modalShell) return;
+                
+                // First ensure any existing modal is properly closed
+                closeAllModals();
+                
                 if (modalTitle) modalTitle.textContent = 'Emergency Calls';
                 modalShell.innerHTML = `
                     <div class="co-ec-modal" style="width:100%;max-width:620px;margin:0 auto;">
@@ -612,11 +856,19 @@
                         </div>
                         <div id="ec-list" style="border:1px solid #f1f5f9;border-radius:8px;overflow:auto;max-height:320px;"></div>
                     </div>`;
+                
+                // Open the modal properly
                 overlay.style.display = 'flex';
+                overlay.style.visibility = 'visible';
+                overlay.style.opacity = '1';
+                overlay.classList.add('active');
+                
+                // Set body styles for modal
                 try {
                     const sbw = window.innerWidth - document.documentElement.clientWidth;
                     document.documentElement.style.overflow = 'hidden';
                     document.body.style.overflow = 'hidden';
+                    document.body.classList.add('modal-open');
                     if (sbw > 0) document.body.style.paddingRight = sbw + 'px';
                 } catch (e) {}
 
@@ -773,6 +1025,23 @@
                 });
 
                 load();
+                
+                // Add close button functionality
+                const closeBtn = document.getElementById('co-modal-close');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function() {
+                        closeAllModals();
+                    });
+                }
+                
+                // Add overlay click to close
+                if (overlay) {
+                    overlay.addEventListener('click', function(e) {
+                        if (e.target === overlay) {
+                            closeAllModals();
+                        }
+                    });
+                }
             }
 
             // Expose for nav-card usage
@@ -919,39 +1188,870 @@
             });
         })();
 
-        // Render report cards
-        function renderReports() {
-            if (!reportList) return;
-            reportList.innerHTML = '';
-            const frag = document.createDocumentFragment();
-            reports.forEach(report => {
-                const reportCard = document.createElement('div');
-                reportCard.className = 'report-card';
-                reportCard.innerHTML = `
-                    <div class="report-header">
-                        <div>
-                            <div class="report-title">${report.title}</div>
-                            <div class="report-meta">
-                                <span><i class="far fa-calendar"></i> ${report.date}</span>
-                                <span><i class="far fa-file"></i> ${report.type}</span>
-                                <span><i class="fas fa-weight-hanging"></i> ${report.size}</span>
+
+        // Open reports modal directly
+        function openReportsModal() {
+            if (!overlay || !modalShell) return;
+            
+            // First ensure any existing modal is properly closed
+            closeAllModals();
+            
+            // Set modal title
+            if (modalTitle) modalTitle.textContent = 'Security Reports';
+            
+            // Create reports content directly in modal
+            modalShell.innerHTML = `
+                <div class="reports-modal">
+                    <div class="reports-header">
+                        <div class="reports-filters">
+                            <div class="filter-group">
+                                <label for="year-filter">Year:</label>
+                                <select id="year-filter">
+                                    <option value="">All Years</option>
+                                    <option value="2023">2023</option>
+                                    <option value="2024">2024</option>
+                                    <option value="2025" selected>2025</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label for="month-filter">Month:</label>
+                                <select id="month-filter">
+                                    <option value="">All Months</option>
+                                    <option value="1">January</option>
+                                    <option value="2">February</option>
+                                    <option value="3">March</option>
+                                    <option value="4">April</option>
+                                    <option value="5">May</option>
+                                    <option value="6">June</option>
+                                    <option value="7">July</option>
+                                    <option value="8">August</option>
+                                    <option value="9">September</option>
+                                    <option value="10" selected>October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
                             </div>
                         </div>
-                        <span class="report-badge">${report.status}</span>
+                        <div class="reports-actions">
+                            <button id="reports-download-pdf" class="action-btn edit-btn">
+                                <i class="fas fa-file-pdf"></i> Download PDF
+                            </button>
+                            <button id="reports-analytics" class="action-btn edit-btn">
+                                <i class="fas fa-chart-bar"></i> Analytics
+                            </button>
+                        </div>
                     </div>
-                    <div class="report-actions">
-                        <button class="action-btn edit-btn">
-                            <i class="fas fa-eye"></i> View
+                    <div class="reports-summary">
+                        <div class="summary-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Total Reports:</span>
+                                <span id="total-reports-count">-</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Filtered Reports:</span>
+                                <span id="filtered-reports-count">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Open the modal
+            overlay.style.display = 'flex';
+            overlay.style.visibility = 'visible';
+            overlay.style.opacity = '1';
+            overlay.classList.add('active');
+            
+            // Set body styles for modal
+            try {
+                const sbw = window.innerWidth - document.documentElement.clientWidth;
+                document.documentElement.style.overflow = 'hidden';
+                document.body.style.overflow = 'hidden';
+                document.body.classList.add('modal-open');
+                if (sbw > 0) {
+                    document.body.style.paddingRight = sbw + 'px';
+                }
+            } catch (e) {}
+            
+            // Bind action events after DOM update
+            setTimeout(() => {
+                bindReportsActions();
+                
+                // Set dynamic defaults based on current date
+                const now = new Date();
+                const currentYear = now.getFullYear();
+                const currentMonth = now.getMonth() + 1; // getMonth() returns 0-11
+                
+                const yearSelect = document.getElementById('year-filter');
+                const monthSelect = document.getElementById('month-filter');
+                
+                if (yearSelect && monthSelect) {
+                    // Set year default (2025 or current year if later)
+                    const defaultYear = Math.max(2025, currentYear);
+                    yearSelect.value = defaultYear.toString();
+                    
+                    // Set month default (October or current month if later in year)
+                    let defaultMonth = 10; // October
+                    if (currentYear > 2025 || (currentYear === 2025 && currentMonth > 10)) {
+                        defaultMonth = currentMonth;
+                    }
+                    monthSelect.value = defaultMonth.toString();
+                    
+                    // Update summary with new defaults
+                    updateReportsSummary();
+                }
+                
+                // Add close button functionality
+                const closeBtn = document.getElementById('co-modal-close');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function() {
+                        closeAllModals();
+                    });
+                }
+                
+                // Add overlay click to close
+                if (overlay) {
+                    overlay.addEventListener('click', function(e) {
+                        if (e.target === overlay) {
+                            closeAllModals();
+                        }
+                    });
+                }
+            }, 10);
+        }
+
+        // Render reports with analytics
+        function renderReports() {
+            if (!reportList) return;
+            
+            reportList.innerHTML = `
+                <div class="reports-header">
+                    <div class="reports-actions">
+                        <button id="reports-download-pdf" class="action-btn edit-btn">
+                            <i class="fas fa-file-pdf"></i> Download PDF
                         </button>
-                        <button class="action-btn edit-btn">
-                            <i class="fas fa-download"></i> Export
+                        <button id="reports-analytics" class="action-btn edit-btn">
+                            <i class="fas fa-chart-bar"></i> Analytics
                         </button>
+                    </div>
+                </div>
+            `;
+            
+            // Always bind action events (remove any existing listeners first)
+            bindReportsActions();
+        }
+
+        // Bind reports action events
+        function bindReportsActions() {
+            const downloadPdfBtn = document.getElementById('reports-download-pdf');
+            const analyticsBtn = document.getElementById('reports-analytics');
+            const yearFilter = document.getElementById('year-filter');
+            const monthFilter = document.getElementById('month-filter');
+
+            if (downloadPdfBtn) {
+                // Clone the button to remove all event listeners
+                const newDownloadBtn = downloadPdfBtn.cloneNode(true);
+                downloadPdfBtn.parentNode.replaceChild(newDownloadBtn, downloadPdfBtn);
+                
+                newDownloadBtn.addEventListener('click', function() {
+                    const year = yearFilter ? yearFilter.value : '';
+                    const month = monthFilter ? monthFilter.value : '';
+                    showDownloadOptions('pdf', year, month);
+                });
+            }
+
+            if (analyticsBtn) {
+                // Clone the button to remove all event listeners
+                const newAnalyticsBtn = analyticsBtn.cloneNode(true);
+                analyticsBtn.parentNode.replaceChild(newAnalyticsBtn, analyticsBtn);
+                
+                newAnalyticsBtn.addEventListener('click', function() {
+                    const year = yearFilter ? yearFilter.value : '';
+                    const month = monthFilter ? monthFilter.value : '';
+                    showReportsAnalytics(year, month);
+                });
+            }
+
+            // Add filter change listeners
+            if (yearFilter) {
+                yearFilter.addEventListener('change', updateReportsSummary);
+            }
+            if (monthFilter) {
+                monthFilter.addEventListener('change', updateReportsSummary);
+            }
+
+            // Load initial summary
+            updateReportsSummary();
+        }
+
+        // Helper functions for filtering
+        function getFilterText(year, month) {
+            if (year && month) {
+                return ` for ${getMonthName(month)} ${year}`;
+            } else if (year) {
+                return ` for ${year}`;
+            } else if (month) {
+                return ` for ${getMonthName(month)}`;
+            }
+            return '';
+        }
+
+        function getMonthName(month) {
+            const months = [
+                'January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December'
+            ];
+            return months[parseInt(month) - 1] || '';
+        }
+
+        // Update reports summary based on filters
+        function updateReportsSummary() {
+            const yearFilter = document.getElementById('year-filter');
+            const monthFilter = document.getElementById('month-filter');
+            const totalCountEl = document.getElementById('total-reports-count');
+            const filteredCountEl = document.getElementById('filtered-reports-count');
+            
+            if (!totalCountEl || !filteredCountEl) return;
+            
+            const year = yearFilter ? yearFilter.value : '';
+            const month = monthFilter ? monthFilter.value : '';
+            
+            // Get total reports count
+            const { reportsList } = endpoints();
+            if (!reportsList) return;
+            
+            fetch(`${reportsList}?per_page=1000`, { 
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.ok && Array.isArray(data.reports)) {
+                    const totalReports = data.reports.length;
+                    totalCountEl.textContent = totalReports;
+                    
+                    // Filter reports based on year/month
+                    let filteredReports = data.reports;
+                    if (year) {
+                        filteredReports = filteredReports.filter(report => {
+                            const reportDate = new Date(report.created_at);
+                            return reportDate.getFullYear() == year;
+                        });
+                    }
+                    if (month) {
+                        filteredReports = filteredReports.filter(report => {
+                            const reportDate = new Date(report.created_at);
+                            return reportDate.getMonth() + 1 == month; // getMonth() returns 0-11
+                        });
+                    }
+                    
+                    filteredCountEl.textContent = filteredReports.length;
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load reports summary:', err);
+                totalCountEl.textContent = '-';
+                filteredCountEl.textContent = '-';
+            });
+        }
+
+        // Show download options (preview or direct download)
+        function showDownloadOptions(format, year = '', month = '') {
+            if (!overlay || !modalShell) return;
+            
+            const filterText = getFilterText(year, month);
+            modalTitle.textContent = `Download ${format.toUpperCase()}${filterText}`;
+            modalShell.innerHTML = `
+                <div class="download-options">
+                    <div class="download-option">
+                        <div class="option-icon">
+                            <i class="fas fa-eye"></i>
+                        </div>
+                        <div class="option-content">
+                            <h3>Preview First</h3>
+                            <p>See what will be included in your ${format.toUpperCase()} download${filterText} before downloading</p>
+                            <button id="preview-download-pdf" class="action-btn edit-btn">
+                                <i class="fas fa-eye"></i> Preview & Download
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="download-option">
+                        <div class="option-icon">
+                            <i class="fas fa-download"></i>
+                        </div>
+                        <div class="option-content">
+                            <h3>Download Directly</h3>
+                            <p>Download your ${format.toUpperCase()} file${filterText} immediately without preview</p>
+                            <button id="direct-download-pdf" class="action-btn edit-btn">
+                                <i class="fas fa-download"></i> Download Now
+                            </button>
+                        </div>
+                    </div>
+                    
+                </div>
+            `;
+            
+            // Open the modal first
+            overlay.style.display = 'flex';
+            overlay.style.visibility = 'visible';
+            overlay.style.opacity = '1';
+            overlay.classList.add('active');
+            
+            // Set body styles for modal
+            try {
+                const sbw = window.innerWidth - document.documentElement.clientWidth;
+                document.documentElement.style.overflow = 'hidden';
+                document.body.style.overflow = 'hidden';
+                document.body.classList.add('modal-open');
+                if (sbw > 0) {
+                    document.body.style.paddingRight = sbw + 'px';
+                }
+            } catch (e) {}
+            
+            // Wait for DOM to update, then bind events
+            setTimeout(() => {
+                const previewBtn = document.getElementById('preview-download-pdf');
+                const directBtn = document.getElementById('direct-download-pdf');
+                
+                if (previewBtn) {
+                    previewBtn.addEventListener('click', function() {
+                        closeAllModals();
+                        showDownloadPreview('pdf', year, month);
+                    });
+                }
+                
+                if (directBtn) {
+                    directBtn.addEventListener('click', function() {
+                        closeAllModals();
+                        actualDownload('pdf', year, month);
+                    });
+                }
+            }, 10);
+        }
+
+        // Show preview before download
+        function downloadReports(format) {
+            showDownloadPreview(format);
+        }
+
+        // Show download preview modal
+        function showDownloadPreview(format, year = '', month = '') {
+            const { reportsList, reportsAnalytics } = endpoints();
+            if (!reportsList || !reportsAnalytics) return;
+
+            const filterText = getFilterText(year, month);
+
+            // Show loading state
+            if (overlay && modalShell) {
+                modalTitle.textContent = `Preview ${format.toUpperCase()} Download${filterText}`;
+                modalShell.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary);"></i><p style="margin-top: 20px;">Loading preview...</p></div>';
+                
+                // Open the modal
+                overlay.style.display = 'flex';
+                overlay.style.visibility = 'visible';
+                overlay.style.opacity = '1';
+                overlay.classList.add('active');
+                
+                // Set body styles for modal
+                try {
+                    const sbw = window.innerWidth - document.documentElement.clientWidth;
+                    document.documentElement.style.overflow = 'hidden';
+                    document.body.style.overflow = 'hidden';
+                    document.body.classList.add('modal-open');
+                    if (sbw > 0) {
+                        document.body.style.paddingRight = sbw + 'px';
+                    }
+                } catch (e) {}
+            }
+
+            // Build URLs with filters
+            let reportsUrl = `${reportsList}?per_page=1000`;
+            let analyticsUrl = reportsAnalytics;
+            
+            const params = new URLSearchParams();
+            if (year) params.append('year', year);
+            if (month) params.append('month', month);
+            params.append('_t', Date.now()); // Cache busting
+            params.append('_r', Math.random()); // Additional cache busting
+            
+            if (params.toString()) {
+                reportsUrl += '&' + params.toString();
+                analyticsUrl += (analyticsUrl.includes('?') ? '&' : '?') + params.toString();
+            }
+
+            // Fetch both reports and analytics data
+            Promise.all([
+                fetch(reportsUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }}).then(r => r.json()),
+                fetch(analyticsUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }}).then(r => r.json())
+            ])
+            .then(([reportsData, analyticsData]) => {
+                if (reportsData && reportsData.ok && analyticsData && analyticsData.ok) {
+                    const reports = reportsData.reports || [];
+                    const analytics = analyticsData.analytics || {};
+                    
+                    showPDFPreview(reports, analytics, year, month);
+                } else {
+                    throw new Error('Failed to load data');
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load preview data:', err);
+                CO_showToast && CO_showToast('Failed to load preview data', 'error');
+                if (overlay) overlay.style.display = 'none';
+            });
+        }
+
+        // Show PDF preview
+        function showPDFPreview(reports, analytics, year = '', month = '') {
+            if (!modalShell) return;
+
+            // Determine the period title based on filters
+            let periodTitle = '';
+            
+            if (year && month) {
+                // Specific month and year
+                const monthName = getMonthName(month);
+                periodTitle = `Reports for ${monthName} ${year}`;
+            } else if (year) {
+                // Entire year
+                periodTitle = `Reports for ${year}`;
+            } else if (month) {
+                // Specific month (current year)
+                const monthName = getMonthName(month);
+                const currentYear = new Date().getFullYear();
+                periodTitle = `Reports for ${monthName} ${currentYear}`;
+            } else {
+                // All reports - show current month as reference
+                const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+                periodTitle = `Reports This Month (${currentMonth})`;
+            }
+
+            // Use the reports as-is since they're already filtered server-side
+            const periodReports = reports;
+
+            // Check if there's no data for the selected period
+            if (periodReports.length === 0) {
+                modalShell.innerHTML = `
+                    <div class="download-preview">
+                        <div class="preview-header">
+                            <h3><i class="fas fa-file-pdf"></i> PDF Preview</h3>
+                            <p>This is what your PDF download will contain:</p>
+                        </div>
+                        <div class="preview-content">
+                            <div class="empty-state">
+                                <div class="empty-icon">
+                                    <i class="fas fa-inbox"></i>
+                                </div>
+                                <h3>No Data Found</h3>
+                                <p>There are no security reports for the selected period.</p>
+                                <div class="empty-details">
+                                    <p><strong>Selected Period:</strong> ${periodTitle}</p>
+                                    <p><strong>Total Reports Available:</strong> ${reports.length}</p>
+                                </div>
+                                <div class="empty-suggestions">
+                                    <h4>Suggestions:</h4>
+                                    <ul>
+                                        <li>Try selecting a different year or month</li>
+                                        <li>Download all reports to see available data</li>
+                                        <li>Check if reports exist for other time periods</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 `;
-                frag.appendChild(reportCard);
-            });
-            reportList.appendChild(frag);
+                
+                return;
+            }
+
+            const residentReports = periodReports.filter(r => r.target_type === 'resident');
+            const nonResidentReports = periodReports.filter(r => r.target_type === 'outsider');
+
+            modalShell.innerHTML = `
+                <div class="download-preview">
+                    <div class="preview-header">
+                        <h3><i class="fas fa-file-pdf"></i> PDF Preview</h3>
+                        <p>This is what your PDF download will contain:</p>
+                    </div>
+                    <div class="preview-content">
+                    
+                    <div class="preview-stats">
+                        <div class="stat-grid">
+                            <div class="stat-item">
+                                <h4>${periodReports.length}</h4>
+                                <p>${periodTitle}</p>
+                            </div>
+                            <div class="stat-item">
+                                <h4>${residentReports.length}</h4>
+                                <p>Resident Reports</p>
+                            </div>
+                            <div class="stat-item">
+                                <h4>${nonResidentReports.length}</h4>
+                                <p>Non-Resident Reports</p>
+                            </div>
+                            <div class="stat-item">
+                                <h4>${reports.length}</h4>
+                                <p>Total Available Reports</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="preview-section">
+                        <h4>Common Issues/Reasons Reported</h4>
+                        <div class="reasons-list">
+                            ${analytics.common_reasons && analytics.common_reasons.length > 0 ? 
+                                analytics.common_reasons.map(reason => 
+                                    `<div class="reason-item">
+                                        <span class="reason-name">${reason.reason}</span>
+                                        <span class="reason-count">${reason.count} reports</span>
+                                    </div>`
+                                ).join('') : 
+                                '<p>No common reasons data available</p>'
+                            }
+                        </div>
+                    </div>
+
+                    <div class="preview-section">
+                        <h4>Resident Reports Table (${residentReports.length} reports)</h4>
+                        <div class="preview-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Subject</th>
+                                        <th>Priority</th>
+                                        <th>Status</th>
+                                        <th>Reporter</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${residentReports.slice(0, 10).map(report => `
+                                        <tr>
+                                            <td>${report.subject.substring(0, 30)}${report.subject.length > 30 ? '...' : ''}</td>
+                                            <td><span class="badge priority-${report.priority}">${report.priority.toUpperCase()}</span></td>
+                                            <td><span class="badge status-${report.status}">${report.status.replace('_', ' ').toUpperCase()}</span></td>
+                                            <td>${report.reporter_display}</td>
+                                            <td>${new Date(report.created_at).toLocaleDateString()}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                            ${residentReports.length > 10 ? `<p class="table-note">... and ${residentReports.length - 10} more resident reports</p>` : ''}
+                        </div>
+                    </div>
+
+                    <div class="preview-section">
+                        <h4>Non-Resident Reports Table (${nonResidentReports.length} reports)</h4>
+                        <div class="preview-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Subject</th>
+                                        <th>Priority</th>
+                                        <th>Status</th>
+                                        <th>Reporter</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${nonResidentReports.slice(0, 10).map(report => `
+                                        <tr>
+                                            <td>${report.subject.substring(0, 30)}${report.subject.length > 30 ? '...' : ''}</td>
+                                            <td><span class="badge priority-${report.priority}">${report.priority.toUpperCase()}</span></td>
+                                            <td><span class="badge status-${report.status}">${report.status.replace('_', ' ').toUpperCase()}</span></td>
+                                            <td>${report.reporter_display}</td>
+                                            <td>${new Date(report.created_at).toLocaleDateString()}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                            ${nonResidentReports.length > 10 ? `<p class="table-note">... and ${nonResidentReports.length - 10} more non-resident reports</p>` : ''}
+                        </div>
+                    </div>
+
+                    </div>
+                    <div class="preview-actions">
+                        <button id="confirm-download-pdf" class="action-btn edit-btn">
+                            <i class="fas fa-download"></i> Download PDF
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Bind preview actions after DOM update
+            setTimeout(() => {
+                const confirmBtn = document.getElementById('confirm-download-pdf');
+                if (confirmBtn) {
+                    confirmBtn.addEventListener('click', function() {
+                        closeAllModals();
+                        actualDownload('pdf', year, month);
+                    });
+                }
+            }, 10);
         }
+
+        // Comprehensive modal cleanup function
+        function closeAllModals() {
+            // Close the modal overlay
+            if (overlay) {
+                overlay.style.display = 'none';
+                overlay.style.visibility = 'hidden';
+                overlay.style.opacity = '0';
+                overlay.classList.remove('active', 'show');
+            }
+            
+            // Reset document and body styles completely
+            document.documentElement.style.overflow = '';
+            document.body.style.overflow = '';
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.left = '';
+            document.body.style.right = '';
+            document.body.style.bottom = '';
+            document.body.style.paddingRight = '';
+            document.body.classList.remove('modal-open', 'no-scroll');
+            
+            // Clear modal content
+            if (modalShell) {
+                modalShell.innerHTML = '';
+            }
+            
+            // Reset modal title
+            if (modalTitle) {
+                modalTitle.textContent = '';
+            }
+            
+            // Remove any backdrop elements
+            const backdrops = document.querySelectorAll('.modal-backdrop, .backdrop, [class*="backdrop"]');
+            backdrops.forEach(backdrop => {
+                backdrop.remove();
+            });
+            
+            // Force reflow to ensure changes take effect
+            document.body.offsetHeight;
+            
+            // Additional cleanup to ensure scroll is restored
+            setTimeout(() => {
+                document.documentElement.style.overflow = '';
+                document.body.style.overflow = '';
+                document.body.style.position = '';
+                document.body.classList.remove('modal-open', 'no-scroll');
+            }, 10);
+        }
+
+        // Actual download function
+        function actualDownload(format, year = '', month = '') {
+            const { reportsDownloadPdf } = endpoints();
+            let url = reportsDownloadPdf;
+            
+            if (!url) {
+                CO_showToast && CO_showToast('Download URL not found', 'error');
+                return;
+            }
+
+            // Add filter parameters to URL
+            const params = new URLSearchParams();
+            if (year) params.append('year', year);
+            if (month) params.append('month', month);
+            params.append('_t', Date.now()); // Cache busting
+            params.append('_r', Math.random()); // Additional cache busting
+            
+            if (params.toString()) {
+                url += (url.includes('?') ? '&' : '?') + params.toString();
+            }
+
+            // Show loading message
+            const filterText = getFilterText(year, month);
+            CO_showToast && CO_showToast(`Preparing ${format.toUpperCase()} download${filterText}...`, 'info');
+            
+            // First check if there's data for the selected period
+            const { reportsList } = endpoints();
+            if (reportsList) {
+                let checkUrl = `${reportsList}?per_page=1000`;
+                if (params.toString()) {
+                    checkUrl += '&' + params.toString();
+                }
+                
+                fetch(checkUrl, { 
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.ok && Array.isArray(data.reports)) {
+                        if (data.reports.length === 0) {
+                            // No data found for the selected period
+                            const periodTitle = getFilterText(year, month);
+                            CO_showToast && CO_showToast(`No data found${periodTitle}. Please try a different time period.`, 'warning');
+                            return;
+                        }
+                        
+                        // Data exists, proceed with download
+                        performDownload(url, format, filterText);
+                    } else {
+                        // Error or no data
+                        CO_showToast && CO_showToast('Unable to verify data availability', 'error');
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to check data availability:', err);
+                    // Proceed with download anyway
+                    performDownload(url, format, filterText);
+                });
+            } else {
+                // No reportsList endpoint, proceed with download
+                performDownload(url, format, filterText);
+            }
+        }
+
+        // Helper function to perform the actual download
+        function performDownload(url, format, filterText) {
+            // Create temporary link and trigger download
+            const link = document.createElement('a');
+            link.href = url;
+            const filename = `security_reports${filterText.replace(/ /g, '_')}_${new Date().toISOString().split('T')[0]}.${format}`;
+            link.download = filename;
+            link.target = '_blank'; // Open in new tab as fallback
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Comprehensive modal cleanup immediately
+            closeAllModals();
+            
+            // Additional cleanup after a short delay to ensure everything is reset
+            setTimeout(() => {
+                closeAllModals();
+                
+                // Force page state reset
+                document.documentElement.style.overflow = '';
+                document.body.style.overflow = '';
+                document.body.style.position = '';
+                document.body.style.top = '';
+                document.body.style.left = '';
+                document.body.style.right = '';
+                document.body.style.bottom = '';
+                document.body.style.paddingRight = '';
+                document.body.classList.remove('modal-open', 'no-scroll');
+                
+                // Force reflow
+                document.body.offsetHeight;
+            }, 50);
+            
+            // Show success message
+            setTimeout(() => {
+                CO_showToast && CO_showToast(`${format.toUpperCase()} download${filterText} started`, 'success');
+            }, 500);
+        }
+
+        // Show reports analytics
+        function showReportsAnalytics(year = '', month = '') {
+            const { reportsAnalytics } = endpoints();
+            if (!reportsAnalytics) return;
+
+            // Add filter parameters to URL
+            let url = reportsAnalytics;
+            const params = new URLSearchParams();
+            if (year) params.append('year', year);
+            if (month) params.append('month', month);
+            
+            if (params.toString()) {
+                url += (url.includes('?') ? '&' : '?') + params.toString();
+            }
+
+            fetch(url, { 
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.ok) {
+                    showAnalyticsModal(data.analytics, year, month);
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load analytics:', err);
+                CO_showToast && CO_showToast('Failed to load analytics', 'error');
+            });
+        }
+
+        // Show analytics modal
+        function showAnalyticsModal(analytics, year = '', month = '') {
+            if (!overlay || !modalShell) return;
+            
+            const filterText = getFilterText(year, month);
+            modalTitle.textContent = `Reports Analytics${filterText}`;
+            modalShell.innerHTML = `
+                <div class="analytics-modal">
+                    <div class="analytics-stats">
+                        <div class="stat-card">
+                            <h3>${analytics.total_reports}</h3>
+                            <p>Total Reports</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>${analytics.resident_reports}</h3>
+                            <p>Resident Reports</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>${analytics.non_resident_reports}</h3>
+                            <p>Non-Resident Reports</p>
+                        </div>
+                    </div>
+                    
+                    <div class="analytics-breakdown">
+                        <h4>Status Breakdown</h4>
+                        <div class="breakdown-list">
+                            ${Object.entries(analytics.status_breakdown).map(([status, count]) => 
+                                `<div class="breakdown-item">
+                                    <span class="breakdown-label">${status.replace('_', ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</span>
+                                    <span class="breakdown-count">${count}</span>
+                                </div>`
+                            ).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="analytics-breakdown">
+                        <h4>Priority Breakdown</h4>
+                        <div class="breakdown-list">
+                            ${Object.entries(analytics.priority_breakdown).map(([priority, count]) => 
+                                `<div class="breakdown-item">
+                                    <span class="breakdown-label">${priority.replace('_', ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</span>
+                                    <span class="breakdown-count">${count}</span>
+                                </div>`
+                            ).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="analytics-breakdown">
+                        <h4>Common Reasons</h4>
+                        <div class="breakdown-list">
+                            ${analytics.common_reasons.map(reason => 
+                                `<div class="breakdown-item">
+                                    <span class="breakdown-label">${reason.reason}</span>
+                                    <span class="breakdown-count">${reason.count}</span>
+                                </div>`
+                            ).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Open the modal
+            overlay.style.display = 'flex';
+            overlay.style.visibility = 'visible';
+            overlay.style.opacity = '1';
+            overlay.classList.add('active');
+            
+            // Set body styles for modal
+            try {
+                const sbw = window.innerWidth - document.documentElement.clientWidth;
+                document.documentElement.style.overflow = 'hidden';
+                document.body.style.overflow = 'hidden';
+                document.body.classList.add('modal-open');
+                if (sbw > 0) {
+                    document.body.style.paddingRight = sbw + 'px';
+                }
+            } catch (e) {}
+        }
+
 
         // Removed renderDownloadOptions and renderBillingHistory
 
@@ -1086,6 +2186,82 @@
             revealBtn.innerHTML = '<i class="fas fa-check"></i> Code Revealed!';
             revealBtn.classList.add('revealed');
         }
+
+        // Global cleanup function for any remaining modal issues
+        function globalModalCleanup() {
+            closeAllModals();
+        }
+
+        // Function to properly open modals
+        function openModal() {
+            // First ensure any existing modal is properly closed
+            closeAllModals();
+            
+            // Set body styles for modal
+            document.documentElement.style.overflow = 'hidden';
+            document.body.style.overflow = 'hidden';
+            document.body.classList.add('modal-open');
+            
+            if (overlay) {
+                overlay.style.display = 'flex';
+                overlay.style.visibility = 'visible';
+                overlay.style.opacity = '1';
+                overlay.classList.add('active');
+            }
+        }
+
+        // Add global event listeners for cleanup
+        document.addEventListener('click', function(e) {
+            // If clicking outside the specific modal overlay, close it
+            if (e.target.classList.contains('modal-overlay') && e.target === overlay) {
+                closeAllModals();
+            }
+        });
+
+        // Add escape key listener for modal cleanup
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && overlay && overlay.style.display !== 'none') {
+                closeAllModals();
+            }
+        });
+
+        // Expose cleanup function globally for debugging
+        window.closeAllModals = closeAllModals;
+        window.globalModalCleanup = globalModalCleanup;
+        
+        // Debug function to check modal state
+        window.debugModal = function() {
+            console.log('Overlay:', overlay);
+            console.log('Overlay display:', overlay ? overlay.style.display : 'undefined');
+            console.log('Overlay visibility:', overlay ? overlay.style.visibility : 'undefined');
+            console.log('Body overflow:', document.body.style.overflow);
+            console.log('Body classes:', document.body.classList.toString());
+        };
+        
+        // Global function to force reset page state
+        window.resetPageState = function() {
+            closeAllModals();
+            document.documentElement.style.overflow = '';
+            document.body.style.overflow = 'auto';
+            document.body.style.position = 'static';
+            document.body.style.top = '';
+            document.body.style.left = '';
+            document.body.style.right = '';
+            document.body.style.bottom = '';
+            document.body.style.paddingRight = '';
+            document.body.classList.remove('modal-open', 'no-scroll');
+            document.body.offsetHeight; // Force reflow
+        };
+        
+        // Emergency reset function for debugging
+        window.emergencyReset = function() {
+            console.log('Emergency reset triggered');
+            closeAllModals();
+            setTimeout(() => {
+                window.resetPageState();
+                console.log('Page state reset complete');
+            }, 100);
+        };
 
 
 
