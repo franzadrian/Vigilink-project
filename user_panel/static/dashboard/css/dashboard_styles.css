@@ -517,7 +517,8 @@
         /* Responsive Design */
         @media (max-width: 768px) {
             .mobile-menu-btn {
-                display: block;
+                display: block !important;
+                visibility: visible !important;
             }
 
             .nav-links {
@@ -525,7 +526,8 @@
             }
             
             .menu-toggle {
-                display: flex;
+                display: flex !important;
+                visibility: visible !important;
             }
 
             .sidebar {

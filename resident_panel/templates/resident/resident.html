@@ -13,7 +13,11 @@
     <div class="resident-header">
       <h1 class="resident-heading">Community Residents</h1>
       {% if community and community.community_name %}
-      <p class="resident-subtitle">Showing residents in {{ community.community_name }}</p>
+      {% if request.user.role == 'communityowner' or request.user.role == 'admin' %}
+      <p class="resident-subtitle">View and manage community members in {{ community.community_name }}</p>
+      {% else %}
+      <p class="resident-subtitle">View community members in {{ community.community_name }}</p>
+      {% endif %}
       {% endif %}
     </div>
     <div class="resident-toolbar">

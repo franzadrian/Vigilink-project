@@ -49,8 +49,15 @@
         
         // Lazy load content sections
         function lazyLoadSection(sectionId) {
+            console.log('lazyLoadSection called for:', sectionId);
             const section = document.getElementById(sectionId);
-            if (!section) return;
+            if (!section) {
+                console.log('Section not found:', sectionId);
+                return;
+            }
+            
+            console.log('Section found:', section);
+            console.log('Section data-loaded:', section.getAttribute('data-loaded'));
             
             // Always allow reports to be re-rendered
             if (sectionId === 'reports') {
@@ -59,11 +66,30 @@
             }
             
             // For other sections, only load once
-            if (section.getAttribute('data-loaded') === 'true') return;
+            if (section.getAttribute('data-loaded') === 'true') {
+                console.log('Section already loaded, skipping:', sectionId);
+                return;
+            }
             section.setAttribute('data-loaded', 'true');
             
             if (sectionId === 'users' && typeof renderUsers === 'function') {
                 renderUsers();
+            } else if (sectionId === 'events' && typeof loadEvents === 'function') {
+                // Load events on all devices
+                console.log('Loading events for all devices...');
+                loadEvents();
+                
+                // Also load events data for stats
+                console.log('Loading events data for stats...');
+                loadEventsData();
+            } else if (sectionId === 'details') {
+                // Community Details section is already loaded in HTML
+                // Just ensure it's properly displayed
+                return;
+            } else if (sectionId === 'secret') {
+                // Secret Code section is already loaded in HTML
+                // Just ensure it's properly displayed
+                return;
             }
         }
 
@@ -80,36 +106,115 @@
 
         // Reports data (for stats only)
         let reports = [];
+        
+        // Events data (for stats only)
+        let events = [];
 
+        // Debug function to test events loading
+        window.debugEventsLoading = function() {
+            console.log('=== DEBUG EVENTS LOADING ===');
+            console.log('Current events array:', events);
+            console.log('Events length:', events ? events.length : 'events is not an array');
+            console.log('Total events element:', document.getElementById('total-events'));
+            console.log('API endpoints element:', document.getElementById('co-api-endpoints'));
+            loadEventsData();
+        };
+        
+        // Force update events count
+        window.forceUpdateEventsCount = function() {
+            console.log('=== FORCE UPDATE EVENTS COUNT ===');
+            const totalEventsEl = document.getElementById('total-events');
+            const totalEvents = Array.isArray(events) ? events.length : 0;
+            console.log('Setting total events to:', totalEvents);
+            if (totalEventsEl) {
+                totalEventsEl.textContent = totalEvents;
+                console.log('Updated successfully!');
+            } else {
+                console.error('total-events element not found!');
+            }
+        };
+        
+        // Load events data for stats
+        function loadEventsData() {
+            const apiEndpoints = document.getElementById('co-api-endpoints');
+            console.log('API endpoints element:', apiEndpoints);
+            
+            if (!apiEndpoints) {
+                console.error('co-api-endpoints element not found');
+                return;
+            }
+            
+            const eventsListUrl = apiEndpoints.dataset.eventsListUrl;
+            console.log('Events list URL from dataset:', eventsListUrl);
+            
+            if (!eventsListUrl) {
+                console.error('Events API endpoint not found in dataset');
+                return;
+            }
+            
+            console.log('Loading events data from:', eventsListUrl);
+            
+            fetch(eventsListUrl, {
+                method: 'GET',
+                headers: {
+                    'X-CSRFToken': getCsrfToken()
+                }
+            })
+            .then(response => {
+                console.log('Events API response status:', response.status);
+                console.log('Events API response headers:', response.headers);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Events API response data:', data);
+                if (data.success && Array.isArray(data.events)) {
+                    events = data.events;
+                    console.log('Events loaded successfully:', events.length, 'events');
+                    console.log('Events data:', events);
+                    updateStats(); // Update stats with new events data
+                } else {
+                    console.error('Failed to load events - success:', data.success, 'events array:', Array.isArray(data.events));
+                    console.error('Error message:', data.error || 'Unknown error');
+                    events = [];
+                    updateStats(); // Update stats even with empty events
+                }
+            })
+            .catch(error => {
+                console.error('Error loading events:', error);
+                events = [];
+                updateStats(); // Update stats even with empty events
+            });
+        }
+        
         // Load reports data for stats from server-side data
         function loadReportsData() {
             // Get stats directly from server-side data in the HTML
             const totalReportsEl = document.getElementById('total-reports');
-            const activeReportsEl = document.getElementById('active-reports');
+            const totalEventsEl = document.getElementById('total-events');
             const monthReportsEl = document.getElementById('month-reports');
             
             console.log('Reading stats from HTML elements:');
             console.log('totalReportsEl:', totalReportsEl);
-            console.log('activeReportsEl:', activeReportsEl);
+            console.log('totalEventsEl:', totalEventsEl);
             console.log('monthReportsEl:', monthReportsEl);
             
-            if (totalReportsEl && activeReportsEl && monthReportsEl) {
+            if (totalReportsEl && totalEventsEl && monthReportsEl) {
                 const totalReports = parseInt(totalReportsEl.textContent) || 0;
-                const activeReports = parseInt(activeReportsEl.textContent) || 0;
+                const totalEvents = parseInt(totalEventsEl.textContent) || 0;
                 const monthReports = parseInt(monthReportsEl.textContent) || 0;
                 
                 console.log('Raw text content:');
                 console.log('totalReportsEl.textContent:', totalReportsEl.textContent);
-                console.log('activeReportsEl.textContent:', activeReportsEl.textContent);
+                console.log('totalEventsEl.textContent:', totalEventsEl.textContent);
                 console.log('monthReportsEl.textContent:', monthReportsEl.textContent);
                 
                 console.log('Parsed values:');
                 console.log('totalReports:', totalReports);
-                console.log('activeReports:', activeReports);
+                console.log('totalEvents:', totalEvents);
                 console.log('monthReports:', monthReports);
                 
                 // Update stats directly without animation (since we're using server data)
-                updateStatsFromServer(totalReports, activeReports, monthReports);
+                updateStatsFromServer(totalReports, totalEvents, monthReports);
                 return;
             }
             
@@ -148,32 +253,62 @@
         }
 
         // Update stats using server-side data
-        function updateStatsFromServer(totalReports, activeReports, monthReports) {
+        function updateStatsFromServer(totalReports, totalEvents, monthReports) {
             const totalUsers = Array.isArray(users) ? users.length : 0;
             
             console.log('Updating stats from server:', {
                 totalUsers,
                 totalReports,
-                activeReports,
+                totalEvents,
                 monthReports
             });
             
             // Only animate if elements exist and haven't been animated yet
-            if (totalUsersEl && !totalUsersEl.hasAttribute('data-animated')) {
-                animateValue(totalUsersEl, 0, totalUsers, 1000);
-                totalUsersEl.setAttribute('data-animated', 'true');
+            if (totalUsersEl) {
+                console.log('Updating total users element:', totalUsersEl, 'with value:', totalUsers);
+                if (!totalUsersEl.hasAttribute('data-animated')) {
+                    animateValue(totalUsersEl, 0, totalUsers, 1000);
+                    totalUsersEl.setAttribute('data-animated', 'true');
+                } else {
+                    // If already animated, update the value directly
+                    totalUsersEl.textContent = totalUsers;
+                }
+            } else {
+                console.error('total-users element not found!');
             }
-            if (totalReportsEl && !totalReportsEl.hasAttribute('data-animated')) {
-                animateValue(totalReportsEl, 0, totalReports, 1000);
-                totalReportsEl.setAttribute('data-animated', 'true');
+            if (totalReportsEl) {
+                console.log('Total reports element found, preserving server value:', totalReports);
+                // Don't override server-side value, just ensure it's displayed
+                if (!totalReportsEl.hasAttribute('data-animated')) {
+                    animateValue(totalReportsEl, 0, totalReports, 1000);
+                    totalReportsEl.setAttribute('data-animated', 'true');
+                }
+                // Don't update the text content as it should come from server
+            } else {
+                console.error('total-reports element not found!');
             }
-            if (activeReportsEl && !activeReportsEl.hasAttribute('data-animated')) {
-                animateValue(activeReportsEl, 0, activeReports, 1000);
-                activeReportsEl.setAttribute('data-animated', 'true');
+            if (totalEventsEl) {
+                console.log('Updating total events element:', totalEventsEl, 'with value:', totalEvents);
+                if (!totalEventsEl.hasAttribute('data-animated')) {
+                    animateValue(totalEventsEl, 0, totalEvents, 1000);
+                    totalEventsEl.setAttribute('data-animated', 'true');
+                } else {
+                    // If already animated by events management script, don't override
+                    console.log('Total events already updated by events management script, skipping');
+                }
+            } else {
+                console.error('total-events element not found!');
             }
-            if (monthReportsEl && !monthReportsEl.hasAttribute('data-animated')) {
-                animateValue(monthReportsEl, 0, monthReports, 1000);
-                monthReportsEl.setAttribute('data-animated', 'true');
+            if (monthReportsEl) {
+                console.log('Month reports element found, preserving server value:', monthReports);
+                // Don't override server-side value, just ensure it's displayed
+                if (!monthReportsEl.hasAttribute('data-animated')) {
+                    animateValue(monthReportsEl, 0, monthReports, 1000);
+                    monthReportsEl.setAttribute('data-animated', 'true');
+                }
+                // Don't update the text content as it should come from server
+            } else {
+                console.error('month-reports element not found!');
             }
         }
 
@@ -197,7 +332,7 @@
         // Stats elements
         const totalUsersEl = document.getElementById('total-users');
         const totalReportsEl = document.getElementById('total-reports');
-        const activeReportsEl = document.getElementById('active-reports');
+        const totalEventsEl = document.getElementById('total-events');
         const monthReportsEl = document.getElementById('month-reports');
 
         // Initialize the dashboard with performance optimizations
@@ -207,6 +342,21 @@
             
             // Load reports data and update stats
             loadReportsData();
+            
+            // Load events data and update stats
+            loadEventsData();
+            
+            // Also try loading events data after a short delay to ensure everything is ready
+            setTimeout(() => {
+                console.log('Delayed events loading...');
+                loadEventsData();
+                
+                // Also try using the events management script's loadEvents function if available
+                if (typeof loadEvents === 'function') {
+                    console.log('Using events management loadEvents function...');
+                    loadEvents();
+                }
+            }, 1000);
             
             // Lazy load non-critical content
             lazyLoad(() => {
@@ -260,6 +410,9 @@
                 const section = document.getElementById(targetId);
                 if (!section || !overlay || !modalShell) return;
                 
+                // Allow events modal on all devices
+                const isMobile = window.innerWidth <= 768;
+                
                 // First ensure any existing modal is properly closed
                 closeAllModals();
                 
@@ -280,9 +433,19 @@
                 section.classList.add('active');
                 section.classList.add('in-modal');
                 
+                // Always display the section
+                section.style.display = 'block';
+                section.style.visibility = 'visible';
+                section.style.opacity = '1';
+                section.style.pointerEvents = 'auto';
+                
                 // mount into shell
+                console.log('Mounting section into modal:', targetId);
+                console.log('Section element:', section);
+                console.log('Section innerHTML length:', section.innerHTML.length);
                 modalShell.innerHTML = '';
                 modalShell.appendChild(section);
+                console.log('Modal shell after mounting:', modalShell);
                 
                 if (modalContainer) {
                     if (targetId === 'secret') {
@@ -359,8 +522,17 @@
                         }, 100);
                     } else {
                         // Lazy load other sections
+                        console.log('Navigation handler - targetId:', targetId);
                         lazyLoad(() => {
+                            const isMobile = window.innerWidth <= 768;
+                            console.log('Navigation lazyLoad - targetId:', targetId, 'isMobile:', isMobile, 'window width:', window.innerWidth);
+                            
+                            // Load events section on all devices
+                            console.log('Loading events section for all devices');
+                            
+                            console.log('Calling lazyLoadSection for:', targetId);
                             lazyLoadSection(targetId);
+                            console.log('Calling openModal for:', targetId);
                             openModal(targetId);
                         }, 50);
                     }
@@ -568,40 +740,72 @@
         function updateStats() {
             // Calculate stats
             const totalUsers = Array.isArray(users) ? users.length : 0;
-            const totalReports = Array.isArray(reports) ? reports.length : 0;
-            const activeReports = Array.isArray(reports) ? reports.filter(r => r.status === 'pending' || r.status === 'investigating').length : 0;
-            const monthReports = Array.isArray(reports) ? reports.filter(r => {
-                const reportDate = new Date(r.created_at);
-                const monthAgo = new Date();
-                monthAgo.setMonth(monthAgo.getMonth() - 1);
-                return reportDate >= monthAgo;
-            }).length : 0;
+            
+            // Get reports stats from server-side data (HTML elements)
+            const totalReportsEl = document.getElementById('total-reports');
+            const monthReportsEl = document.getElementById('month-reports');
+            const totalReports = totalReportsEl ? parseInt(totalReportsEl.textContent) || 0 : 0;
+            const monthReports = monthReportsEl ? parseInt(monthReportsEl.textContent) || 0 : 0;
+            
+            const totalEvents = Array.isArray(events) ? events.length : 0;
             
             console.log('Stats calculation:', {
                 totalUsers,
                 totalReports,
-                activeReports,
+                totalEvents,
                 monthReports,
                 reportsArray: reports,
-                usersArray: users
+                usersArray: users,
+                eventsArray: events,
+                eventsLength: events ? events.length : 'events is not an array'
             });
             
             // Only animate if elements exist and haven't been animated yet
-            if (totalUsersEl && !totalUsersEl.hasAttribute('data-animated')) {
-                animateValue(totalUsersEl, 0, totalUsers, 1000);
-                totalUsersEl.setAttribute('data-animated', 'true');
+            if (totalUsersEl) {
+                console.log('Updating total users element:', totalUsersEl, 'with value:', totalUsers);
+                if (!totalUsersEl.hasAttribute('data-animated')) {
+                    animateValue(totalUsersEl, 0, totalUsers, 1000);
+                    totalUsersEl.setAttribute('data-animated', 'true');
+                } else {
+                    // If already animated, update the value directly
+                    totalUsersEl.textContent = totalUsers;
+                }
+            } else {
+                console.error('total-users element not found!');
             }
-            if (totalReportsEl && !totalReportsEl.hasAttribute('data-animated')) {
-                animateValue(totalReportsEl, 0, totalReports, 1000);
-                totalReportsEl.setAttribute('data-animated', 'true');
+            if (totalReportsEl) {
+                console.log('Total reports element found, preserving server value:', totalReports);
+                // Don't override server-side value, just ensure it's displayed
+                if (!totalReportsEl.hasAttribute('data-animated')) {
+                    animateValue(totalReportsEl, 0, totalReports, 1000);
+                    totalReportsEl.setAttribute('data-animated', 'true');
+                }
+                // Don't update the text content as it should come from server
+            } else {
+                console.error('total-reports element not found!');
             }
-            if (activeReportsEl && !activeReportsEl.hasAttribute('data-animated')) {
-                animateValue(activeReportsEl, 0, activeReports, 1000);
-                activeReportsEl.setAttribute('data-animated', 'true');
+            if (totalEventsEl) {
+                console.log('Updating total events element:', totalEventsEl, 'with value:', totalEvents);
+                if (!totalEventsEl.hasAttribute('data-animated')) {
+                    animateValue(totalEventsEl, 0, totalEvents, 1000);
+                    totalEventsEl.setAttribute('data-animated', 'true');
+                } else {
+                    // If already animated by events management script, don't override
+                    console.log('Total events already updated by events management script, skipping');
+                }
+            } else {
+                console.error('total-events element not found!');
             }
-            if (monthReportsEl && !monthReportsEl.hasAttribute('data-animated')) {
-                animateValue(monthReportsEl, 0, monthReports, 1000);
-                monthReportsEl.setAttribute('data-animated', 'true');
+            if (monthReportsEl) {
+                console.log('Month reports element found, preserving server value:', monthReports);
+                // Don't override server-side value, just ensure it's displayed
+                if (!monthReportsEl.hasAttribute('data-animated')) {
+                    animateValue(monthReportsEl, 0, monthReports, 1000);
+                    monthReportsEl.setAttribute('data-animated', 'true');
+                }
+                // Don't update the text content as it should come from server
+            } else {
+                console.error('month-reports element not found!');
             }
         }
 
@@ -688,6 +892,9 @@
             
             // Also refresh reports data
             loadReportsData();
+            
+            // Also refresh events data
+            loadEventsData();
         }
 
         function endpoints() {
@@ -1050,6 +1257,84 @@
             // Also wire any inline manage button if present
             const btn = document.getElementById('co-ec-manage-btn');
             if (btn) btn.addEventListener('click', openEmergencyModal);
+            
+            // Handle screen size changes to prevent unwanted modal appearances
+            let resizeTimeout;
+            let lastWidth = window.innerWidth;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(function() {
+                    const currentWidth = window.innerWidth;
+                    const isMobile = currentWidth <= 768;
+                    const wasMobile = lastWidth <= 768;
+                    
+                    console.log('Resize event - Current width:', currentWidth, 'isMobile:', isMobile, 'wasMobile:', wasMobile);
+                    
+                    // Only act if the mobile state actually changed
+                    if (isMobile !== wasMobile) {
+                        if (isMobile) {
+                            // Switching to mobile, close all modals and hide events section
+                            console.log('Switching to mobile, closing all modals');
+                            closeAllModals();
+                            
+                            const eventsSection = document.getElementById('events');
+                            if (eventsSection) {
+                                eventsSection.style.display = 'none';
+                                eventsSection.style.visibility = 'hidden';
+                                eventsSection.classList.remove('in-modal', 'active');
+                                eventsSection.setAttribute('data-loaded', 'false');
+                            }
+                            
+                            // Also hide the events modal if it's open
+                            const eventModal = document.getElementById('co-event-modal');
+                            if (eventModal) {
+                                eventModal.style.display = 'none';
+                                eventModal.style.visibility = 'hidden';
+                                eventModal.style.opacity = '0';
+                                eventModal.style.pointerEvents = 'none';
+                            }
+                            
+                            // Also hide the delete confirmation modal if it's open
+                            const deleteModal = document.getElementById('co-delete-confirm-modal');
+                            if (deleteModal) {
+                                deleteModal.style.display = 'none';
+                                deleteModal.style.visibility = 'hidden';
+                                deleteModal.style.opacity = '0';
+                            }
+                            
+                            // Reset body styles
+                            document.body.style.overflow = '';
+                            document.body.classList.remove('modal-open', 'no-scroll');
+                        } else {
+                            // Switching to desktop, ensure modals can work properly
+                            console.log('Switching to desktop');
+                            const eventsSection = document.getElementById('events');
+                            if (eventsSection) {
+                                // Reset events section styles for desktop
+                                eventsSection.style.position = '';
+                                eventsSection.style.left = '';
+                                eventsSection.style.top = '';
+                            }
+                        }
+                    }
+                    
+                    lastWidth = currentWidth;
+                }, 100);
+            });
+            
+            // Ensure events section is hidden on mobile on page load
+            const eventsSection = document.getElementById('events');
+            if (eventsSection && window.innerWidth <= 768) {
+                eventsSection.style.display = 'none';
+                eventsSection.style.visibility = 'hidden';
+                eventsSection.classList.remove('in-modal');
+                eventsSection.setAttribute('data-loaded', 'false');
+            }
+            
+            // Also ensure any existing modals are closed on mobile
+            if (window.innerWidth <= 768) {
+                closeAllModals();
+            }
         })();
 
         function findUserInState(id){
@@ -1160,6 +1445,7 @@
                                     role: data.member.role,
                                     block: data.member.block || '',
                                     lot: data.member.lot || '',
+                                    avatar: data.member.avatar || null,
                                 });
                                 renderUsersTable();
                                 CO_showToast && CO_showToast('User added to your community.', 'success');
@@ -1800,6 +2086,14 @@
                 overlay.classList.remove('active', 'show');
             }
             
+            // Close the delete confirmation modal
+            const deleteModal = document.getElementById('co-delete-confirm-modal');
+            if (deleteModal) {
+                deleteModal.style.display = 'none';
+                deleteModal.style.visibility = 'hidden';
+                deleteModal.style.opacity = '0';
+            }
+            
             // Reset document and body styles completely
             document.documentElement.style.overflow = '';
             document.body.style.overflow = '';
@@ -2135,7 +2429,15 @@
                             body: new URLSearchParams({ user_id: it.id }).toString(),
                         }).then(r=>r.json()).then(data=>{
                             if (data && data.ok && data.member){
-                                users.push({ id: data.member.id, name: data.member.name, email: data.member.email, role: data.member.role, block: data.member.block||'', lot: data.member.lot||'' });
+                                users.push({ 
+                                    id: data.member.id, 
+                                    name: data.member.name, 
+                                    email: data.member.email, 
+                                    role: data.member.role, 
+                                    block: data.member.block||'', 
+                                    lot: data.member.lot||'',
+                                    avatar: data.member.avatar || null
+                                });
                                 renderUsersTable(); coPaginateRows(); updateStats();
                                 CO_showToast && CO_showToast('User added to your community.', 'success');
                                 // Remove this result from the list

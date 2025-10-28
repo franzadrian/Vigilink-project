@@ -1,0 +1,159 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}{{ event.title }} - VigiLink{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<style>
+:root {
+    --primary: #3b82f6;
+    --dark: #1f2937;
+    --transition: all 0.3s ease;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --info: #3b82f6;
+}
+
+.container { max-width: 800px; margin: 0 auto; padding: 20px; }
+.event-detail-header { text-align: center; margin-bottom: 30px; }
+.event-detail-title { font-size: 2.5rem; margin-bottom: 10px; color: var(--dark); }
+.event-detail-card { background: #fff; border-radius: 12px; box-shadow: var(--card-shadow); overflow: hidden; }
+.event-detail-header-section { padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+.event-type-badge { display: inline-block; padding: 6px 12px; border-radius: 6px; font-size: 0.875rem; font-weight: 600; text-transform: uppercase; margin-bottom: 15px; background: rgba(255, 255, 255, 0.2); }
+.event-detail-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0; }
+.event-meta-item { display: flex; align-items: center; gap: 10px; }
+.event-meta-icon { width: 20px; text-align: center; }
+.event-meta-content h4 { margin: 0 0 5px 0; font-size: 0.875rem; font-weight: 600; text-transform: uppercase; opacity: 0.8; }
+.event-meta-content p { margin: 0; font-size: 1rem; }
+.event-detail-content { padding: 30px; }
+.event-description { font-size: 1.1rem; line-height: 1.7; color: #374151; margin-bottom: 30px; }
+.event-actions { display: flex; gap: 15px; justify-content: center; margin-top: 30px; }
+.btn { padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: var(--transition); cursor: pointer; }
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: #2563eb; }
+.btn-secondary { background: #6b7280; color: white; }
+.btn-secondary:hover { background: #4b5563; }
+.event-status-banner { padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; font-weight: 600; }
+.event-status-banner.upcoming { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+.event-status-banner.ongoing { background: #d1fae5; color: #065f46; border: 1px solid #86efac; }
+.event-status-banner.past { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+</style>
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <div class="event-detail-header">
+            <h1 class="event-detail-title">{{ event.title }}</h1>
+        </div>
+        
+        <div class="event-detail-card">
+            <div class="event-detail-header-section">
+                <span class="event-type-badge">{{ event.get_event_type_display }}</span>
+                
+                <div class="event-status-banner {% if event.is_upcoming %}upcoming{% elif event.is_ongoing %}ongoing{% else %}past{% endif %}">
+                    <i class="fas fa-{% if event.is_upcoming %}clock{% elif event.is_ongoing %}play-circle{% else %}check-circle{% endif %}"></i>
+                    {% if event.is_upcoming %}This event is upcoming{% elif event.is_ongoing %}This event is currently ongoing{% else %}This event has ended{% endif %}
+                </div>
+                
+                <div class="event-detail-meta">
+                    <div class="event-meta-item">
+                        <div class="event-meta-icon">
+                            <i class="fas fa-calendar"></i>
+                        </div>
+                        <div class="event-meta-content">
+                            <h4>Start Date</h4>
+                            <p>{{ event.start_date|date:"l, F d, Y" }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="event-meta-item">
+                        <div class="event-meta-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="event-meta-content">
+                            <h4>Start Time</h4>
+                            <p>{{ event.start_date|time:"g:i A" }}</p>
+                        </div>
+                    </div>
+                    
+                    {% if event.end_date %}
+                    <div class="event-meta-item">
+                        <div class="event-meta-icon">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="event-meta-content">
+                            <h4>End Date</h4>
+                            <p>{{ event.end_date|date:"l, F d, Y" }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="event-meta-item">
+                        <div class="event-meta-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="event-meta-content">
+                            <h4>End Time</h4>
+                            <p>{{ event.end_date|time:"g:i A" }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if event.location %}
+                    <div class="event-meta-item">
+                        <div class="event-meta-icon">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </div>
+                        <div class="event-meta-content">
+                            <h4>Location</h4>
+                            <p>{{ event.location }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="event-detail-content">
+                <h3 style="margin-bottom: 15px; color: var(--dark);">Event Description</h3>
+                <div class="event-description">
+                    {{ event.description|linebreaks }}
+                </div>
+                
+                <div class="event-actions">
+                    <a href="{% url 'events_panel:events_list' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Events
+                    </a>
+                    {% if event.is_upcoming or event.is_ongoing %}
+                    <button class="btn btn-primary" onclick="addToCalendar()">
+                        <i class="fas fa-calendar-plus"></i> Add to Calendar
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+function addToCalendar() {
+    // Create calendar event data
+    const eventData = {
+        title: "{{ event.title|escapejs }}",
+        start: "{{ event.start_date|date:'Y-m-d\TH:i:s' }}",
+        end: "{% if event.end_date %}{{ event.end_date|date:'Y-m-d\TH:i:s' }}{% else %}{{ event.start_date|date:'Y-m-d\TH:i:s' }}{% endif %}",
+        location: "{{ event.location|escapejs }}",
+        description: "{{ event.description|escapejs }}"
+    };
+    
+    // Create Google Calendar URL
+    const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventData.title)}&dates=${eventData.start.replace(/[-:]/g, '').split('.')[0]}Z/${eventData.end.replace(/[-:]/g, '').split('.')[0]}Z&details=${encodeURIComponent(eventData.description)}&location=${encodeURIComponent(eventData.location)}`;
+    
+    // Open in new tab
+    window.open(googleUrl, '_blank');
+}
+</script>
+{% endblock %}

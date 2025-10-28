@@ -95,7 +95,7 @@
                 Communication
                 <span id="comm-unread-badge" class="unread-badge" style="display:none;">0</span>
             </a>
-            <a href="#" class="sidebar-link">
+            <a href="{% url 'events_panel:events_list' %}" class="sidebar-link {% if request.path == '/events/' %}active{% endif %}">
                 <svg class="sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                 </svg>

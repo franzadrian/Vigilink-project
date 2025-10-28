@@ -40,7 +40,7 @@
     <div class="metric-card metric-card--events">
       <div class="metric-icon"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></div>
       <div class="metric-content">
-        <h3>Upcoming Events</h3>
+        <h3>Total Events</h3>
         <div class="metric-value">{{ events_count }}</div>
       </div>
     </div>
@@ -152,16 +152,31 @@
         <ul class="list list--events">
           {% for ev in upcoming_events %}
           <li class="list-item">
-            <div class="list-item__icon"><i class="fa-solid fa-location-dot" aria-hidden="true"></i></div>
+            <div class="list-item__icon">
+              <i class="fa-solid fa-{% if ev.event_type == 'Meeting' %}users{% elif ev.event_type == 'Announcement' %}bullhorn{% elif ev.event_type == 'Maintenance' %}wrench{% elif ev.event_type == 'Social Event' %}party-horn{% elif ev.event_type == 'Emergency' %}exclamation-triangle{% else %}calendar{% endif %}" aria-hidden="true"></i>
+            </div>
             <div class="list-item__content">
               <div class="list-item__title">{{ ev.title }}</div>
-              <div class="list-item__desc">{{ ev.date }}{% if ev.place %} • {{ ev.place }}{% endif %}</div>
+              <div class="list-item__desc">
+                <span class="event-date">{{ ev.date }}</span>
+                <span class="event-time">{{ ev.time }}</span>
+                {% if ev.place and ev.place != 'TBA' %}
+                <span class="event-location">• {{ ev.place }}</span>
+                {% endif %}
+              </div>
+              <div class="list-item__meta">
+                <span class="event-type-badge">{{ ev.event_type }}</span>
+                <span class="event-status-badge event-status-badge--{{ ev.status }}">
+                  <i class="fas fa-{{ ev.status_icon }}"></i>
+                  {{ ev.status_text }}
+                </span>
+              </div>
             </div>
           </li>
           {% endfor %}
         </ul>
         {% else %}
-        <p class="empty">No events scheduled yet.</p>
+        <p class="empty">No upcoming events scheduled.</p>
         {% endif %}
       </div>
     </article>

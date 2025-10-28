@@ -64,22 +64,22 @@
             </div>
             
             <div class="stat-card">
-                <div class="stat-icon active">
-                    <i class="fas fa-check-circle"></i>
-                </div>
-                <div class="stat-info">
-                    <h3 id="active-reports">{{ reports_stats.active_reports|default:0 }}</h3>
-                    <p>Active Reports</p>
-                </div>
-            </div>
-            
-            <div class="stat-card">
                 <div class="stat-icon month">
                     <i class="fas fa-calendar-alt"></i>
                 </div>
                 <div class="stat-info">
                     <h3 id="month-reports">{{ reports_stats.month_reports|default:0 }}</h3>
                     <p>Last Month Reports</p>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon events">
+                    <i class="fas fa-calendar-plus"></i>
+                </div>
+                <div class="stat-info">
+                    <h3 id="total-events">0</h3>
+                    <p>Total Events</p>
                 </div>
             </div>
         </div>
@@ -127,11 +127,19 @@
                     {% endif %}
                 </div>
             </div>
+            
+            <div class="nav-card" data-target="events">
+                <div class="card-icon">
+                    <i class="fas fa-calendar-plus"></i>
+                </div>
+                <div class="card-title">Event Announcements</div>
+                <div class="card-desc">Create and manage community events and announcements</div>
+            </div>
         </div>
         
             <div class="content-area" style="display:none;">
             <!-- Community Details Section -->
-            <div id="details" class="content-section active" data-loaded="true">
+            <div id="details" class="content-section" data-loaded="true" style="display:none;">
                 <div class="section-header">
                     <div>
                         <h2 class="section-title">Community Details</h2>
@@ -167,7 +175,7 @@
             </div>
 
             <!-- Users Section -->
-            <div id="users" class="content-section" data-loaded="false">
+            <div id="users" class="content-section" data-loaded="false" style="display:none;">
                 <div class="section-header">
                     <div>
                         <h2 class="section-title">User Management</h2>
@@ -179,7 +187,7 @@
             </div>
             
             <!-- Reports Section -->
-            <div id="reports" class="content-section" data-loaded="false">
+            <div id="reports" class="content-section" data-loaded="false" style="display:none;">
                 <div class="section-header">
                     <div>
                         <h2 class="section-title">Reports & Analytics</h2>
@@ -195,7 +203,7 @@
             
             
             <!-- Secret Code Section -->
-            <div id="secret" class="content-section" data-loaded="true">
+            <div id="secret" class="content-section" data-loaded="true" style="display:none;">
                 <div class="secret-container">
                     <div class="secret-icon">
                         <i class="fas fa-lock"></i>
@@ -214,6 +222,43 @@
                     </p>
                 </div>
             </div>
+            
+            <!-- Events Section -->
+            <div id="events" class="content-section" data-loaded="false" style="display:none;">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Event Announcements</h2>
+                        <p class="section-subtitle">Create and manage community events and announcements</p>
+                    </div>
+                </div>
+                
+                <div class="co-events-controls" style="display:flex;gap:10px;align-items:center;margin-bottom:15px;">
+                    <div class="co-search-wrap" style="position:relative;flex:1;min-width:280px;display:flex;align-items:center;">
+                        <svg class="co-search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" aria-hidden="true" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6b7280;pointer-events:none;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        <input id="co-event-filter" type="text" placeholder="Search events..." style="flex:1;min-width:0;padding:10px 12px 10px 28px;border:1px solid #e5e7eb;border-radius:8px;" />
+                    </div>
+                    <select id="co-event-type-filter" style="padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;">
+                        <option value="">All Types</option>
+                        <option value="announcement">Announcement</option>
+                        <option value="meeting">Meeting</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="social">Social Event</option>
+                        <option value="emergency">Emergency</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="co-events-list" id="co-events-list">
+                    <!-- Events will be loaded here -->
+                </div>
+                
+                <!-- Create Event Button (always visible) -->
+                <div class="co-events-create-section" style="margin-top: 20px; text-align: center; padding: 20px; background: #f8fafc; border-radius: 8px; border: 1px solid #e0f2fe;">
+                    <button id="co-create-event-btn-bottom" class="action-btn edit-btn" style="background: #3b82f6; color: white; border: none; padding: 12px 24px; font-size: 1rem; border-radius: 8px;">
+                        <i class="fas fa-plus"></i> Create New Event
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -225,6 +270,89 @@
                 <button type="button" id="co-modal-close" class="co-modal-close" aria-label="Close">&times;</button>
             </div>
             <div id="co-modal-shell"></div>
+        </div>
+    </div>
+
+    <!-- Event Creation Modal -->
+    <div id="co-event-modal" class="co-onboarding-overlay" style="display:none;">
+        <div class="co-onboarding-modal" role="dialog" aria-modal="true" style="max-width: 600px;">
+            <div class="co-modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                <h3 id="co-event-modal-title" class="co-onboarding-title" style="margin:0;">Create Event Announcement</h3>
+                <button type="button" id="co-event-modal-close" class="co-modal-close" aria-label="Close">&times;</button>
+            </div>
+            <form id="co-event-form" class="co-onboarding-form" novalidate>
+                <div class="co-field-row" style="display: flex; gap: 15px;">
+                    <div class="co-field" style="flex: 1;">
+                        <label for="event_type">Event Type</label>
+                        <select id="event_type" name="event_type" style="padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; background: #fff; font-size: 14px; transition: border-color 0.3s ease; outline: none;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e5e7eb'">
+                            <option value="announcement">&#128227; Announcement</option>
+                            <option value="meeting">&#128107; Meeting</option>
+                            <option value="maintenance">&#128295; Maintenance</option>
+                            <option value="social">&#127881; Social Event</option>
+                            <option value="emergency">&#128680; Emergency</option>
+                            <option value="other">&#128203; Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="co-field" style="flex: 1;">
+                        <label for="event_start_date">Event Date & Time *</label>
+                        <input type="datetime-local" id="event_start_date" name="start_date" required value="" style="padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; background: #fff; font-size: 14px; transition: border-color 0.3s ease; outline: none;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e5e7eb'" />
+                    </div>
+                </div>
+                
+                <div class="co-field-row" style="display: flex; gap: 15px;">
+                    <div class="co-field" style="flex: 1;">
+                        <label for="event_title">Event Title *</label>
+                        <input type="text" id="event_title" name="title" required placeholder="e.g., Community Meeting" style="padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; background: #fff; font-size: 14px; transition: border-color 0.3s ease; outline: none;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e5e7eb'" />
+                    </div>
+                    
+                    <div class="co-field" style="flex: 1;">
+                        <label for="event_location">Location</label>
+                        <input type="text" id="event_location" name="location" placeholder="e.g., Community Center, Block 5" style="padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; background: #fff; font-size: 14px; transition: border-color 0.3s ease; outline: none;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e5e7eb'" />
+                    </div>
+                </div>
+                
+                <div class="co-field">
+                    <label for="event_description">Description *</label>
+                    <textarea id="event_description" name="description" required rows="4" placeholder="Describe the event details..." style="padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; background: #fff; font-size: 14px; resize: vertical; min-height: 100px; transition: border-color 0.3s ease; font-family: inherit; outline: none;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e5e7eb'"></textarea>
+                </div>
+                
+                <div class="co-details-actions" style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+                    <button type="submit" id="co-event-save" class="action-btn edit-btn">
+                        <i class="fas fa-save"></i> Create Event
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Event Delete Confirmation Modal -->
+    <div id="co-delete-confirm-modal" class="co-onboarding-overlay" style="display:none;">
+        <div class="co-onboarding-modal" role="dialog" aria-modal="true" style="max-width: 450px;">
+            <div class="co-modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                <h3 class="co-onboarding-title" style="margin:0;color:#dc2626;">
+                    <i class="fas fa-exclamation-triangle" style="margin-right:8px;"></i>
+                    Delete Event
+                </h3>
+                <button type="button" id="co-delete-modal-close" class="co-modal-close" aria-label="Close">&times;</button>
+            </div>
+            <div style="text-align:center;padding:20px 0;">
+                <div style="font-size:48px;color:#fbbf24;margin-bottom:16px;">
+                    <i class="fas fa-trash-alt"></i>
+                </div>
+                <h4 style="margin:0 0 12px 0;color:#374151;font-size:18px;font-weight:600;">Are you sure you want to delete this event?</h4>
+                <p style="margin:0 0 20px 0;color:#6b7280;font-size:14px;line-height:1.5;">
+                    This action cannot be undone. The event will be permanently removed from your community.
+                </p>
+                <div style="display:flex;gap:12px;justify-content:center;">
+                    <button type="button" id="co-delete-cancel" class="action-btn delete-btn" style="background:#6b7280;color:white;border:none;padding:10px 20px;border-radius:6px;font-size:14px;cursor:pointer;transition:background 0.2s;">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="button" id="co-delete-confirm" class="action-btn delete-btn" style="background:#dc2626;color:white;border:none;padding:10px 20px;border-radius:6px;font-size:14px;cursor:pointer;transition:background 0.2s;">
+                        <i class="fas fa-trash"></i> Delete Event
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -305,9 +433,40 @@
      data-ec-update-url="{% url 'communityowner_panel:emergency_update' %}"
      data-reports-list-url="{% url 'communityowner_panel:reports_list' %}"
      data-reports-download-pdf-url="{% url 'communityowner_panel:reports_download_pdf' %}"
-     data-reports-analytics-url="{% url 'communityowner_panel:reports_analytics' %}"></div>
+     data-reports-analytics-url="{% url 'communityowner_panel:reports_analytics' %}"
+     data-events-list-url="{% url 'events_panel:get_events' %}"
+     data-events-create-url="{% url 'events_panel:create_event' %}"
+     data-events-update-url="{% url 'events_panel:update_event' 0 %}"
+     data-events-delete-url="{% url 'events_panel:delete_event' 0 %}"></div>
 <div id="co-messages-data" data-messages='[{% if messages %}{% for message in messages %}{"text":"{{ message|escapejs }}","tags":"{{ message.tags|default:"info" }}"}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}]'></div>
 <script defer src="{% static 'communityowner/js/communityowner_script.js' %}" onload="window.CO_SCRIPT_LOADED=true;"></script>
+<script defer src="{% static 'communityowner/js/events_management.js' %}" onload="window.EVENTS_MANAGEMENT_LOADED=true;"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Prevent modal from closing when clicking outside
+    const eventModal = document.getElementById('co-event-modal');
+    const eventModalOverlay = eventModal;
+    
+    if (eventModalOverlay) {
+        eventModalOverlay.addEventListener('click', function(e) {
+            // Only close if clicking the overlay itself, not the modal content
+            if (e.target === eventModalOverlay) {
+                e.preventDefault();
+                e.stopPropagation();
+                // Don't close the modal
+            }
+        });
+    }
+    
+    // Events section and modal are now available on all devices
+    
+    // Ensure content area is hidden
+    const contentArea = document.querySelector('.content-area');
+    if (contentArea) {
+        contentArea.style.display = 'none';
+    }
+});
+</script>
 {% endblock %}
 
 

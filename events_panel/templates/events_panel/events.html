@@ -1,0 +1,165 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}Events - VigiLink{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'events_panel/css/events.css' %}">
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <header class="events-hero">
+            <h1>Community Events</h1>
+            <p class="subtitle">Stay updated with the latest events and announcements from {{ community.community_name }}</p>
+        </header>
+        
+        
+        <!-- Upcoming & Ongoing Events Section -->
+        {% if upcoming_ongoing_events %}
+        <div class="events-section">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <i class="fas fa-calendar-plus"></i>
+                    Upcoming & Ongoing Events
+                </h2>
+                <p class="section-subtitle">Events happening now or coming up</p>
+            </div>
+            <div class="events-grid">
+                {% for event in upcoming_ongoing_events %}
+                <div class="event-card event-card-horizontal">
+                    <div class="event-left-section">
+                    <div class="event-header">
+                        <h3 class="event-title">{{ event.title }}</h3>
+                            <div class="event-meta">
+                                <div class="event-date">
+                                    <i class="fas fa-calendar"></i>
+                                    <span>{{ event.start_date|date:"M d, Y" }}</span>
+                                </div>
+                                <div class="event-time">
+                                    <i class="fas fa-clock"></i>
+                                    <span>{{ event.start_date|time:"g:i A" }}</span>
+                                </div>
+                                {% if event.location %}
+                                <div class="event-location">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span>{{ event.location }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                    </div>
+                    </div>
+                    <div class="event-right-section">
+                    <div class="event-description-section">
+                        <h4 class="event-details-title">
+                            <i class="fas fa-info-circle"></i>
+                            Details
+                        </h4>
+                        <div class="event-description">
+                                {{ event.description|truncatewords:50 }}
+                        </div>
+                    </div>
+                        <div class="event-actions-horizontal">
+                        <div class="event-status-badge {% if event.is_upcoming %}upcoming{% else %}ongoing{% endif %}">
+                            <i class="fas fa-{% if event.is_upcoming %}clock{% else %}play-circle{% endif %}"></i>
+                            {% if event.is_upcoming %}Upcoming{% else %}Ongoing{% endif %}
+                        </div>
+                            <button class="event-calendar-btn" 
+                                    data-title="{{ event.title|escapejs }}" 
+                                    data-date="{{ event.start_date|date:"Y-m-d\TH:i:s" }}" 
+                                    data-location="{{ event.location|default:""|escapejs }}" 
+                                    data-description="{{ event.description|truncatewords:20|escapejs }}">
+                                <i class="fas fa-calendar-plus"></i> Add to Calendar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Completed Events Section -->
+        {% if completed_events %}
+        <div class="events-section">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <i class="fas fa-history"></i>
+                    Completed Events
+                </h2>
+                <p class="section-subtitle">Past events and announcements</p>
+            </div>
+            <div class="completed-events-table-container">
+                <table class="completed-events-table">
+                    <thead>
+                        <tr>
+                            <th>Event Title</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                {% for event in completed_events %}
+                        <tr>
+                            <td class="event-title-cell">
+                                <div class="event-title-text">{{ event.title }}</div>
+                                <div class="event-description-preview">{{ event.description|truncatewords:15|cut:event.title }}</div>
+                            </td>
+                            <td class="event-status-cell">
+                        <div class="event-status-badge completed">
+                            <i class="fas fa-check-circle"></i>
+                            Completed
+                        </div>
+                            </td>
+                            <td class="event-actions-cell">
+                                <button class="event-view-btn" 
+                                        data-id="{{ event.id }}" 
+                                        data-title="{{ event.title|escapejs }}" 
+                                        data-date="{{ event.start_date|date:"Y-m-d\TH:i:s" }}" 
+                                        data-location="{{ event.location|default:""|escapejs }}" 
+                                        data-description="{{ event.description|escapejs }}" 
+                                        data-type="{{ event.event_type }}">
+                                    <i class="fas fa-eye"></i> View
+                                </button>
+                            </td>
+                        </tr>
+                {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- No Events Message -->
+        {% if not upcoming_ongoing_events and not completed_events %}
+        <div class="no-events">
+            <p>No events available at the moment.</p>
+        </div>
+        {% endif %}
+        
+        <!-- Pagination -->
+        {% if events.has_other_pages %}
+        <div class="pagination">
+            {% if events.has_previous %}
+                <a href="?page=1">&laquo; First</a>
+                <a href="?page={{ events.previous_page_number }}">Previous</a>
+            {% endif %}
+            
+            <span class="current">
+                Page {{ events.number }} of {{ events.paginator.num_pages }}
+            </span>
+            
+            {% if events.has_next %}
+                <a href="?page={{ events.next_page_number }}">Next</a>
+                <a href="?page={{ events.paginator.num_pages }}">Last &raquo;</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script defer src="{% static 'events_panel/js/events.js' %}" onload="window.EVENTS_SCRIPT_LOADED=true;"></script>
+{% endblock %}

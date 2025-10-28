@@ -256,3 +256,70 @@
   color: var(--muted);
   font-size: 0.8rem;
 }
+
+/* Event styling */
+.event-date {
+  color: var(--text);
+  font-weight: 500;
+  margin-right: 8px;
+}
+
+.event-time {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-right: 8px;
+}
+
+.event-location {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.event-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--accent);
+  color: white;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+  margin-right: 8px;
+}
+
+.event-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+.event-status-badge--upcoming {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.event-status-badge--ongoing {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.event-status-badge--completed {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.list-item__meta {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

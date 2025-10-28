@@ -28,6 +28,7 @@ urlpatterns = [
     path('community-owner/', include('communityowner_panel.urls')),
     path('resident/', include('resident_panel.urls')),
     path('security/', include('security_panel.urls')),
+    path('events/', include('events_panel.urls')),
 ]
 
 # Serve media files in development

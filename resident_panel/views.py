@@ -264,10 +264,59 @@ def alerts(request):
             'status': incident.get_status_display(),
         })
 
-    upcoming_events = [
-        { 'title': 'Community Patrol Meeting', 'date': 'Next Tue 6:00 PM', 'place': 'Clubhouse' },
-        { 'title': 'Fire Safety Drill', 'date': 'Next Sat 9:00 AM', 'place': 'Block A Park' },
-    ]
+    # Get upcoming events for this community
+    upcoming_events = []
+    events_count = 0
+    try:
+        from events_panel.models import Event
+        from django.utils import timezone
+        
+        # Get only ongoing or upcoming events (no completed/past events)
+        now = timezone.now()
+        
+        # Get ongoing and upcoming events only
+        upcoming_events_qs = Event.objects.filter(
+            community=community,
+            is_active=True,
+            start_date__gte=now  # Only ongoing and upcoming events
+        ).order_by('start_date')[:2]  # Get the 2 nearest upcoming events
+        
+        events_count = Event.objects.filter(
+            community=community,
+            is_active=True
+        ).count()
+        
+        for event in upcoming_events_qs:
+            # Determine event status
+            now = timezone.now()
+            if event.start_date > now:
+                status = 'upcoming'
+                status_text = 'Upcoming'
+                status_icon = 'clock'
+            elif event.start_date <= now:
+                status = 'ongoing'
+                status_text = 'Ongoing'
+                status_icon = 'play-circle'
+            else:
+                status = 'completed'
+                status_text = 'Completed'
+                status_icon = 'check-circle'
+            
+            upcoming_events.append({
+                'id': event.id,
+                'title': event.title,
+                'date': event.start_date.strftime('%b %d, %Y'),
+                'time': event.start_date.strftime('%I:%M %p'),
+                'place': event.location if event.location else 'TBA',
+                'event_type': event.get_event_type_display(),
+                'description': event.description[:100] + '...' if len(event.description) > 100 else event.description,
+                'status': status,
+                'status_text': status_text,
+                'status_icon': status_icon
+            })
+    except Exception as e:
+        upcoming_events = []
+        events_count = 0
 
     from datetime import datetime
     tips = [
@@ -358,7 +407,7 @@ def alerts(request):
         'incidents_count': incidents_count,
         'recent_incidents': recent_incidents,
         'upcoming_events': upcoming_events,
-        'events_count': len(upcoming_events),
+        'events_count': events_count,
         'safety_tip': safety_tip,
         'emergency_contacts': emergency_contacts,
         'community_contacts': community_contacts,

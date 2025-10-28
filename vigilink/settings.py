@@ -55,7 +55,7 @@ def _csv(name, default=""):
         return []
     return [h.strip() for h in raw.split(',') if h.strip()]
 
-ALLOWED_HOSTS = _csv('ALLOWED_HOSTS', '*') if not DEBUG else ['*']
+ALLOWED_HOSTS = _csv('ALLOWED_HOSTS', '*') if not DEBUG else ['*', 'localhost', '127.0.0.1', '0.0.0.0']
 CSRF_TRUSTED_ORIGINS = _csv('CSRF_TRUSTED_ORIGINS')
 
 
@@ -74,7 +74,8 @@ INSTALLED_APPS = [
     'admin_panel',
     'communityowner_panel',
     'resident_panel',
-    'security_panel'
+    'security_panel',
+    'events_panel'
 ]
 
 MIDDLEWARE = [
@@ -174,7 +175,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Manila'
 
 USE_I18N = True
 
@@ -267,6 +268,14 @@ DROPBOX_APP_SECRET = os.environ.get('DROPBOX_APP_SECRET', '')
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+
+# Additional settings for mobile development
+if DEBUG:
+    # Allow all hosts in development for mobile testing
+    ALLOWED_HOSTS = ['*']
+    # Disable CSRF for local development (be careful in production)
+    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_SECURE = False
 
 # Refresh token (preferred for production); optional file path for convenience
 DROPBOX_REFRESH_TOKEN = os.environ.get('DROPBOX_REFRESH_TOKEN', '')
