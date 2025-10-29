@@ -67,7 +67,7 @@ def events_list(request):
             return redirect('communityowner_panel:community_owner')
         else:
             # For regular users who are not members of any community, show not_member page
-            return render(request, 'resident/not_member.html')
+            return render(request, 'resident/not_member.html', {'page_type': 'events'})
 
 
 @login_required
@@ -99,7 +99,7 @@ def event_detail(request, event_id):
             return redirect('communityowner_panel:community_owner')
         else:
             # For regular users who are not members of any community, show not_member page
-            return render(request, 'resident/not_member.html')
+            return render(request, 'resident/not_member.html', {'page_type': 'events'})
 
 
 @login_required

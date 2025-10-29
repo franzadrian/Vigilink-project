@@ -1,6 +1,40 @@
 // Current user being viewed/edited
 let currentUser = null;
 let currentRow = null;
+
+// Detect server-side pagination mode
+const serverPaginate = !!document.querySelector('[data-server-pagination="1"]');
+
+// Performance optimization: Cache DOM elements and add debouncing
+let cachedRows = null;
+let searchTimeout = null;
+let isFiltering = false;
+
+// Cache DOM elements for better performance
+function cacheDOMElements() {
+    if (!cachedRows) {
+        cachedRows = Array.from(document.querySelectorAll('#residentsTableBody tr'));
+    }
+    return cachedRows;
+}
+
+// Refresh cache when table is updated
+function refreshCache() {
+    cachedRows = null;
+    cacheDOMElements();
+}
+
+// Debounced search function
+function debounce(func, wait) {
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(searchTimeout);
+            func(...args);
+        };
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(later, wait);
+    };
+}
         
 // Add event listeners for dialog close buttons
 function setupDialogCloseButtons() {
@@ -17,8 +51,6 @@ function setupDialogCloseButtons() {
         
 // Add event listeners for view resident buttons
 document.addEventListener('DOMContentLoaded', function() {
-    // Detect server-side pagination mode
-    const serverPaginate = !!document.querySelector('[data-server-pagination="1"]');
     // Setup dialog close buttons
     setupDialogCloseButtons();
     
@@ -327,6 +359,9 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                         // Remove the row from the table
                         const row = deleteButton.closest('tr');
                         row.remove();
+                        
+                        // Refresh cache after removing row
+                        refreshCache();
                         
                         // Update the users in localStorage to reflect the deletion
                         // This ensures the deletion persists after page refresh
@@ -641,6 +676,22 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
             roleLinks.forEach(link => {
                 link.addEventListener('click', function(e) {
                     if (serverPaginate) {
+                        // For server-side pagination, update button text before navigation
+                        const selectedRole = this.getAttribute('data-role');
+                        const roleText = this.textContent.trim();
+                        
+                        // Update button text
+                        roleFilterBtn.innerHTML = roleText + 
+                            '<div class="sort-icons">' +
+                            '<div class="sort-icon up"></div>' +
+                            '<div class="sort-icon down"></div>' +
+                            '</div>';
+                        
+                        // Add loading indicator
+                        setTimeout(() => {
+                            roleFilterBtn.innerHTML = 'Loading...';
+                        }, 100);
+                        
                         // Let the anchor navigate (server-side filter)
                         return;
                     }
@@ -660,19 +711,61 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                 });
             });
             
-            // Search functionality
+            // Debounced search functionality
+            const debouncedFilter = debounce(function() {
+                if (!serverPaginate) {
+                    filterTable();
+                }
+            }, 300); // 300ms delay
+            
             searchInput.addEventListener('input', function(e) {
                 currentSearchTerm = e.target.value.toLowerCase();
-                filterTable();
+                if (serverPaginate) {
+                    // For server-side pagination, submit form after delay
+                    debounce(function() {
+                        const form = document.createElement('form');
+                        form.method = 'GET';
+                        form.action = window.location.pathname;
+                        
+                        // Add search parameter
+                        const searchInput = document.createElement('input');
+                        searchInput.type = 'hidden';
+                        searchInput.name = 'q';
+                        searchInput.value = e.target.value;
+                        form.appendChild(searchInput);
+                        
+                        // Add role parameter if exists
+                        const roleParam = new URLSearchParams(window.location.search).get('role');
+                        if (roleParam) {
+                            const roleInput = document.createElement('input');
+                            roleInput.type = 'hidden';
+                            roleInput.name = 'role';
+                            roleInput.value = roleParam;
+                            form.appendChild(roleInput);
+                        }
+                        
+                        document.body.appendChild(form);
+                        form.submit();
+                    }, 500)();
+                } else {
+                    debouncedFilter();
+                }
             });
             
-            // Combined filter function
+            // Optimized filter function
             function filterTable() {
-                const rows = document.querySelectorAll('#residentsTableBody tr');
+                if (isFiltering) return; // Prevent multiple simultaneous filters
+                isFiltering = true;
+                
+                const rows = cacheDOMElements();
                 let visibleRows = 0;
                 
                 // Reset current page when filtering
                 currentPage = 1;
+                
+                // Use document fragment for better performance
+                const fragment = document.createDocumentFragment();
+                let noResultsRow = null;
                 
                 rows.forEach(row => {
                     // Skip the "No users found" row if it exists
@@ -686,10 +779,12 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                         row.setAttribute('data-original-display', row.style.display || '');
                     }
                     
-                    const name = row.cells[0] ? row.cells[0].textContent.toLowerCase() : '';
-                    const email = row.cells[1] ? row.cells[1].textContent.toLowerCase() : '';
-                    const location = row.cells[2] ? row.cells[2].textContent.toLowerCase() : '';
-                    const role = row.cells[3] ? row.cells[3].textContent.toLowerCase() : '';
+                    // Cache cell content to avoid repeated DOM queries
+                    const cells = row.cells;
+                    const name = cells[0] ? cells[0].textContent.toLowerCase() : '';
+                    const email = cells[1] ? cells[1].textContent.toLowerCase() : '';
+                    const location = cells[2] ? cells[2].textContent.toLowerCase() : '';
+                    const role = cells[3] ? cells[3].textContent.toLowerCase() : '';
                     
                     // Check if row matches search term
                     const matchesSearch = currentSearchTerm === '' ||
@@ -715,84 +810,88 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                 });
                 
                 // Show "No users found" message if no rows are visible
-                 if (visibleRows === 0) {
-                     let noResultsRow = document.querySelector('#residentsTableBody .no-results');
-                     if (!noResultsRow) {
-                         noResultsRow = document.createElement('tr');
-                         noResultsRow.className = 'no-results';
-                         const cell = document.createElement('td');
-                         cell.colSpan = 5;
-                         cell.className = 'text-center';
-                         cell.textContent = 'No users found';
-                         cell.style.textAlign = 'center';
-                         cell.style.padding = '20px 0';
-                         cell.style.fontSize = '16px';
-                         noResultsRow.appendChild(cell);
-                         document.getElementById('residentsTableBody').appendChild(noResultsRow);
-                     } else {
-                         noResultsRow.style.display = '';
-                     }
-                 }
-                 
-                 // Apply pagination
-                 applyPagination();
-             }
+                if (visibleRows === 0) {
+                    let existingNoResultsRow = document.querySelector('#residentsTableBody .no-results');
+                    if (!existingNoResultsRow) {
+                        noResultsRow = document.createElement('tr');
+                        noResultsRow.className = 'no-results';
+                        const cell = document.createElement('td');
+                        cell.colSpan = 5;
+                        cell.className = 'text-center';
+                        cell.textContent = 'No users found';
+                        cell.style.textAlign = 'center';
+                        cell.style.padding = '20px 0';
+                        cell.style.fontSize = '16px';
+                        noResultsRow.appendChild(cell);
+                        document.getElementById('residentsTableBody').appendChild(noResultsRow);
+                    } else {
+                        existingNoResultsRow.style.display = '';
+                    }
+                } else {
+                    // Hide no results row if there are visible rows
+                    const existingNoResultsRow = document.querySelector('#residentsTableBody .no-results');
+                    if (existingNoResultsRow) {
+                        existingNoResultsRow.style.display = 'none';
+                    }
+                }
+                
+                // Apply pagination
+                applyPagination();
+                isFiltering = false;
+            }
              
     // Pagination variables (client-side fallback only)
     let currentPage = 1;
-    const rowsPerPage = 10;
+    const rowsPerPage = 10; // Match server-side pagination
              
-             // Apply pagination to the table
+             // Optimized pagination function
     function applyPagination() {
         if (serverPaginate) return; // server handles page slicing
-        // Get all rows except the "No results" row
-                 const allRows = Array.from(document.querySelectorAll('#residentsTableBody tr:not(.no-results)'));
-                 
-                 // Store original display state
-                 if (!allRows.some(row => row.hasAttribute('data-original-display'))) {
-                     allRows.forEach(row => {
-                         row.setAttribute('data-original-display', row.style.display || '');
-                     });
-                 }
-                 
-                 // Get visible rows based on filter
-                 const visibleRows = allRows.filter(row => {
-                     const originalDisplay = row.getAttribute('data-original-display');
-                     return originalDisplay !== 'none';
-                 });
-                 
-                 const totalRows = visibleRows.length;
-                 const totalPages = Math.ceil(totalRows / rowsPerPage);
-                 
-                 // Ensure current page is valid
-                 if (currentPage > totalPages && totalPages > 0) {
-                     currentPage = totalPages;
-                 }
-                 
-                 // Update pagination info if element exists
-                 const totalItemsElement = document.getElementById('totalItems');
-                 if (totalItemsElement) {
-                     totalItemsElement.textContent = totalRows;
-                 }
-                 
-                 // Hide all rows first
-                 allRows.forEach(row => {
-                     row.style.display = 'none';
-                 });
-                 
-                 // Show only rows for current page
-                 const startIndex = (currentPage - 1) * rowsPerPage;
-                 const endIndex = Math.min(startIndex + rowsPerPage, totalRows);
-                 
-                 for (let i = startIndex; i < endIndex; i++) {
-                     if (visibleRows[i]) {
-                         visibleRows[i].style.display = '';
-                     }
-                 }
-                 
-                 // Update pagination controls
-                 updatePaginationControls(totalPages, startIndex, endIndex, totalRows);
-             }
+        
+        // Get all rows except the "No results" row using cached elements
+        const allRows = cacheDOMElements().filter(row => !row.classList.contains('no-results'));
+        
+        // Get visible rows based on filter
+        const visibleRows = allRows.filter(row => {
+            const originalDisplay = row.getAttribute('data-original-display');
+            return originalDisplay !== 'none';
+        });
+        
+        const totalRows = visibleRows.length;
+        const totalPages = Math.ceil(totalRows / rowsPerPage);
+        
+        // Ensure current page is valid
+        if (currentPage > totalPages && totalPages > 0) {
+            currentPage = totalPages;
+        }
+        
+        // Update pagination info if element exists
+        const totalItemsElement = document.getElementById('totalItems');
+        if (totalItemsElement) {
+            totalItemsElement.textContent = totalRows;
+        }
+        
+        // Batch DOM updates for better performance
+        requestAnimationFrame(() => {
+            // Hide all rows first
+            allRows.forEach(row => {
+                row.style.display = 'none';
+            });
+            
+            // Show only rows for current page
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = Math.min(startIndex + rowsPerPage, totalRows);
+            
+            for (let i = startIndex; i < endIndex; i++) {
+                if (visibleRows[i]) {
+                    visibleRows[i].style.display = '';
+                }
+            }
+            
+            // Update pagination controls
+            updatePaginationControls(totalPages, startIndex, endIndex, totalRows);
+        });
+    }
              
              // Update pagination controls
     function updatePaginationControls(totalPages, startIndex, endIndex, totalRows) {

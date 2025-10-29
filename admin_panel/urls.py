@@ -20,4 +20,9 @@ urlpatterns = [
     path('logout/', views.admin_logout, name='admin_logout'),
     path('update-user/', views.update_user, name='update_user'),
     path('delete-user/', views.delete_user, name='delete_user'),
+    path('resources/', views.admin_resources, name='admin_resources'),
+    path('resources/delete/<int:resource_id>/', views.delete_resource, name='delete_resource'),
+    path('resources/delete-by-title/<str:title>/', views.delete_resource_by_title, name='delete_resource_by_title'),
+    path('resources/edit/<int:resource_id>/', views.edit_resource, name='edit_resource'),
+    path('resources/group-count/<str:base_title>/', views.get_group_count, name='get_group_count'),
 ]

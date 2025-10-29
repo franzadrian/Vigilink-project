@@ -27,7 +27,7 @@ def residents(request):
     if is_owner:
         community = CommunityProfile.objects.filter(owner=request.user).first()
         if not community:
-            return render(request, 'resident/not_member.html', {'reason': 'no_community'}, status=404)
+            return render(request, 'resident/not_member.html', {'reason': 'no_community', 'page_type': 'residents'}, status=404)
     else:
         mem = CommunityMembership.objects.select_related('community').filter(user=request.user).first()
         if not mem or not mem.community:
@@ -63,7 +63,8 @@ def residents(request):
             
             return render(request, 'resident/not_member.html', {
                 'reason': 'no_membership',
-                'location_contacts': location_contacts
+                'location_contacts': location_contacts,
+                'page_type': 'residents'
             }, status=403)
         community = mem.community
 
@@ -200,7 +201,7 @@ def alerts(request):
     
     # Check if user is part of a community - redirect guests without community access
     if not community:
-        return render(request, 'resident/not_member.html', {'reason': 'no_membership'}, status=403)
+        return render(request, 'resident/not_member.html', {'reason': 'no_membership', 'page_type': 'alerts'}, status=403)
     if community:
         try:
             members_count = CommunityMembership.objects.filter(community=community).count()

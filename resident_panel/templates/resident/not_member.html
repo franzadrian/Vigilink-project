@@ -1,7 +1,12 @@
 {% extends 'dashboard/base.html' %}
 {% load static %}
 
-{% block title %}Residents - Not Available{% endblock %}
+{% block title %}
+  {% if page_type == 'events' %}Events - Not Available
+  {% elif page_type == 'alerts' %}Alerts - Not Available
+  {% else %}Residents - Not Available
+  {% endif %}
+{% endblock %}
 
 {% block extra_css %}
 {{ block.super }}
@@ -143,7 +148,12 @@
   <div class="nm-wrap">
     <div class="nm-head">
       <div class="icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12" y2="16"></line></svg></div>
-      <h2 class="nm-title">Residents Access Unavailable</h2>
+      <h2 class="nm-title">
+        {% if page_type == 'events' %}Events Access Unavailable
+        {% elif page_type == 'alerts' %}Alerts Access Unavailable
+        {% else %}Residents Access Unavailable
+        {% endif %}
+      </h2>
     </div>
     <p class="nm-text">
       You are not part of any community yet. Enter the community code shared by your Community Owner to join.

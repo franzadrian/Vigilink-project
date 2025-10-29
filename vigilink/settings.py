@@ -233,6 +233,9 @@ LOGGING = {
     },
 }
 
+# X-Frame-Options for iframe embedding (needed for PDF preview)
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.User'
 
