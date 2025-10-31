@@ -9,5 +9,6 @@ urlpatterns = [
     path('create/', views.create_event, name='create_event'),
     path('<int:event_id>/update/', views.update_event, name='update_event'),
     path('<int:event_id>/delete/', views.delete_event, name='delete_event'),
+    path('rsvp/', views.rsvp_event, name='rsvp_event'),
     path('api/get-events/', views.get_events, name='get_events'),
 ]

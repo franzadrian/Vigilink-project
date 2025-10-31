@@ -3,6 +3,9 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize events functionality
     initEventCards();
+    applyEventThemes();
+    initRsvpButtons();
+    initCollapsibleEvents();
 });
 
 // Initialize event cards with hover effects and interactions
@@ -34,33 +37,122 @@ function initEventCards() {
         });
     });
     
-    // Add event listeners for calendar buttons
-    const calendarButtons = document.querySelectorAll('.event-calendar-btn');
-    calendarButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const title = this.getAttribute('data-title');
-            const date = this.getAttribute('data-date');
-            const location = this.getAttribute('data-location');
-            const description = this.getAttribute('data-description');
-            
-            addToCalendar(title, date, location, description);
-        });
+    // Calendar button removed
+    // View button removed from Past Events section
+}
+
+// Apply themed appearance based on event title keywords and event types
+function applyEventThemes() {
+    const cards = document.querySelectorAll('.event-card[data-title]');
+    const knownThemes = ['theme-halloween','theme-christmas','theme-meeting','theme-social','theme-announcement','theme-maintenance','theme-emergency'];
+
+    cards.forEach(card => {
+        const title = (card.getAttribute('data-title') || '').toLowerCase();
+        const type = (card.getAttribute('data-type') || '').toLowerCase();
+
+        // Keyword-based themes
+        if (/halloween|spooky|trick[- ]?or[- ]?treat|pumpkin|ghost|ghoul/.test(title)) {
+            card.classList.add('theme-halloween');
+        } else if (/christmas|xmas|holiday|santa|yuletide/.test(title)) {
+            card.classList.add('theme-christmas');
+        } else if (/meeting|town\s*hall|assembly|board\s*meeting|hoa/.test(title)) {
+            card.classList.add('theme-meeting');
+        } else if (/party|social|gathering|picnic|festival|celebration/.test(title)) {
+            card.classList.add('theme-social');
+        } else if (/maintenance|repair|service\s*outage|water\s*interruption|power\s*outage/.test(title)) {
+            card.classList.add('theme-maintenance');
+        } else if (/emergency|urgent|alert|warning/.test(title)) {
+            card.classList.add('theme-emergency');
+        }
+
+        // Fallback to type-based themes
+        if (!knownThemes.some(t => card.classList.contains(t)) && type) {
+            switch (type) {
+                case 'announcement':
+                    card.classList.add('theme-announcement');
+                    break;
+                case 'meeting':
+                    card.classList.add('theme-meeting');
+                    break;
+                case 'maintenance':
+                    card.classList.add('theme-maintenance');
+                    break;
+                case 'social':
+                    card.classList.add('theme-social');
+                    break;
+                case 'emergency':
+                    card.classList.add('theme-emergency');
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        // Final fallback to generic theme
+        if (!knownThemes.some(t => card.classList.contains(t))) {
+            card.classList.add('theme-generic');
+        }
     });
-    
-    // Add event listeners for view buttons
-    const viewButtons = document.querySelectorAll('.event-view-btn');
-    viewButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const id = this.getAttribute('data-id');
-            const title = this.getAttribute('data-title');
-            const date = this.getAttribute('data-date');
-            const location = this.getAttribute('data-location');
-            const description = this.getAttribute('data-description');
-            const type = this.getAttribute('data-type');
-            
-            viewEventDetails(id, title, date, location, description, type);
-        });
+}
+
+// RSVP handling
+function initRsvpButtons() {
+    document.querySelectorAll('.event-card').forEach(card => {
+        const rsvp = card.querySelector('.event-rsvp');
+        const buttons = rsvp ? rsvp.querySelectorAll('.event-rsvp-btn') : [];
+        if (rsvp) {
+            const current = rsvp.getAttribute('data-current');
+            buttons.forEach(btn => {
+                if (btn.getAttribute('data-status') === current) {
+                    btn.classList.add('active');
+                }
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const status = btn.getAttribute('data-status');
+                    await submitRsvp(card.getAttribute('data-event-id'), status, buttons);
+                });
+            });
+        }
+        // CTA button triggers attending RSVP
+        const cta = card.querySelector('.event-rsvp-cta');
+        if (cta) {
+            cta.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const status = 'attending';
+                await submitRsvp(card.getAttribute('data-event-id'), status, buttons);
+                // Reflect active state if RSVP group exists
+                if (buttons && buttons.length) {
+                    buttons.forEach(b => b.classList.toggle('active', b.getAttribute('data-status') === status));
+                }
+            });
+        }
     });
+}
+
+async function submitRsvp(eventId, status, buttons) {
+    try {
+        const csrfToken = getCookie('csrftoken');
+        const res = await fetch(window.location.origin + '/events/rsvp/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ event_id: eventId, status })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            buttons.forEach(b => b.classList.toggle('active', b.getAttribute('data-status') === status));
+        }
+    } catch (e) {
+        console.error('Failed to RSVP:', e);
+    }
+}
+
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
 }
 
 // Utility function to format dates
@@ -92,7 +184,6 @@ function getRelativeTime(dateString) {
         return `In ${diffInDays} days`;
     }
 }
-
 
 // Show loading state
 function showEventsLoading() {
@@ -156,7 +247,6 @@ if (document.readyState === 'loading') {
 } else {
     initScrollAnimations();
 }
-
 
 // View event details modal
 function viewEventDetails(id, title, startDate, location, description, eventType) {
@@ -259,6 +349,28 @@ window.EventsPanel = {
     viewEventDetails,
     closeEventModal
 };
+// Accordion behavior removed; details are always visible
+
+// Initialize collapsible events for Past Events section
+function initCollapsibleEvents() {
+    const collapsibleHeaders = document.querySelectorAll('.event-row-collapsible .event-row-toggle');
+    
+    collapsibleHeaders.forEach(header => {
+        header.addEventListener('click', function(e) {
+            // Don't toggle if clicking on buttons or status badge
+            if (e.target.closest('button') || 
+                e.target.closest('.event-row-status')) {
+                return;
+            }
+            
+            // Allow toggle for clicks anywhere else on the header
+            const eventRow = this.closest('.event-row-collapsible');
+            if (eventRow) {
+                eventRow.classList.toggle('expanded');
+            }
+        });
+    });
+}
 
 // Make functions globally available
 window.viewEventDetails = viewEventDetails;

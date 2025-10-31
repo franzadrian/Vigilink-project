@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.utils import timezone
 from django.db.models import Q
-from .models import Event
+from .models import Event, EventAttendance
 from communityowner_panel.models import CommunityProfile, CommunityMembership
 from datetime import datetime, timedelta
 import json
@@ -29,34 +29,52 @@ def events_list(request):
         # Separate upcoming/ongoing events from completed events
         now = timezone.now()
         
-        # Get upcoming and ongoing events - sort by start_date (closest to start first)
-        upcoming_ongoing_events = Event.objects.filter(
+        # Events remain "Ongoing" for 24 hours after they start
+        # After 24 hours, they become "Completed"
+        event_duration = timedelta(hours=24)
+        
+        # Get upcoming events - events that haven't started yet
+        upcoming_events = Event.objects.filter(
             community=community,
             is_active=True,
-            start_date__gte=now
+            start_date__gt=now
         ).order_by('start_date')
         
-        # Get completed events
-        completed_events = Event.objects.filter(
+        # Get ongoing events - events that have started but are within 24-hour window
+        # Events starting at or before now, but not older than 24 hours
+        ongoing_events = Event.objects.filter(
             community=community,
             is_active=True,
-            start_date__lt=now
+            start_date__lte=now,
+            start_date__gt=now - event_duration
+        ).order_by('start_date')
+        
+        # Combine upcoming and ongoing for display
+        upcoming_ongoing_events = (upcoming_events | ongoing_events).order_by('start_date')
+        
+        # Get completed events - events that started more than 24 hours ago
+        completed_events_qs = Event.objects.filter(
+            community=community,
+            is_active=True,
+            start_date__lte=now - event_duration
         ).order_by('-start_date')  # Most recent first
         
-        # Combine for pagination (upcoming first, then completed)
-        all_events = list(upcoming_ongoing_events) + list(completed_events)
+        # Paginate completed events separately (4 per page)
+        completed_page_number = request.GET.get('completed_page', 1)
+        completed_paginator = Paginator(completed_events_qs, 4)
+        completed_events_page = completed_paginator.get_page(completed_page_number)
         
-        # Pagination
-        paginator = Paginator(all_events, 10)
-        page_number = request.GET.get('page')
-        page_obj = paginator.get_page(page_number)
-        
+        # Build current user's attendance map for quick lookup
+        all_event_ids = list(upcoming_ongoing_events.values_list('id', flat=True)) + list(completed_events_qs.values_list('id', flat=True))
+        attendance_qs = EventAttendance.objects.filter(user=request.user, event_id__in=all_event_ids)
+        attendance_map = {a.event_id: a.status for a in attendance_qs}
+
         context = {
-            'events': page_obj,
             'upcoming_ongoing_events': upcoming_ongoing_events,
-            'completed_events': completed_events,
+            'completed_events': completed_events_page,
             'community': community,
             'event_types': Event.EVENT_TYPE_CHOICES,
+            'attendance_map': attendance_map,
         }
         
         return render(request, 'events_panel/events.html', context)
@@ -212,6 +230,37 @@ def delete_event(request, event_id):
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
     
     return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
+
+
+@login_required
+@require_POST
+def rsvp_event(request):
+    try:
+        payload = json.loads(request.body)
+        event_id = int(payload.get('event_id'))
+        status = payload.get('status')
+        if status not in {"attending", "not_attending"}:
+            return JsonResponse({'success': False, 'error': 'Invalid status'}, status=400)
+
+        # Ensure the user belongs to the event's community
+        if hasattr(request.user, 'role') and request.user.role == 'communityowner':
+            community = CommunityProfile.objects.get(owner=request.user)
+        else:
+            membership = CommunityMembership.objects.get(user=request.user)
+            community = membership.community
+
+        event = get_object_or_404(Event, id=event_id, community=community, is_active=True)
+
+        attendance, _created = EventAttendance.objects.update_or_create(
+            event=event,
+            user=request.user,
+            defaults={'status': status}
+        )
+        return JsonResponse({'success': True, 'status': attendance.status})
+    except (CommunityMembership.DoesNotExist, CommunityProfile.DoesNotExist):
+        return JsonResponse({'success': False, 'error': 'Not part of this community'}, status=403)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
 
 @login_required

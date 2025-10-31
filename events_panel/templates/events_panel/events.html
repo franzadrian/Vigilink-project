@@ -1,161 +1,396 @@
 {% extends 'dashboard/base.html' %}
 {% load static %}
+{% load time_filters %}
+ 
 
 {% block title %}Events - VigiLink{% endblock %}
 
 {% block extra_css %}
 {{ block.super }}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'events_panel/css/events.css' %}">
 {% endblock %}
 
 {% block content %}
-    <div class="container">
-        <header class="events-hero">
-            <h1>Community Events</h1>
-            <p class="subtitle">Stay updated with the latest events and announcements from {{ community.community_name }}</p>
-        </header>
-        
-        
-        <!-- Upcoming & Ongoing Events Section -->
-        {% if upcoming_ongoing_events %}
-        <div class="events-section">
-            <div class="section-header">
-                <h2 class="section-title">
-                    <i class="fas fa-calendar-plus"></i>
-                    Upcoming & Ongoing Events
-                </h2>
-                <p class="section-subtitle">Events happening now or coming up</p>
-            </div>
-            <div class="events-grid">
-                {% for event in upcoming_ongoing_events %}
-                <div class="event-card event-card-horizontal">
-                    <div class="event-left-section">
-                    <div class="event-header">
-                        <h3 class="event-title">{{ event.title }}</h3>
-                            <div class="event-meta">
-                                <div class="event-date">
-                                    <i class="fas fa-calendar"></i>
-                                    <span>{{ event.start_date|date:"M d, Y" }}</span>
+    <div class="events-page">
+        <div class="container">
+            <header class="events-hero">
+                <h1>Community Events</h1>
+                <p class="subtitle">Stay updated with the latest events and announcements from {{ community.community_name }}</p>
+            </header>
+            {% if upcoming_ongoing_events %}
+            <div class="events-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-calendar-plus"></i>
+                        Upcoming & Ongoing Events
+                    </h2>
+                    <p class="section-subtitle">Events happening now or coming up</p>
+                </div>
+                <div class="events-grid" id="events-grid">
+                    {% for event in upcoming_ongoing_events %}
+                    {% with lower_title=event.title|lower lower_type=event.event_type|lower %}
+                    <div class="event-row 
+                        {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or 'halloween' == lower_type or 'haloween' == lower_type or 'hallowen' == lower_type or 'halowen' == lower_type %}theme-halloween
+                        {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or 'christmas' == lower_type or 'chrismas' == lower_type or 'xmas' == lower_type %}theme-christmas
+                        {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}theme-emergency
+                        {% elif 'maintenance' in lower_title or 'maintainance' in lower_title or 'repair' in lower_title or lower_type == 'maintenance' %}theme-maintenance
+                        {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}theme-meeting
+                        {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}theme-social
+                        {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}theme-announcement
+                        {% else %}theme-generic{% endif %}"
+                        data-event-id="{{ event.id }}" data-title="{{ event.title|escapejs }}" data-type="{{ event.event_type }}">
+                        {% if event.is_upcoming %}
+                        <div class="event-banner event-banner-upcoming">
+                            {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type in 'halloween haloween hallowen halowen' %}
+                                <i class="fas fa-broom"></i>
+                            {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type in 'christmas chrismas xmas' %}
+                                <i class="fas fa-candy-cane"></i>
+                            {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}
+                                <i class="fas fa-radiation"></i>
+                            {% elif 'maintenance' in lower_title or 'maintainance' in lower_title or 'repair' in lower_title or lower_type == 'maintenance' %}
+                                <i class="fas fa-screwdriver-wrench"></i>
+                            {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}
+                                <i class="fas fa-handshake"></i>
+                            {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}
+                                <i class="fas fa-champagne-glasses"></i>
+                            {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}
+                                <i class="fas fa-radio"></i>
+                            {% else %}
+                                <i class="fas fa-bookmark"></i>
+                            {% endif %}
+                            <span>Don't Miss Out!</span>
+                        </div>
+                        {% else %}
+                        <div class="event-banner event-banner-ongoing">
+                            {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type in 'halloween haloween hallowen halowen' %}
+                                <i class="fas fa-cat"></i>
+                            {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type in 'christmas chrismas xmas' %}
+                                <i class="fas fa-sleigh"></i>
+                            {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}
+                                <i class="fas fa-circle-exclamation"></i>
+                            {% elif 'maintenance' in lower_title or 'maintainance' in lower_title or 'repair' in lower_title or lower_type == 'maintenance' %}
+                                <i class="fas fa-hammer"></i>
+                            {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}
+                                <i class="fas fa-users-line"></i>
+                            {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}
+                                <i class="fas fa-martini-glass"></i>
+                            {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}
+                                <i class="fas fa-play-circle"></i>
+                            {% else %}
+                                <i class="fas fa-certificate"></i>
+                            {% endif %}
+                            <span>Happening Now!</span>
+                        </div>
+                        {% endif %}
+                        <div class="event-row-header">
+                            <div class="event-row-title">
+                                {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type == 'halloween' or lower_type == 'haloween' or lower_type == 'hallowen' or lower_type == 'halowen' %}
+                                    <i class="fas fa-ghost" style="margin-right:6px;"></i>
+                                {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type == 'christmas' or lower_type == 'chrismas' or lower_type == 'xmas' %}
+                                    <i class="fas fa-gift" style="margin-right:6px;"></i>
+                                {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}
+                                    <i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>
+                                {% elif 'maintenance' in lower_title or 'maintainance' in lower_title or 'repair' in lower_title or lower_type == 'maintenance' %}
+                                    <i class="fas fa-wrench" style="margin-right:6px;"></i>
+                                {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}
+                                    <i class="fas fa-glass-cheers" style="margin-right:6px;"></i>
+                                {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}
+                                    <i class="fas fa-clipboard-list" style="margin-right:6px;"></i>
+                                {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}
+                                    <i class="fas fa-bullhorn" style="margin-right:6px;"></i>
+                                {% else %}
+                                    <i class="fas fa-cloud" style="margin-right:6px;"></i>
+                                {% endif %}
+                                {{ event.title }}
+                            </div>
+                            <div class="event-row-status event-status-badge {% if event.is_upcoming %}upcoming{% else %}ongoing{% endif %}">
+                                {% if event.is_upcoming %}
+                                    {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type in 'halloween haloween hallowen halowen' %}
+                                        <span class="badge-emoji" aria-hidden="true">🎃</span>
+                                    {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type in 'christmas chrismas xmas' %}
+                                        <span class="badge-emoji" aria-hidden="true">🎄</span>
+                                    {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}
+                                        <span class="badge-emoji" aria-hidden="true">🎉</span>
+                                    {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}
+                                        <span class="badge-emoji" aria-hidden="true">📋</span>
+                                    {% elif 'maintenance' in lower_title or 'maintainance' in lower_title or 'repair' in lower_title or lower_type == 'maintenance' %}
+                                        <span class="badge-emoji" aria-hidden="true">🛠️</span>
+                                    {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}
+                                        <i class="fas fa-fire"></i>
+                                    {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}
+                                        <i class="fas fa-newspaper"></i>
+                                    {% else %}
+                                        <span class="badge-emoji" aria-hidden="true">⭐</span>
+                                    {% endif %}
+                                {% else %}
+                                    {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type == 'halloween' or lower_type == 'haloween' or lower_type == 'hallowen' or lower_type == 'halowen' %}
+                                        <i class="fas fa-moon"></i>
+                                    {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type == 'christmas' or lower_type == 'chrismas' or lower_type == 'xmas' %}
+                                        <i class="fas fa-star"></i>
+                                    {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}
+                                        <i class="fas fa-bolt"></i>
+                                    {% elif 'maintenance' in lower_title or 'maintainance' in lower_title or 'repair' in lower_title or lower_type == 'maintenance' %}
+                                        <i class="fas fa-cog"></i>
+                                    {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}
+                                        <i class="fas fa-comments"></i>
+                                    {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}
+                                        <i class="fas fa-music"></i>
+                                    {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}
+                                        <i class="fas fa-file-alt"></i>
+                                    {% else %}
+                                        <i class="fas fa-cloud-sun"></i>
+                                    {% endif %}
+                                {% endif %}
+                                {% if event.is_upcoming %}Upcoming{% else %}Ongoing{% endif %}
+                            </div>
+                            <div class="event-row-sub">
+                                <div class="event-row-meta">
+                                    <span class="meta-chip meta-datetime">
+                                        {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type in 'halloween haloween hallowen halowen' %}
+                                            <i class="fas fa-spider"></i>
+                                        {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type in 'christmas chrismas xmas' %}
+                                            <i class="fas fa-bell"></i>
+                                        {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}
+                                            <i class="fas fa-stopwatch"></i>
+                                        {% elif 'maintenance' in lower_title or 'maintainance' in lower_title or 'repair' in lower_title or lower_type == 'maintenance' %}
+                                            <i class="fas fa-calendar-times"></i>
+                                        {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}
+                                            <i class="fas fa-calendar-alt"></i>
+                                        {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}
+                                            <i class="fas fa-calendar-check"></i>
+                                        {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}
+                                            <i class="fas fa-calendar-day"></i>
+                                        {% else %}
+                                            <i class="fas fa-cloud-sun"></i>
+                                        {% endif %}
+                                        <strong style="margin-left:4px;">Date &amp; Time:</strong>
+                                        <span style="margin-left:6px;">{{ event.start_date|date:"M d, Y" }} • {{ event.start_date|time:"g:i A" }}</span>
+                                    </span>
+                                    {% if event.location %}
+                                    <span class="meta-chip meta-location">
+                                        {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type in 'halloween haloween hallowen halowen' %}
+                                            <i class="fas fa-church"></i>
+                                        {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type in 'christmas chrismas xmas' %}
+                                            <i class="fas fa-tree"></i>
+                                        {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}
+                                            <i class="fas fa-ambulance"></i>
+                                        {% elif 'maintenance' in lower_title or 'maintainance' in lower_title or 'repair' in lower_title or lower_type == 'maintenance' %}
+                                            <i class="fas fa-hard-hat"></i>
+                                        {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}
+                                            <i class="fas fa-cocktail"></i>
+                                        {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}
+                                            <i class="fas fa-building"></i>
+                                        {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}
+                                            <i class="fas fa-satellite-dish"></i>
+                                        {% else %}
+                                            <i class="fas fa-mountain"></i>
+                                        {% endif %}
+                                        <strong style="margin-left:4px;">Location:</strong>
+                                        <span style="margin-left:6px;">{{ event.location }}</span>
+                                    </span>
+                                    {% endif %}
                                 </div>
-                                <div class="event-time">
-                                    <i class="fas fa-clock"></i>
-                                    <span>{{ event.start_date|time:"g:i A" }}</span>
-                                </div>
-                                {% if event.location %}
-                                <div class="event-location">
-                                    <i class="fas fa-map-marker-alt"></i>
-                                    <span>{{ event.location }}</span>
+                            </div>
+                        </div>
+                        <div class="event-row-body">
+                            <div class="event-row-content">
+                                <p class="event-description">{{ event.description|linebreaksbr }}</p>
+                            </div>
+                            <div class="event-actions-horizontal">
+                                {% if 'maintenance' not in lower_title and 'maintainance' not in lower_title and 'repair' not in lower_title and lower_type != 'maintenance' %}
+                                <div class="event-rsvp" data-current="{{ attendance_map|get_item:event.id|default:'' }}">
+                                    <button class="event-rsvp-btn" data-status="attending">
+                                        {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type in 'halloween haloween hallowen halowen' %}
+                                            <i class="fas fa-hat-wizard"></i>
+                                        {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type in 'christmas chrismas xmas' %}
+                                            <i class="fas fa-snowman"></i>
+                                        {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}
+                                            <i class="fas fa-user-shield"></i>
+                                        {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}
+                                            <i class="fas fa-heart"></i>
+                                        {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}
+                                            <i class="fas fa-user-check"></i>
+                                        {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}
+                                            <i class="fas fa-check-circle"></i>
+                                        {% else %}
+                                            <i class="fas fa-leaf"></i>
+                                        {% endif %}
+                                        Attending
+                                    </button>
+                                    <button class="event-rsvp-btn" data-status="not_attending">
+                                        {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type in 'halloween haloween hallowen halowen' %}
+                                            <i class="fas fa-skull-crossbones"></i>
+                                        {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type in 'christmas chrismas xmas' %}
+                                            <i class="fas fa-snowflake"></i>
+                                        {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}
+                                            <i class="fas fa-user-times"></i>
+                                        {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}
+                                            <i class="fas fa-heart-broken"></i>
+                                        {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}
+                                            <i class="fas fa-user-xmark"></i>
+                                        {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}
+                                            <i class="fas fa-times-circle"></i>
+                                        {% else %}
+                                            <i class="fas fa-wind"></i>
+                                        {% endif %}
+                                        Not Attending
+                                    </button>
                                 </div>
                                 {% endif %}
                             </div>
-                    </div>
-                    </div>
-                    <div class="event-right-section">
-                    <div class="event-description-section">
-                        <h4 class="event-details-title">
-                            <i class="fas fa-info-circle"></i>
-                            Details
-                        </h4>
-                        <div class="event-description">
-                                {{ event.description|truncatewords:50 }}
                         </div>
                     </div>
-                        <div class="event-actions-horizontal">
-                        <div class="event-status-badge {% if event.is_upcoming %}upcoming{% else %}ongoing{% endif %}">
-                            <i class="fas fa-{% if event.is_upcoming %}clock{% else %}play-circle{% endif %}"></i>
-                            {% if event.is_upcoming %}Upcoming{% else %}Ongoing{% endif %}
-                        </div>
-                            <button class="event-calendar-btn" 
-                                    data-title="{{ event.title|escapejs }}" 
-                                    data-date="{{ event.start_date|date:"Y-m-d\TH:i:s" }}" 
-                                    data-location="{{ event.location|default:""|escapejs }}" 
-                                    data-description="{{ event.description|truncatewords:20|escapejs }}">
-                                <i class="fas fa-calendar-plus"></i> Add to Calendar
-                            </button>
-                        </div>
-                    </div>
+                    {% endwith %}
+                    {% endfor %}
                 </div>
-                {% endfor %}
             </div>
-        </div>
-        {% endif %}
+            {% endif %}
 
-        <!-- Completed Events Section -->
-        {% if completed_events %}
-        <div class="events-section">
-            <div class="section-header">
-                <h2 class="section-title">
-                    <i class="fas fa-history"></i>
-                    Completed Events
-                </h2>
-                <p class="section-subtitle">Past events and announcements</p>
-            </div>
-            <div class="completed-events-table-container">
-                <table class="completed-events-table">
-                    <thead>
-                        <tr>
-                            <th>Event Title</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                {% for event in completed_events %}
-                        <tr>
-                            <td class="event-title-cell">
-                                <div class="event-title-text">{{ event.title }}</div>
-                                <div class="event-description-preview">{{ event.description|truncatewords:15|cut:event.title }}</div>
-                            </td>
-                            <td class="event-status-cell">
-                        <div class="event-status-badge completed">
-                            <i class="fas fa-check-circle"></i>
-                            Completed
+            {% if completed_events %}
+            <div class="events-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-history"></i>
+                        Past Events
+                    </h2>
+                    <p class="section-subtitle">Previous events and announcements</p>
+                </div>
+                <div class="events-grid" id="completed-events-grid">
+                    {% for event in completed_events %}
+                    {% with lower_title=event.title|lower lower_type=event.event_type|lower %}
+                    <div class="event-row event-row-collapsible 
+                        {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type in 'halloween haloween hallowen halowen' %}theme-halloween
+                        {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type in 'christmas chrismas xmas' %}theme-christmas
+                        {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}theme-emergency
+                        {% elif 'maintenance' in lower_title or 'maintainance' in lower_title or 'repair' in lower_title or lower_type == 'maintenance' %}theme-maintenance
+                        {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}theme-meeting
+                        {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}theme-social
+                        {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}theme-announcement
+                        {% else %}theme-generic{% endif %}"
+                        data-event-id="{{ event.id }}" data-title="{{ event.title|escapejs }}" data-type="{{ event.event_type }}">
+                        <div class="event-row-header event-row-toggle">
+                            <div class="event-row-title">
+                                {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type in 'halloween haloween hallowen halowen' %}
+                                    <i class="fas fa-ghost" style="margin-right:6px;"></i>
+                                {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type in 'christmas chrismas xmas' %}
+                                    <i class="fas fa-gift" style="margin-right:6px;"></i>
+                                {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}
+                                    <i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>
+                                {% elif 'maintenance' in lower_title or 'maintainance' in lower_title or 'repair' in lower_title or lower_type == 'maintenance' %}
+                                    <i class="fas fa-wrench" style="margin-right:6px;"></i>
+                                {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}
+                                    <i class="fas fa-glass-cheers" style="margin-right:6px;"></i>
+                                {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}
+                                    <i class="fas fa-clipboard-list" style="margin-right:6px;"></i>
+                                {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}
+                                    <i class="fas fa-bullhorn" style="margin-right:6px;"></i>
+                                {% else %}
+                                    <i class="fas fa-cloud" style="margin-right:6px;"></i>
+                                {% endif %}
+                                {{ event.title }}
+                                <i class="fas fa-chevron-down event-toggle-icon" style="margin-left:8px; font-size:0.85rem; transition: transform 0.3s ease;"></i>
+                            </div>
+                            <div class="event-row-status event-status-badge completed">
+                                {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type == 'halloween' or lower_type == 'haloween' or lower_type == 'hallowen' or lower_type == 'halowen' %}
+                                    <i class="fas fa-skull"></i>
+                                {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type == 'christmas' or lower_type == 'chrismas' or lower_type == 'xmas' %}
+                                    <i class="fas fa-gift"></i>
+                                {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}
+                                    <i class="fas fa-clipboard-check"></i>
+                                {% elif 'maintenance' in lower_title or 'maintainance' in lower_title or 'repair' in lower_title or lower_type == 'maintenance' %}
+                                    <i class="fas fa-check-circle"></i>
+                                {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}
+                                    <i class="fas fa-clipboard-list"></i>
+                                {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}
+                                    <i class="fas fa-birthday-cake"></i>
+                                {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}
+                                    <i class="fas fa-flag-checkered"></i>
+                                {% else %}
+                                    <i class="fas fa-moon"></i>
+                                {% endif %}
+                                Completed
+                            </div>
+                            <div class="event-row-sub">
+                                <div class="event-row-meta">
+                                    <span class="meta-chip meta-datetime">
+                                        {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type in 'halloween haloween hallowen halowen' %}
+                                            <i class="fas fa-spider"></i>
+                                        {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type in 'christmas chrismas xmas' %}
+                                            <i class="fas fa-bell"></i>
+                                        {% elif 'maintenance' in lower_title or 'maintainance' in lower_title or 'repair' in lower_title or lower_type == 'maintenance' %}
+                                            <i class="fas fa-calendar-times"></i>
+                                        {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}
+                                            <i class="fas fa-calendar-alt"></i>
+                                        {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}
+                                            <i class="fas fa-calendar-check"></i>
+                                        {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}
+                                            <i class="fas fa-calendar-day"></i>
+                                        {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}
+                                            <i class="fas fa-stopwatch"></i>
+                                        {% else %}
+                                            <i class="fas fa-cloud-sun"></i>
+                                        {% endif %}
+                                        <strong style="margin-left:4px;">Date &amp; Time:</strong>
+                                        <span style="margin-left:6px;">{{ event.start_date|date:"M d, Y" }} • {{ event.start_date|time:"g:i A" }}</span>
+                                    </span>
+                                    {% if event.location %}
+                                    <span class="meta-chip meta-location">
+                                        {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type in 'halloween haloween hallowen halowen' %}
+                                            <i class="fas fa-church"></i>
+                                        {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or lower_type in 'christmas chrismas xmas' %}
+                                            <i class="fas fa-tree"></i>
+                                        {% elif 'maintenance' in lower_title or 'maintainance' in lower_title or 'repair' in lower_title or lower_type == 'maintenance' %}
+                                            <i class="fas fa-hard-hat"></i>
+                                        {% elif 'party' in lower_title or 'social' in lower_title or 'gathering' in lower_title or lower_type == 'social' or lower_type == 'party' %}
+                                            <i class="fas fa-cocktail"></i>
+                                        {% elif 'meeting' in lower_title or 'meetup' in lower_title or 'town hall' in lower_title or lower_type == 'meeting' %}
+                                            <i class="fas fa-building"></i>
+                                        {% elif 'announcement' in lower_title or 'announce' in lower_title or lower_type == 'announcement' %}
+                                            <i class="fas fa-satellite-dish"></i>
+                                        {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}
+                                            <i class="fas fa-ambulance"></i>
+                                        {% else %}
+                                            <i class="fas fa-mountain"></i>
+                                        {% endif %}
+                                        <strong style="margin-left:4px;">Location:</strong>
+                                        <span style="margin-left:6px;">{{ event.location }}</span>
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
-                            </td>
-                            <td class="event-actions-cell">
-                                <button class="event-view-btn" 
-                                        data-id="{{ event.id }}" 
-                                        data-title="{{ event.title|escapejs }}" 
-                                        data-date="{{ event.start_date|date:"Y-m-d\TH:i:s" }}" 
-                                        data-location="{{ event.location|default:""|escapejs }}" 
-                                        data-description="{{ event.description|escapejs }}" 
-                                        data-type="{{ event.event_type }}">
-                                    <i class="fas fa-eye"></i> View
-                                </button>
-                            </td>
-                        </tr>
-                {% endfor %}
-                    </tbody>
-                </table>
+                        <div class="event-row-body event-row-collapsible-content">
+                            <div class="event-row-content">
+                                <p class="event-description">{{ event.description|linebreaksbr }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endwith %}
+                    {% endfor %}
+                </div>
+                {% if completed_events.has_other_pages %}
+                <div class="events-pagination resident-pagination">
+                    {% if completed_events.has_previous %}
+                        <a href="?completed_page={{ completed_events.previous_page_number }}" class="page-btn">Prev</a>
+                    {% endif %}
+                    <span class="page-btn active" style="cursor: default;">{{ completed_events.number }}</span>
+                    {% if completed_events.has_next %}
+                        <a href="?completed_page={{ completed_events.next_page_number }}" class="page-btn">Next</a>
+                    {% endif %}
+                </div>
+                {% endif %}
             </div>
-        </div>
-        {% endif %}
+            {% endif %}
 
-        <!-- No Events Message -->
-        {% if not upcoming_ongoing_events and not completed_events %}
-        <div class="no-events">
-            <p>No events available at the moment.</p>
-        </div>
-        {% endif %}
-        
-        <!-- Pagination -->
-        {% if events.has_other_pages %}
-        <div class="pagination">
-            {% if events.has_previous %}
-                <a href="?page=1">&laquo; First</a>
-                <a href="?page={{ events.previous_page_number }}">Previous</a>
-            {% endif %}
-            
-            <span class="current">
-                Page {{ events.number }} of {{ events.paginator.num_pages }}
-            </span>
-            
-            {% if events.has_next %}
-                <a href="?page={{ events.next_page_number }}">Next</a>
-                <a href="?page={{ events.paginator.num_pages }}">Last &raquo;</a>
+            {% if not upcoming_ongoing_events and not completed_events %}
+            <div class="no-events">
+                <p>No events available at the moment.</p>
+            </div>
             {% endif %}
         </div>
-        {% endif %}
     </div>
 {% endblock %}
 

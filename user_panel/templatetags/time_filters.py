@@ -34,3 +34,10 @@ def friendly_timesince(value):
     
     # Add "ago" to the end
     return f"{time_text} ago"
+
+@register.filter
+def get_item(dictionary, key):
+    try:
+        return dictionary.get(key)
+    except Exception:
+        return ""

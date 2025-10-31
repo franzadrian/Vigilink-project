@@ -49,3 +49,21 @@ class Event(models.Model):
     def is_ongoing(self):
         now = timezone.now()
         return self.start_date <= now
+
+
+class EventAttendance(models.Model):
+    STATUS_CHOICES = [
+        ("attending", "Attending"),
+        ("not_attending", "Not Attending"),
+    ]
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="attendances")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_attendances")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("event", "user")
+
+    def __str__(self):
+        return f"{self.user_id} -> {self.event_id}: {self.status}"
