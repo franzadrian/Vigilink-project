@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -32,6 +32,14 @@ def community_owner_dashboard(request):
     # Only allow users with the 'Community Owner' role
     if not getattr(request.user, 'role', None) == 'communityowner':
         return HttpResponseForbidden('You are not authorized to view this page.')
+    
+    # Check subscription status
+    from settings_panel.utils import has_community_access
+    has_access, reason = has_community_access(request.user)
+    if not has_access:
+        from django.contrib import messages
+        messages.error(request, reason)
+        return redirect('settings_panel:settings')
 
     profile = None
     try:
@@ -297,6 +305,13 @@ def check_community_name(request):
 def _ensure_owner_and_profile(request):
     if not getattr(request.user, 'role', None) == 'communityowner':
         return None, HttpResponseForbidden('You are not authorized to view this page.')
+    
+    # Check subscription status
+    from settings_panel.utils import has_community_access
+    has_access, reason = has_community_access(request.user)
+    if not has_access:
+        return None, JsonResponse({'ok': False, 'error': reason}, status=403)
+    
     profile = CommunityProfile.objects.filter(owner=request.user).first()
     if not profile:
         return None, JsonResponse({'ok': False, 'error': 'No community profile found.'}, status=404)

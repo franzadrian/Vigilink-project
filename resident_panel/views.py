@@ -23,6 +23,20 @@ def residents(request):
     is_resident = role == 'resident'
     is_security = role == 'security'
 
+    # Check subscription access
+    from settings_panel.utils import has_community_access
+    has_access, reason = has_community_access(request.user)
+    if not has_access and (is_owner or is_resident):
+        messages.error(request, reason)
+        if is_owner:
+            return redirect('settings_panel:settings')
+        else:
+            return render(request, 'resident/not_member.html', {
+                'reason': 'subscription_expired',
+                'message': reason,
+                'page_type': 'residents'
+            })
+
     community = None
     if is_owner:
         community = CommunityProfile.objects.filter(owner=request.user).first()

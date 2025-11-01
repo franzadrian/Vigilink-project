@@ -75,7 +75,8 @@ INSTALLED_APPS = [
     'communityowner_panel',
     'resident_panel',
     'security_panel',
-    'events_panel'
+    'events_panel',
+    'settings_panel',
 ]
 
 MIDDLEWARE = [

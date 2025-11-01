@@ -132,7 +132,7 @@ class User(AbstractUser):
     ROLE_CHOICES = (
         ('guest', 'Guest'),
         ('resident', 'Resident'),
-        ('communityowner', 'Community Owner'),
+        ('communityowner', 'Community President'),
         ('security', 'Security'),
         ('admin', 'Admin'),
     )
@@ -161,6 +161,7 @@ class User(AbstractUser):
     block = models.CharField(max_length=50, blank=True)
     lot = models.CharField(max_length=50, blank=True)
     about = models.TextField(blank=True, help_text='A short bio or description about yourself')
+    notification_sound_enabled = models.BooleanField(default=True, help_text='Enable notification sound')
     
     objects = CustomUserManager()
     

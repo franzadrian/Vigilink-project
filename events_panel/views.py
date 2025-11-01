@@ -17,6 +17,22 @@ import json
 def events_list(request):
     """View for residents and community owners to see events from their community"""
     try:
+        # Check subscription access
+        from settings_panel.utils import has_community_access
+        has_access, reason = has_community_access(request.user)
+        if not has_access and request.user.role in ['communityowner', 'resident']:
+            from django.contrib import messages
+            messages.error(request, reason)
+            if request.user.role == 'communityowner':
+                from django.shortcuts import redirect
+                return redirect('settings_panel:settings')
+            else:
+                return render(request, 'resident/not_member.html', {
+                    'reason': 'subscription_expired',
+                    'message': reason,
+                    'page_type': 'events'
+                })
+        
         # Check if user is a community owner first
         if hasattr(request.user, 'role') and request.user.role == 'communityowner':
             # Community owner - get their community profile
@@ -92,6 +108,20 @@ def events_list(request):
 def event_detail(request, event_id):
     """View for detailed event information"""
     try:
+        # Check subscription access
+        from settings_panel.utils import has_community_access
+        has_access, reason = has_community_access(request.user)
+        if not has_access and request.user.role in ['communityowner', 'resident']:
+            messages.error(request, reason)
+            if request.user.role == 'communityowner':
+                return redirect('settings_panel:settings')
+            else:
+                return render(request, 'resident/not_member.html', {
+                    'reason': 'subscription_expired',
+                    'message': reason,
+                    'page_type': 'events'
+                })
+        
         # Check if user is a community owner first
         if hasattr(request.user, 'role') and request.user.role == 'communityowner':
             # Community owner - get their community profile
@@ -125,6 +155,12 @@ def create_event(request):
     """AJAX view for community owners to create events"""
     if not getattr(request.user, 'role', None) == 'communityowner':
         return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
+    
+    # Check subscription access
+    from settings_panel.utils import has_community_access
+    has_access, reason = has_community_access(request.user)
+    if not has_access:
+        return JsonResponse({'success': False, 'error': reason}, status=403)
     
     if request.method == 'POST':
         try:

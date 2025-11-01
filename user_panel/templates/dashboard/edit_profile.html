@@ -135,10 +135,17 @@
         display: none;
     }
     
-    .non-editable-field {
-        background-color: #f3f4f6;
-        color: #6b7280;
-        cursor: not-allowed;
+    .form-row {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    @media (max-width: 768px) {
+        .form-row {
+            flex-direction: column;
+            gap: 0;
+        }
     }
     
     .alert {
@@ -198,15 +205,9 @@
             </div>
             
             <div class="form-group">
-                <label for="email" class="form-label">Email</label>
-                <input type="email" id="email" name="email" class="form-control non-editable-field" value="{{ user.email }}" readonly>
-                <small>Email cannot be changed</small>
-            </div>
-            
-            <div class="form-group">
                 <label for="full_name" class="form-label">Full Name</label>
                 <input type="text" id="full_name" name="full_name" class="form-control" value="{{ user.full_name }}" required>
-                <small>Full name must be between 7-20 characters, no numbers or special characters allowed</small>
+                <small>Full name must be between 4-30 characters, no numbers or special characters allowed</small>
                 {% if full_name_error %}
                 <div class="error-message" style="color: #b91c1c; margin-top: 0.25rem; font-size: 0.875rem;">
                     {{ full_name_error }}
@@ -264,7 +265,7 @@
         
         // Track form changes to enable/disable save button
         const initialValues = {};
-        const formInputs = document.querySelectorAll('input[type="text"], input[type="email"], textarea');
+        const formInputs = document.querySelectorAll('input[type="text"], textarea');
         const saveButton = document.getElementById('saveButton');
         
         // Store initial values

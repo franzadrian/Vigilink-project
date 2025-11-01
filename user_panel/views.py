@@ -935,6 +935,46 @@ def payment_success(request):
             request.user.save(update_fields=['role'])
     except Exception as _e:
         logger.error(f"Post-success role ensure failed: {_e}")
+    
+    # Create or update subscription
+    try:
+        from settings_panel.models import Subscription
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Calculate expiry date based on billing cycle
+        if billing_cycle == 'yearly':
+            expiry_date = timezone.now() + timedelta(days=365)
+        else:
+            expiry_date = timezone.now() + timedelta(days=30)
+        
+        # Get or create subscription for the user
+        subscription, created = Subscription.objects.get_or_create(
+            user=request.user,
+            defaults={
+                'plan_type': plan_type,
+                'billing_cycle': billing_cycle,
+                'status': 'active',
+                'expiry_date': expiry_date
+            }
+        )
+        
+        # If subscription already exists, update it (restore access)
+        if not created:
+            subscription.plan_type = plan_type
+            subscription.billing_cycle = billing_cycle
+            subscription.expiry_date = expiry_date
+            subscription.cancelled_at = None  # Reset cancellation if resubscribing
+            # Activate subscription (this will restore roles)
+            subscription.activate()
+        else:
+            # For new subscriptions, ensure user role is set to communityowner
+            if subscription.is_active() and request.user.role != 'communityowner':
+                request.user.role = 'communityowner'
+                request.user.save(update_fields=['role'])
+            
+    except Exception as _e:
+        logger.error(f"Error creating/updating subscription: {_e}")
 
     context = {
         'order_id': order_id,
@@ -1262,9 +1302,9 @@ def edit_profile(request):
                 context['full_name_error'] = 'Full name cannot be empty.'
                 return render(request, 'dashboard/edit_profile.html', context)
             
-            # Check if full name is between 7-20 characters
-            if len(full_name) < 7 or len(full_name) > 20:
-                context['full_name_error'] = 'Full name must be between 7-20 characters long.'
+            # Check if full name is between 4-30 characters
+            if len(full_name) < 4 or len(full_name) > 30:
+                context['full_name_error'] = 'Full name must be between 4-30 characters long.'
                 return render(request, 'dashboard/edit_profile.html', context)
             
             # Check if full name contains numbers

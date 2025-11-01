@@ -1,0 +1,489 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Settings - VigiLink{% endblock %}
+
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'dashboard/css/view_profile.css' %}">
+<link rel="stylesheet" href="{% static 'dashboard/css/dashboard_styles.css' %}">
+<style>
+    .settings-container {
+        max-width: 900px;
+        width: 100%;
+    }
+
+    .settings-section {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    @media (max-width: 768px) {
+        .settings-section {
+            padding: 1.5rem;
+        }
+    }
+
+    .settings-section h2 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .settings-section h3 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .settings-section h3:first-of-type {
+        margin-top: 0;
+    }
+
+    .settings-icon {
+        width: 24px;
+        height: 24px;
+        color: #2563eb;
+    }
+
+    .billing-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .billing-item {
+        padding: 1rem;
+        background: #f9fafb;
+        border-radius: 8px;
+        border-left: 4px solid #2563eb;
+    }
+
+    .billing-label {
+        font-size: 0.875rem;
+        color: #6b7280;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+
+    .billing-value {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .billing-status {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .status-active {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .status-cancelled {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+    .status-expired {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s;
+        border: none;
+        cursor: pointer;
+        font-size: 1rem;
+    }
+
+    .btn-primary {
+        background: #2563eb;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #1d4ed8;
+    }
+
+    .btn-danger {
+        background: #dc2626;
+        color: white;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-danger:hover {
+        background: #b91c1c;
+    }
+
+    .btn-danger svg {
+        flex-shrink: 0;
+    }
+
+    .btn-secondary {
+        background: #6b7280;
+        color: white;
+    }
+
+    .btn-secondary:hover {
+        background: #4b5563;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-top: 1.5rem;
+    }
+
+    .account-buttons {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-top: 1.5rem;
+    }
+
+    .notification-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.5rem;
+        background: #f9fafb;
+        border-radius: 8px;
+        margin-top: 1rem;
+        gap: 1rem;
+    }
+
+    .toggle-label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .toggle-label strong {
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .toggle-label span {
+        font-size: 0.875rem;
+        color: #6b7280;
+    }
+
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 60px;
+        height: 34px;
+    }
+
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #cbd5e1;
+        transition: 0.4s;
+        border-radius: 34px;
+    }
+
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 26px;
+        width: 26px;
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        transition: 0.4s;
+        border-radius: 50%;
+    }
+
+    input:checked + .slider {
+        background-color: #2563eb;
+    }
+
+    input:checked + .slider:before {
+        transform: translateX(26px);
+    }
+
+    .no-subscription {
+        text-align: center;
+        padding: 2rem;
+        color: #6b7280;
+    }
+
+    .no-subscription p {
+        margin-bottom: 1rem;
+    }
+
+    @media (max-width: 768px) {
+        .settings-section {
+            padding: 1.5rem;
+        }
+
+        .billing-info {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .billing-item {
+            padding: 0.875rem;
+        }
+
+        .billing-plan,
+        .billing-status-item {
+            grid-column: span 1;
+        }
+
+        .billing-expires,
+        .billing-days {
+            grid-column: span 1;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+        }
+
+        .action-buttons .btn {
+            width: 100%;
+        }
+
+        .account-buttons {
+            flex-direction: row;
+            gap: 0.75rem;
+        }
+
+        .account-buttons .btn {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .notification-toggle {
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 1rem;
+        }
+
+        .notification-toggle .toggle-label {
+            width: 100%;
+            margin-bottom: 0.75rem;
+        }
+
+        .switch {
+            align-self: flex-end;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+        <!-- Settings Header -->
+        <div class="dashboard-header">
+            <div class="dashboard-title">
+                <h1>Account Settings</h1>
+                <p>Manage your account preferences and billing information</p>
+            </div>
+        </div>
+
+<div class="settings-container">
+    {% if messages %}
+    <div id="message-container">
+        {% for message in messages %}
+        <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    <script>
+        setTimeout(function() {
+            var messageContainer = document.getElementById('message-container');
+            if (messageContainer) {
+                messageContainer.style.opacity = '0';
+                setTimeout(function() {
+                    messageContainer.style.display = 'none';
+                }, 500);
+            }
+        }, 3500);
+    </script>
+    {% endif %}
+
+    <!-- Billing Section -->
+    <div class="settings-section">
+        <h2>
+            <svg class="settings-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+            </svg>
+            Billing & Subscription
+        </h2>
+
+        {% if subscription %}
+            <div class="billing-info">
+                <div class="billing-item billing-plan">
+                    <div class="billing-label">Plan</div>
+                    <div class="billing-value">{{ subscription.get_plan_type_display }} - {{ subscription.get_billing_cycle_display }}</div>
+                </div>
+                <div class="billing-item billing-status-item">
+                    <div class="billing-label">Status</div>
+                    <div>
+                        <span class="billing-status status-{{ subscription.status }}">
+                            {{ subscription.get_status_display }}
+                        </span>
+                    </div>
+                </div>
+                {% if subscription.expiry_date %}
+                <div class="billing-item billing-expires">
+                    <div class="billing-label">Expires On</div>
+                    <div class="billing-value">{{ subscription.expiry_date|date:"F j, Y" }}</div>
+                </div>
+                {% endif %}
+                {% if subscription.days_until_expiry is not None %}
+                <div class="billing-item billing-days">
+                    <div class="billing-label">Days Until Expiry</div>
+                    <div class="billing-value">{{ subscription.days_until_expiry }} days</div>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if subscription.status == 'active' %}
+            <div class="action-buttons">
+                <form method="post" action="{% url 'settings_panel:cancel_subscription' %}" style="margin: 0;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to cancel your subscription?');">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 0.5rem; vertical-align: middle;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                        Cancel Subscription
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        {% else %}
+            <div class="no-subscription">
+                <p>You don't have an active subscription.</p>
+                <a href="{% url 'user_panel:pricing' %}" class="btn btn-primary">View Pricing Plans</a>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Account Settings Section -->
+    <div class="settings-section">
+        <h2>
+            <svg class="settings-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+            Account Settings
+        </h2>
+
+        <h3>Profile Management</h3>
+        <p style="color: #6b7280; margin-bottom: 1rem;">Update your profile information and manage your account details.</p>
+        <div class="account-buttons">
+            <a href="{% url 'user_panel:edit_profile' %}" class="btn btn-primary">Edit Profile</a>
+            <a href="{% url 'user_panel:change_password' %}" class="btn btn-secondary">Change Password</a>
+        </div>
+    </div>
+
+    <!-- Notification Settings Section -->
+    <div class="settings-section">
+        <h2>
+            <svg class="settings-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            Notification Settings
+        </h2>
+
+        <div class="notification-toggle">
+            <div class="toggle-label">
+                <strong>Notification Sound</strong>
+                <span>Enable or disable notification sounds for alerts and messages</span>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="notificationSoundToggle" {% if user.notification_sound_enabled %}checked{% endif %}>
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggle = document.getElementById('notificationSoundToggle');
+        if (toggle) {
+            toggle.addEventListener('change', function() {
+                const enabled = this.checked;
+                
+                fetch('{% url "settings_panel:update_notification_sound" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: 'enabled=' + enabled
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Optionally show a success message
+                        const messageContainer = document.getElementById('message-container') || document.createElement('div');
+                        messageContainer.id = 'message-container';
+                        messageContainer.innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
+                        if (!document.getElementById('message-container')) {
+                            document.querySelector('.settings-container').insertBefore(messageContainer, document.querySelector('.settings-container').firstChild);
+                        }
+                        
+                        setTimeout(function() {
+                            messageContainer.style.opacity = '0';
+                            setTimeout(function() {
+                                messageContainer.style.display = 'none';
+                            }, 500);
+                        }, 2000);
+                    } else {
+                        // Revert toggle on error
+                        this.checked = !enabled;
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    // Revert toggle on error
+                    this.checked = !enabled;
+                    console.error('Error:', error);
+                    alert('An error occurred while updating notification settings.');
+                });
+            });
+        }
+    });
+</script>
+{% endblock %}
+

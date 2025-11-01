@@ -29,6 +29,7 @@ urlpatterns = [
     path('resident/', include('resident_panel.urls')),
     path('security/', include('security_panel.urls')),
     path('events/', include('events_panel.urls')),
+    path('settings/', include('settings_panel.urls')),
 ]
 
 # Serve media files in development
