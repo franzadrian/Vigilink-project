@@ -7,9 +7,32 @@
     return document.getElementById(BADGE_ID);
   }
 
+  // Check if user has notifications enabled
+  function isNotificationsEnabled() {
+    // Check if there's a data attribute on the badge or page
+    const badge = getBadge();
+    if (badge && badge.hasAttribute('data-notifications-enabled')) {
+      return badge.getAttribute('data-notifications-enabled') === 'true';
+    }
+    // Check if there's a global variable set
+    if (typeof window.receiveNotificationsEnabled !== 'undefined') {
+      return window.receiveNotificationsEnabled;
+    }
+    // Default to true if not specified (for backward compatibility)
+    return true;
+  }
+
   function renderBadge(total) {
     const badge = getBadge();
     if (!badge) return;
+    
+    // Check if user has notifications enabled
+    if (!isNotificationsEnabled()) {
+      badge.style.display = 'none';
+      badge.removeAttribute('data-count');
+      return;
+    }
+    
     const prev = parseInt(badge.getAttribute('data-count') || '0', 10) || 0;
     if (total > 0) {
       const label = total > 99 ? '99+' : String(total);

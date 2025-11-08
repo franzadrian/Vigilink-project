@@ -162,6 +162,7 @@ class User(AbstractUser):
     lot = models.CharField(max_length=50, blank=True)
     about = models.TextField(blank=True, help_text='A short bio or description about yourself')
     notification_sound_enabled = models.BooleanField(default=True, help_text='Enable notification sound')
+    receive_notifications = models.BooleanField(default=True, help_text='Enable notification bubbles/badges for messages and communications')
     
     objects = CustomUserManager()
     

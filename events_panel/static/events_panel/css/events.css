@@ -753,8 +753,30 @@
     transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 .event-rsvp-btn:hover { background: #f8fafc; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,.08); }
-.event-rsvp-btn.active[data-status="attending"] { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
-.event-rsvp-btn.active[data-status="not_attending"] { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+.event-rsvp-btn.active[data-status="attending"] { 
+    background: #dcfce7; 
+    color: #166534; 
+    border-color: #16a34a; 
+    font-weight: 600;
+    position: relative;
+}
+.event-rsvp-btn.active[data-status="attending"]::before {
+    content: '✓ ';
+    font-weight: bold;
+    margin-right: 4px;
+}
+.event-rsvp-btn.active[data-status="not_attending"] { 
+    background: #fee2e2; 
+    color: #991b1b; 
+    border-color: #dc2626;
+    font-weight: 600;
+    position: relative;
+}
+.event-rsvp-btn.active[data-status="not_attending"]::before {
+    content: '✗ ';
+    font-weight: bold;
+    margin-right: 4px;
+}
 
 /* Event Status Badge - Matching alerts.html styling */
 .event-status-badge {
@@ -1161,6 +1183,41 @@
 /* Typography for events page */
 .event-title { font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; }
 .events-hero h1, .section-title, .event-description, .event-cta-line, .event-rsvp-btn, .event-calendar-btn, .event-status-badge, .pagination a, .pagination span { font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; }
+
+/* Toast Notification Styles */
+.event-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 16px 24px;
+    background-color: #3b82f6;
+    color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    font-size: 0.95rem;
+    font-weight: 500;
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s ease-out;
+    max-width: 400px;
+    word-wrap: break-word;
+    font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+}
+
+.event-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+    .event-toast {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+}
 .event-headline { font-family: 'Playfair Display', serif; }
 
 /* Theme badge simplified to pill with accent */

@@ -396,5 +396,18 @@
 
 {% block extra_js %}
 {{ block.super }}
+<div id="events-data" data-max-event-id="{% if initial_max_event_id %}{{ initial_max_event_id }}{% else %}0{% endif %}" style="display:none;"></div>
+<script>
+    // Pass initial max event ID to JavaScript
+    (function() {
+        var dataEl = document.getElementById('events-data');
+        if (dataEl) {
+            window.initialMaxEventId = parseInt(dataEl.getAttribute('data-max-event-id') || '0', 10);
+        } else {
+            window.initialMaxEventId = 0;
+        }
+    })();
+</script>
+<script defer src="{% static 'events_panel/js/event_notifications.js' %}"></script>
 <script defer src="{% static 'events_panel/js/events.js' %}" onload="window.EVENTS_SCRIPT_LOADED=true;"></script>
 {% endblock %}

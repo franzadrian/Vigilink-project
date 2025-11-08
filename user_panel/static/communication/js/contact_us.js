@@ -72,6 +72,17 @@
     try {
       const badge = document.getElementById('comm-unread-badge');
       if (!badge) return;
+      
+      // Check if notifications are enabled
+      const isEnabled = badge.getAttribute('data-notifications-enabled') === 'true' || 
+                       (typeof window.receiveNotificationsEnabled !== 'undefined' && window.receiveNotificationsEnabled);
+      
+      if (!isEnabled) {
+        badge.style.display = 'none';
+        badge.removeAttribute('data-count');
+        return;
+      }
+      
       const chatsReq = fetch('/user/communication/recent-chats/', { method: 'GET' }).then(r => r.json()).catch(() => null);
       const contactReq = fetch('/user/communication/contact-unread-count/', { method: 'GET' }).then(r => r.json()).catch(() => null);
       Promise.all([chatsReq, contactReq])

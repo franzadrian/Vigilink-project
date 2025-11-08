@@ -1,7 +1,7 @@
 {% extends 'dashboard/base.html' %}
 {% load static %}
 
-{% block title %}My Community - VigiLink{% endblock %}
+{% block title %}Community Dashboard - VigiLink{% endblock %}
 
 {% block extra_css %}
 {{ block.super }}
@@ -37,7 +37,7 @@
                     <i class="fas fa-chart-line"></i>
                 </div>
             </div>
-            <h1>My Community</h1>
+            <h1>Community Dashboard</h1>
             <p class="subtitle">Complete overview of users, reports, and analytics</p>
         </header>
         
@@ -97,16 +97,8 @@
                 <div class="card-icon">
                     <i class="fas fa-key"></i>
                 </div>
-                <div class="card-title">My Community Code</div>
-                <div class="card-desc">Your permanent owner code (private)</div>
-            </div>
-            
-            <div class="nav-card" data-target="reports">
-                <div class="card-icon">
-                    <i class="fas fa-chart-bar"></i>
-                </div>
-                <div class="card-title">Security Reports</div>
-                <div class="card-desc">Download and analyze security incident reports</div>
+                <div class="card-title">Community Code</div>
+                <div class="card-desc">Your permanent community code (private)</div>
             </div>
             
             <div class="nav-card{% if ec_count == 0 %} nav-card-warning{% endif %}" data-target="emergency">
@@ -128,12 +120,28 @@
                 </div>
             </div>
             
+            <div class="nav-card" data-target="users">
+                <div class="card-icon">
+                    <i class="fas fa-users-cog"></i>
+                </div>
+                <div class="card-title">Manage Users</div>
+                <div class="card-desc">View members and edit role, block, and lot</div>
+            </div>
+            
             <div class="nav-card" data-target="events">
                 <div class="card-icon">
                     <i class="fas fa-calendar-plus"></i>
                 </div>
                 <div class="card-title">Event Announcements</div>
                 <div class="card-desc">Create and manage community events and announcements</div>
+            </div>
+            
+            <div class="nav-card" data-target="reports">
+                <div class="card-icon">
+                    <i class="fas fa-chart-bar"></i>
+                </div>
+                <div class="card-title">Security Reports</div>
+                <div class="card-desc">Download and analyze security incident reports</div>
             </div>
         </div>
         
@@ -208,8 +216,8 @@
                     <div class="secret-icon">
                         <i class="fas fa-lock"></i>
                     </div>
-                    <h2 class="section-title">My Community Code</h2>
-                    <p class="section-subtitle">This is your permanent owner code. Keep it private.</p>
+                    <h2 class="section-title">Community Code</h2>
+                    <p class="section-subtitle">This is your Permanent community code. Keep it private.</p>
                     <div id="code-display" class="code-display {% if profile and profile.secret_code %}revealed{% endif %}"
                          data-code="{{ profile.secret_code|default:'' }}">{{ profile.secret_code|default:'' }}</div>
                     <button id="copy-code-btn" class="reveal-btn" {% if not profile or not profile.secret_code %}disabled{% endif %}>
@@ -222,44 +230,45 @@
                     </p>
                 </div>
             </div>
-            
-            <!-- Events Section -->
-            <div id="events" class="content-section" data-loaded="false" style="display:none;">
-                <div class="section-header">
-                    <div>
-                        <h2 class="section-title">Event Announcements</h2>
-                        <p class="section-subtitle">Create and manage community events and announcements</p>
-                    </div>
-                </div>
-                
-                <div class="co-events-controls" style="display:flex;gap:10px;align-items:center;margin-bottom:15px;">
-                    <div class="co-search-wrap" style="position:relative;flex:1;min-width:280px;display:flex;align-items:center;">
-                        <svg class="co-search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" aria-hidden="true" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6b7280;pointer-events:none;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                        <input id="co-event-filter" type="text" placeholder="Search events..." style="flex:1;min-width:0;padding:10px 12px 10px 28px;border:1px solid #e5e7eb;border-radius:8px;" />
-                    </div>
-                    <select id="co-event-type-filter" style="padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;">
-                        <option value="">All Types</option>
-                        <option value="announcement">Announcement</option>
-                        <option value="meeting">Meeting</option>
-                        <option value="maintenance">Maintenance</option>
-                        <option value="social">Social Event</option>
-                        <option value="emergency">Emergency</option>
-                        <option value="other">Other</option>
-                    </select>
-                </div>
-                
-                <div class="co-events-list" id="co-events-list">
-                    <!-- Events will be loaded here -->
-                </div>
-                
-                <!-- Create Event Button (always visible) -->
-                <div class="co-events-create-section" style="margin-top: 20px; text-align: center; padding: 20px; background: #f8fafc; border-radius: 8px; border: 1px solid #e0f2fe;">
-                    <button id="co-create-event-btn-bottom" class="action-btn edit-btn" style="background: #3b82f6; color: white; border: none; padding: 12px 24px; font-size: 1rem; border-radius: 8px;">
-                        <i class="fas fa-plus"></i> Create New Event
-                    </button>
-                </div>
+        </div>
+    </div>
+    
+    <!-- Events Section (moved outside content-area) -->
+    <div id="events" class="co-events-bottom-section" style="display:none;">
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">Event Announcements</h2>
+                <p class="section-subtitle">Create and manage community events and announcements</p>
             </div>
         </div>
+        
+        <div class="co-events-controls" style="display:flex;gap:10px;align-items:center;margin-bottom:15px;">
+            <div class="co-search-wrap" style="position:relative;flex:1;min-width:280px;display:flex;align-items:center;">
+                <svg class="co-search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" aria-hidden="true" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6b7280;pointer-events:none;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <input id="co-event-filter" type="text" placeholder="Search events..." style="flex:1;min-width:0;padding:10px 12px 10px 28px;border:1px solid #e5e7eb;border-radius:8px;" />
+            </div>
+            <div class="co-events-controls-right" style="display:flex;gap:10px;align-items:center;">
+                <select id="co-event-type-filter" style="padding:10px 40px 10px 12px;border:1px solid #e5e7eb;border-radius:8px;background-image:url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23374151\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 12px center;background-size:12px;-webkit-appearance:none;-moz-appearance:none;appearance:none;">
+                    <option value="">All Types</option>
+                    <option value="announcement">Announcement</option>
+                    <option value="meeting">Meeting</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="social">Social Event</option>
+                    <option value="emergency">Emergency</option>
+                    <option value="other">Other</option>
+                </select>
+                <button id="co-create-event-btn-top" class="action-btn edit-btn" style="background: #3b82f6; color: white; border: none; padding: 10px 20px; font-size: 0.95rem; border-radius: 8px; display: none; align-items: center; gap: 8px; white-space: nowrap;">
+                    <i class="fas fa-plus"></i> <span>Create New Event</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="co-events-list" id="co-events-list">
+            <!-- Events will be loaded here -->
+        </div>
+        
+        <!-- Events Pagination -->
+        <div id="co-events-pagination" class="co-users-pagination" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;padding:10px 0;"></div>
     </div>
     
     <!-- Generic modal overlay shell -->
@@ -295,14 +304,14 @@
                     </div>
                     
                     <div class="co-field" style="flex: 1;">
-                        <label for="event_start_date">Event Date & Time *</label>
+                        <label for="event_start_date">Event Date & Time</label>
                         <input type="datetime-local" id="event_start_date" name="start_date" required value="" style="padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; background: #fff; font-size: 14px; transition: border-color 0.3s ease; outline: none;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e5e7eb'" />
                     </div>
                 </div>
                 
                 <div class="co-field-row" style="display: flex; gap: 15px;">
                     <div class="co-field" style="flex: 1;">
-                        <label for="event_title">Event Title *</label>
+                        <label for="event_title">Event Name</label>
                         <input type="text" id="event_title" name="title" required placeholder="e.g., Community Meeting" style="padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; background: #fff; font-size: 14px; transition: border-color 0.3s ease; outline: none;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e5e7eb'" />
                     </div>
                     
@@ -313,7 +322,7 @@
                 </div>
                 
                 <div class="co-field">
-                    <label for="event_description">Description *</label>
+                    <label for="event_description">Description</label>
                     <textarea id="event_description" name="description" required rows="4" placeholder="Describe the event details..." style="padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; background: #fff; font-size: 14px; resize: vertical; min-height: 100px; transition: border-color 0.3s ease; font-family: inherit; outline: none;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e5e7eb'"></textarea>
                 </div>
                 
@@ -357,7 +366,7 @@
     </div>
 
     <!-- Manage Users Bottom Section (no modal) -->
-    <div id="co-users-bottom" class="co-users-bottom-section">
+    <div id="co-users-bottom" class="co-users-bottom-section" style="display:none;">
         <div class="section-header">
             <div>
                 <h2 class="section-title">Manage Users</h2>

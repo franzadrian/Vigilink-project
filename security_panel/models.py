@@ -9,10 +9,9 @@ class SecurityReport(models.Model):
     """Private incident reports accessible only by Security role users"""
     
     PRIORITY_CHOICES = [
-        ('low', 'Low'),
-        ('medium', 'Medium'),
-        ('high', 'High'),
-        ('urgent', 'Urgent'),
+        ('level_1', 'Level 1'),
+        ('level_2', 'Level 2'),
+        ('level_3', 'Level 3'),
     ]
     
     STATUS_CHOICES = [
@@ -30,7 +29,7 @@ class SecurityReport(models.Model):
     # Report details
     subject = models.CharField(max_length=200)
     message = models.TextField()
-    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='level_2')
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
     
     # Target information

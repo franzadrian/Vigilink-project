@@ -195,6 +195,74 @@ def join_by_code(request):
         pass
     return redirect('resident_panel:residents')
 
+def determine_priority_from_reasons(reasons_list):
+    """
+    Automatically determine report priority based on selected reasons.
+    Returns the highest priority level if multiple reasons are selected.
+    
+    Priority levels:
+    - Level 1: Minor disturbances, observations
+    - Level 2: Suspicious but non-threatening behavior
+    - Level 3: Property damage, harassment, violations, criminal activity, serious threats
+    """
+    if not reasons_list:
+        return 'level_2'  # Default if no reasons
+    
+    # Normalize reasons to lowercase for comparison
+    reasons_lower = [reason.lower().strip() for reason in reasons_list]
+    
+    # Level 3 - Serious: Property damage, harassment, violations, criminal activity
+    level3_keywords = [
+        'possible criminal activity',
+        'criminal activity',
+        'vandalism',
+        'property damage',
+        'harassment',
+        'threats',
+        'reckless driving',
+        'speeding',
+        'trespassing',
+        'impersonation',
+        'identity misuse',
+        'false information'
+    ]
+    
+    # Level 2 - Suspicious or concerning behavior
+    level2_keywords = [
+        'suspicious behavior',
+        'animal-related concern',
+        'other'
+    ]
+    
+    # Level 1 - Minor disturbances
+    level1_keywords = [
+        'noise disturbance',
+        'observations',
+        'improper garbage disposal',
+        'dumping'
+    ]
+    
+    # Check for level 3 reasons first (most serious)
+    for reason in reasons_lower:
+        for keyword in level3_keywords:
+            if keyword in reason:
+                return 'level_3'
+    
+    # Check for level 2 reasons (suspicious)
+    for reason in reasons_lower:
+        for keyword in level2_keywords:
+            if keyword in reason:
+                return 'level_2'
+    
+    # Check for level 1 reasons (minor)
+    for reason in reasons_lower:
+        for keyword in level1_keywords:
+            if keyword in reason:
+                return 'level_1'
+    
+    # Default to level 2 if no matches
+    return 'level_2'
+
 @login_required
 def alerts(request):
     """Resident Alerts page: emergency calls, stats, recent incidents, events, safety tip."""
@@ -520,10 +588,21 @@ def submit_report(request):
         
         message = "\n".join(message_lines) if message_lines else ""
 
+        # Automatically determine priority based on selected reasons
+        auto_priority = determine_priority_from_reasons(reasons_list)
+        
+        # Allow manual priority override if provided (for future use)
+        manual_priority = payload.get('priority', '').strip().lower()
+        if manual_priority and manual_priority in ['level_1', 'level_2', 'level_3']:
+            priority = manual_priority
+        else:
+            priority = auto_priority
+
         # Create SecurityReport for private security access
         security_report = SecurityReport.objects.create(
             subject=subject,
             message=message,
+            priority=priority,  # Auto-assigned based on reasons
             target_type=target_type,
             target_user=target_user if target_type == 'resident' and target_user else None,
             target_description=outsider_desc if target_type == 'outsider' else '',

@@ -11,19 +11,6 @@
             };
         }
         
-        function throttle(func, limit) {
-            let inThrottle;
-            return function() {
-                const args = arguments;
-                const context = this;
-                if (!inThrottle) {
-                    func.apply(context, args);
-                    inThrottle = true;
-                    setTimeout(() => inThrottle = false, limit);
-                }
-            };
-        }
-        
         function lazyLoad(callback, delay = 0) {
             if (delay > 0) {
                 setTimeout(callback, delay);
@@ -41,7 +28,6 @@
             DOM_CACHE.modalShell = document.getElementById('co-modal-shell');
             DOM_CACHE.modalTitle = document.getElementById('co-modal-title');
             DOM_CACHE.modalClose = document.getElementById('co-modal-close');
-            DOM_CACHE.userGrid = document.querySelector('.user-grid');
             DOM_CACHE.reportList = document.querySelector('.report-list');
             DOM_CACHE.codeDisplay = document.getElementById('code-display');
             DOM_CACHE.copyBtn = document.getElementById('copy-code-btn');
@@ -72,9 +58,7 @@
             }
             section.setAttribute('data-loaded', 'true');
             
-            if (sectionId === 'users' && typeof renderUsers === 'function') {
-                renderUsers();
-            } else if (sectionId === 'events' && typeof loadEvents === 'function') {
+            if (sectionId === 'events' && typeof loadEvents === 'function') {
                 // Load events on all devices
                 console.log('Loading events for all devices...');
                 loadEvents();
@@ -110,30 +94,6 @@
         // Events data (for stats only)
         let events = [];
 
-        // Debug function to test events loading
-        window.debugEventsLoading = function() {
-            console.log('=== DEBUG EVENTS LOADING ===');
-            console.log('Current events array:', events);
-            console.log('Events length:', events ? events.length : 'events is not an array');
-            console.log('Total events element:', document.getElementById('total-events'));
-            console.log('API endpoints element:', document.getElementById('co-api-endpoints'));
-            loadEventsData();
-        };
-        
-        // Force update events count
-        window.forceUpdateEventsCount = function() {
-            console.log('=== FORCE UPDATE EVENTS COUNT ===');
-            const totalEventsEl = document.getElementById('total-events');
-            const totalEvents = Array.isArray(events) ? events.length : 0;
-            console.log('Setting total events to:', totalEvents);
-            if (totalEventsEl) {
-                totalEventsEl.textContent = totalEvents;
-                console.log('Updated successfully!');
-            } else {
-                console.error('total-events element not found!');
-            }
-        };
-        
         // Load events data for stats
         function loadEventsData() {
             const apiEndpoints = document.getElementById('co-api-endpoints');
@@ -321,19 +281,78 @@
         const modalContainer = document.querySelector('#co-modal-overlay .co-onboarding-modal');
         const modalTitle = document.getElementById('co-modal-title');
         const modalClose = document.getElementById('co-modal-close');
-        const userGrid = document.querySelector('.user-grid');
         const reportList = document.querySelector('.report-list');
         // Removed downloadGrid and billingHistoryTable queries
-        const revealBtn = document.getElementById('reveal-btn');
         const codeDisplay = document.getElementById('code-display');
         const copyBtn = document.getElementById('copy-code-btn');
-        let reportsRendered = false;
         
         // Stats elements
         const totalUsersEl = document.getElementById('total-users');
         const totalReportsEl = document.getElementById('total-reports');
         const totalEventsEl = document.getElementById('total-events');
         const monthReportsEl = document.getElementById('month-reports');
+
+        // Helper function to lock body scroll while preserving position
+        function lockBodyScroll() {
+            const scrollY = window.scrollY;
+            const sbw = window.innerWidth - document.documentElement.clientWidth;
+            document.documentElement.style.overflow = 'hidden';
+            document.body.style.overflow = 'hidden';
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${scrollY}px`;
+            document.body.style.width = '100%';
+            document.body.classList.add('modal-open');
+            if (sbw > 0) {
+                document.body.style.paddingRight = sbw + 'px';
+            }
+            document.body.setAttribute('data-scroll-y', scrollY);
+        }
+        
+        // Helper function to unlock body scroll and restore position
+        function unlockBodyScroll() {
+            const scrollY = document.body.getAttribute('data-scroll-y');
+            const scrollPosition = scrollY ? parseInt(scrollY, 10) : null;
+            
+            // Remove all body styles first - force removal
+            document.documentElement.style.removeProperty('overflow');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('position');
+            document.body.style.removeProperty('top');
+            document.body.style.removeProperty('width');
+            document.body.style.removeProperty('padding-right');
+            document.body.style.removeProperty('paddingRight');
+            document.body.style.removeProperty('left');
+            document.body.style.removeProperty('right');
+            document.body.style.removeProperty('bottom');
+            document.body.classList.remove('modal-open', 'no-scroll');
+            
+            // Remove the attribute
+            document.body.removeAttribute('data-scroll-y');
+            
+            // Force a reflow to ensure styles are cleared
+            void document.body.offsetHeight;
+            
+            // Restore scroll position - use multiple attempts to ensure it works
+            if (scrollPosition !== null && !isNaN(scrollPosition)) {
+                // Immediate attempt
+                window.scrollTo(0, scrollPosition);
+                
+                // Use requestAnimationFrame for next frame
+                requestAnimationFrame(() => {
+                    window.scrollTo(0, scrollPosition);
+                    // Double-check after a brief delay
+                    setTimeout(() => {
+                        if (Math.abs(window.pageYOffset - scrollPosition) > 1) {
+                            window.scrollTo(0, scrollPosition);
+                        }
+                    }, 10);
+                });
+            }
+        }
+        
+        // Expose scroll lock functions globally for use by other scripts
+        window.lockBodyScroll = lockBodyScroll;
+        window.unlockBodyScroll = unlockBodyScroll;
 
         // Initialize the dashboard with performance optimizations
         document.addEventListener('DOMContentLoaded', function() {
@@ -407,14 +426,35 @@
             let currentSection = null;
 
             function openModal(targetId) {
+                // Don't open events or users in modals - they're shown inline
+                if (targetId === 'events' || targetId === 'users') {
+                    return;
+                }
+                
                 const section = document.getElementById(targetId);
-                if (!section || !overlay || !modalShell) return;
+                if (!section || !overlay || !modalShell) {
+                    console.error('Modal elements not found:', { section: !!section, overlay: !!overlay, modalShell: !!modalShell });
+                    return;
+                }
                 
-                // Allow events modal on all devices
-                const isMobile = window.innerWidth <= 768;
+                // Close other modals first (but don't unlock scroll yet)
+                if (overlay) {
+                    overlay.style.display = 'none';
+                    overlay.style.visibility = 'hidden';
+                    overlay.style.opacity = '0';
+                    overlay.classList.remove('active', 'show');
+                }
                 
-                // First ensure any existing modal is properly closed
-                closeAllModals();
+                // Close delete confirmation modal if open
+                const deleteModal = document.getElementById('co-delete-confirm-modal');
+                if (deleteModal) {
+                    deleteModal.style.display = 'none';
+                    deleteModal.style.visibility = 'hidden';
+                    deleteModal.style.opacity = '0';
+                }
+                
+                // Clear modal shell
+                modalShell.innerHTML = '';
                 
                 // set title preferring nav card label, fallback to section title
                 let titleText = '';
@@ -441,11 +481,7 @@
                 
                 // mount into shell
                 console.log('Mounting section into modal:', targetId);
-                console.log('Section element:', section);
-                console.log('Section innerHTML length:', section.innerHTML.length);
-                modalShell.innerHTML = '';
                 modalShell.appendChild(section);
-                console.log('Modal shell after mounting:', modalShell);
                 
                 if (modalContainer) {
                     if (targetId === 'secret') {
@@ -455,43 +491,62 @@
                     }
                 }
                 
+                // Set body styles for modal - preserve scroll position
+                try {
+                    lockBodyScroll();
+                } catch (e) {
+                    console.error('Error locking body scroll:', e);
+                }
+                
                 // Show overlay with proper state
                 overlay.style.display = 'flex';
                 overlay.style.visibility = 'visible';
                 overlay.style.opacity = '1';
                 overlay.classList.add('active');
                 
-                // Set body styles for modal
-                try {
-                    const sbw = window.innerWidth - document.documentElement.clientWidth;
-                    document.documentElement.style.overflow = 'hidden';
-                    document.body.style.overflow = 'hidden';
-                    document.body.classList.add('modal-open');
-                    if (sbw > 0) {
-                        document.body.style.paddingRight = sbw + 'px';
-                    }
-                } catch (e) {}
-                
                 currentSection = section;
-                if (targetId === 'users') {
-                    renderUsers();
-                } else if (targetId === 'reports') {
+                if (targetId === 'reports') {
                     renderReports();
                 }
             }
 
             function closeModal() {
                 if (!overlay) return;
-                if (currentSection) {
+                
+                // Store current section before cleanup
+                const sectionToRestore = currentSection;
+                
+                // Close overlay first
+                overlay.style.display = 'none';
+                overlay.style.visibility = 'hidden';
+                overlay.style.opacity = '0';
+                overlay.classList.remove('active', 'show');
+                
+                // Restore section to its original location if it exists
+                if (sectionToRestore) {
                     const host = document.querySelector('.content-area');
-                    if (host) host.appendChild(currentSection);
-                    currentSection.classList.remove('in-modal');
+                    if (host && sectionToRestore.parentNode !== host) {
+                        host.appendChild(sectionToRestore);
+                    }
+                    sectionToRestore.classList.remove('in-modal', 'active');
+                    sectionToRestore.style.display = 'none'; // Hide it since content-area is hidden
                     currentSection = null;
                 }
+                
                 if (modalContainer) modalContainer.classList.remove('co-modal-no-scroll');
                 
-                // Use the comprehensive cleanup function
-                closeAllModals();
+                // Clear modal shell
+                if (modalShell) {
+                    modalShell.innerHTML = '';
+                }
+                
+                // Reset modal title
+                if (modalTitle) {
+                    modalTitle.textContent = '';
+                }
+                
+                // Unlock body scroll and restore position - this is critical
+                unlockBodyScroll();
             }
 
             // Optimized navigation with lazy loading
@@ -503,38 +558,98 @@
                     this.classList.add('active');
                     
                     if (targetId === 'users') {
-                        // Close modal if open
-                        try { closeModal(); } catch(e){}
+                        // Hide all other sections first
+                        const contentArea = document.querySelector('.content-area');
+                        if (contentArea) contentArea.style.display = 'none';
+                        const eventsSection = document.getElementById('events');
+                        if (eventsSection) {
+                            eventsSection.style.display = 'none';
+                        }
+                        const usersBottom = document.getElementById('co-users-bottom');
+                        if (usersBottom) {
+                            usersBottom.style.display = 'block';
+                        }
                         // Lazy load users table
                         lazyLoad(() => {
                             if (typeof renderUsersTable === 'function') {
                                 renderUsersTable();
                             }
                         }, 50);
-                        const bottom = document.getElementById('co-users-bottom');
-                        if (bottom) bottom.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    } else if (targetId === 'emergency') {
-                        if (window.CO_openEmergencyModal) { window.CO_openEmergencyModal(); }
-                    } else if (targetId === 'reports') {
-                        // Always render reports section and open modal
-                        lazyLoad(() => {
-                            openReportsModal();
-                        }, 100);
+                        // Scroll to users section
+                        if (usersBottom) {
+                            setTimeout(() => {
+                                usersBottom.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }, 100);
+                        }
+                    } else if (targetId === 'events') {
+                        // Hide users section and other content
+                        const usersBottom = document.getElementById('co-users-bottom');
+                        if (usersBottom) {
+                            usersBottom.style.display = 'none';
+                        }
+                        const contentArea = document.querySelector('.content-area');
+                        if (contentArea) contentArea.style.display = 'none';
+                        
+                        // Show events section inline
+                        const eventsSection = document.getElementById('events');
+                        if (eventsSection) {
+                            eventsSection.style.display = 'block';
+                            eventsSection.style.visibility = 'visible';
+                            eventsSection.style.opacity = '1';
+                            eventsSection.style.pointerEvents = 'auto';
+                            
+                            // Hide bottom "Create New Event" button initially (will be shown if events exist)
+                            const createSection = document.getElementById('co-events-create-section');
+                            if (createSection) {
+                                createSection.style.setProperty('display', 'none', 'important');
+                                createSection.style.setProperty('visibility', 'hidden', 'important');
+                                createSection.style.setProperty('opacity', '0', 'important');
+                            }
+                            
+                            // Load events after ensuring section is visible
+                            lazyLoad(() => {
+                                // Double-check that events section is visible before loading
+                                if (eventsSection.style.display === 'block' || eventsSection.offsetParent !== null) {
+                                    lazyLoadSection('events');
+                                }
+                            }, 100);
+                            
+                            // Scroll to events section
+                            setTimeout(() => {
+                                eventsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }, 150);
+                        }
                     } else {
-                        // Lazy load other sections
-                        console.log('Navigation handler - targetId:', targetId);
-                        lazyLoad(() => {
-                            const isMobile = window.innerWidth <= 768;
-                            console.log('Navigation lazyLoad - targetId:', targetId, 'isMobile:', isMobile, 'window width:', window.innerWidth);
-                            
-                            // Load events section on all devices
-                            console.log('Loading events section for all devices');
-                            
-                            console.log('Calling lazyLoadSection for:', targetId);
-                            lazyLoadSection(targetId);
-                            console.log('Calling openModal for:', targetId);
-                            openModal(targetId);
-                        }, 50);
+                        // Hide users and events sections when clicking other cards
+                        const usersBottom = document.getElementById('co-users-bottom');
+                        if (usersBottom) {
+                            usersBottom.style.display = 'none';
+                        }
+                        const eventsSection = document.getElementById('events');
+                        if (eventsSection) {
+                            eventsSection.style.display = 'none';
+                        }
+                        
+                        if (targetId === 'emergency') {
+                            if (window.CO_openEmergencyModal) { window.CO_openEmergencyModal(); }
+                        } else if (targetId === 'reports') {
+                            // Always render reports section and open modal
+                            lazyLoad(() => {
+                                openReportsModal();
+                            }, 100);
+                        } else {
+                            // Lazy load other sections
+                            console.log('Navigation handler - targetId:', targetId);
+                            lazyLoad(() => {
+                                const isMobile = window.innerWidth <= 768;
+                                console.log('Navigation lazyLoad - targetId:', targetId, 'isMobile:', isMobile, 'window width:', window.innerWidth);
+                                
+                                console.log('Calling lazyLoadSection for:', targetId);
+                                lazyLoadSection(targetId);
+                                console.log('Calling openModal for:', targetId);
+                                openModal(targetId);
+                            }, 50);
+                        }
                     }
                 });
             });
@@ -550,11 +665,6 @@
                     codeDisplay.textContent = cd;
                     codeDisplay.classList.add('revealed');
                 }
-            }
-
-            // Optional legacy reveal support
-            if (revealBtn) {
-                revealBtn.addEventListener('click', revealSecretCode);
             }
 
             // Copy code button
@@ -832,37 +942,6 @@
             element.animationId = window.requestAnimationFrame(step);
         }
 
-        // Render user cards (legacy in-modal UI; hidden now)
-        function renderUsers() {
-            if (!userGrid) return;
-            userGrid.innerHTML = '';
-            const frag = document.createDocumentFragment();
-            users.forEach(user => {
-                const userCard = document.createElement('div');
-                userCard.className = 'user-card';
-                userCard.innerHTML = `
-                    <div class="user-header">
-                        <div class="user-avatar">${user.initials}</div>
-                        <div class="user-info">
-                            <h3>${user.name}</h3>
-                            <span class="user-role">${user.role}</span>
-                        </div>
-                    </div>
-                    <div class="user-email">${user.email}</div>
-                    <div class="user-actions">
-                        <button class="action-btn edit-btn">
-                            <i class="fas fa-edit"></i> Edit
-                        </button>
-                        <button class="action-btn delete-btn">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                    </div>
-                `;
-                frag.appendChild(userCard);
-            });
-            userGrid.appendChild(frag);
-        }
-
         // Bottom table rendering and actions for Manage Users
         function getCsrfToken() {
             // Try cookie first
@@ -1044,9 +1123,23 @@
                 const { ecList, ecAdd, ecDelete } = endpoints();
                 if (!overlay || !modalShell) return;
                 
-                // First ensure any existing modal is properly closed
-                closeAllModals();
+                // Close other modals first (but don't unlock scroll yet)
+                if (overlay) {
+                    overlay.style.display = 'none';
+                    overlay.style.visibility = 'hidden';
+                    overlay.style.opacity = '0';
+                    overlay.classList.remove('active', 'show');
+                }
                 
+                // Close delete confirmation modal if open
+                const deleteModal = document.getElementById('co-delete-confirm-modal');
+                if (deleteModal) {
+                    deleteModal.style.display = 'none';
+                    deleteModal.style.visibility = 'hidden';
+                    deleteModal.style.opacity = '0';
+                }
+                
+                // Clear modal shell and set title
                 if (modalTitle) modalTitle.textContent = 'Emergency Calls';
                 modalShell.innerHTML = `
                     <div class="co-ec-modal" style="width:100%;max-width:620px;margin:0 auto;">
@@ -1064,20 +1157,18 @@
                         <div id="ec-list" style="border:1px solid #f1f5f9;border-radius:8px;overflow:auto;max-height:320px;"></div>
                     </div>`;
                 
+                // Set body styles for modal - preserve scroll position
+                try {
+                    lockBodyScroll();
+                } catch (e) {
+                    console.error('Error locking body scroll in emergency modal:', e);
+                }
+                
                 // Open the modal properly
                 overlay.style.display = 'flex';
                 overlay.style.visibility = 'visible';
                 overlay.style.opacity = '1';
                 overlay.classList.add('active');
-                
-                // Set body styles for modal
-                try {
-                    const sbw = window.innerWidth - document.documentElement.clientWidth;
-                    document.documentElement.style.overflow = 'hidden';
-                    document.body.style.overflow = 'hidden';
-                    document.body.classList.add('modal-open');
-                    if (sbw > 0) document.body.style.paddingRight = sbw + 'px';
-                } catch (e) {}
 
                 const listRoot = document.getElementById('ec-list');
                 const addBtn = document.getElementById('ec-add-btn');
@@ -1281,7 +1372,6 @@
                             if (eventsSection) {
                                 eventsSection.style.display = 'none';
                                 eventsSection.style.visibility = 'hidden';
-                                eventsSection.classList.remove('in-modal', 'active');
                                 eventsSection.setAttribute('data-loaded', 'false');
                             }
                             
@@ -1327,7 +1417,6 @@
             if (eventsSection && window.innerWidth <= 768) {
                 eventsSection.style.display = 'none';
                 eventsSection.style.visibility = 'hidden';
-                eventsSection.classList.remove('in-modal');
                 eventsSection.setAttribute('data-loaded', 'false');
             }
             
@@ -1479,8 +1568,24 @@
         function openReportsModal() {
             if (!overlay || !modalShell) return;
             
-            // First ensure any existing modal is properly closed
-            closeAllModals();
+            // Close other modals first (but don't unlock scroll yet)
+            if (overlay) {
+                overlay.style.display = 'none';
+                overlay.style.visibility = 'hidden';
+                overlay.style.opacity = '0';
+                overlay.classList.remove('active', 'show');
+            }
+            
+            // Close delete confirmation modal if open
+            const deleteModal = document.getElementById('co-delete-confirm-modal');
+            if (deleteModal) {
+                deleteModal.style.display = 'none';
+                deleteModal.style.visibility = 'hidden';
+                deleteModal.style.opacity = '0';
+            }
+            
+            // Clear modal shell
+            modalShell.innerHTML = '';
             
             // Set modal title
             if (modalTitle) modalTitle.textContent = 'Security Reports';
@@ -1548,16 +1653,12 @@
             overlay.style.opacity = '1';
             overlay.classList.add('active');
             
-            // Set body styles for modal
+            // Set body styles for modal - preserve scroll position
             try {
-                const sbw = window.innerWidth - document.documentElement.clientWidth;
-                document.documentElement.style.overflow = 'hidden';
-                document.body.style.overflow = 'hidden';
-                document.body.classList.add('modal-open');
-                if (sbw > 0) {
-                    document.body.style.paddingRight = sbw + 'px';
-                }
-            } catch (e) {}
+                lockBodyScroll();
+            } catch (e) {
+                console.error('Error locking body scroll in reports modal:', e);
+            }
             
             // Bind action events after DOM update
             setTimeout(() => {
@@ -2094,16 +2195,17 @@
                 deleteModal.style.opacity = '0';
             }
             
-            // Reset document and body styles completely
-            document.documentElement.style.overflow = '';
-            document.body.style.overflow = '';
-            document.body.style.position = '';
-            document.body.style.top = '';
-            document.body.style.left = '';
-            document.body.style.right = '';
-            document.body.style.bottom = '';
-            document.body.style.paddingRight = '';
-            document.body.classList.remove('modal-open', 'no-scroll');
+            // Close event modal
+            const eventModal = document.getElementById('co-event-modal');
+            if (eventModal) {
+                eventModal.style.display = 'none';
+                eventModal.style.visibility = 'hidden';
+                eventModal.style.opacity = '0';
+                eventModal.style.pointerEvents = 'none';
+            }
+            
+            // Reset document and body styles completely - restore scroll position
+            unlockBodyScroll();
             
             // Clear modal content
             if (modalShell) {
@@ -2120,17 +2222,6 @@
             backdrops.forEach(backdrop => {
                 backdrop.remove();
             });
-            
-            // Force reflow to ensure changes take effect
-            document.body.offsetHeight;
-            
-            // Additional cleanup to ensure scroll is restored
-            setTimeout(() => {
-                document.documentElement.style.overflow = '';
-                document.body.style.overflow = '';
-                document.body.style.position = '';
-                document.body.classList.remove('modal-open', 'no-scroll');
-            }, 10);
         }
 
         // Actual download function
@@ -2479,91 +2570,8 @@
             });
         }
 
-        // Reveal secret code
-        function revealSecretCode() {
-            const embedded = codeDisplay?.dataset?.code;
-            const secretCode = embedded && embedded.trim() ? embedded.trim() : "7X9P-2R8Q-4T6W-1S3V";
-            codeDisplay.textContent = secretCode;
-            codeDisplay.classList.add('revealed');
-            revealBtn.innerHTML = '<i class="fas fa-check"></i> Code Revealed!';
-            revealBtn.classList.add('revealed');
-        }
-
-        // Global cleanup function for any remaining modal issues
-        function globalModalCleanup() {
-            closeAllModals();
-        }
-
-        // Function to properly open modals
-        function openModal() {
-            // First ensure any existing modal is properly closed
-            closeAllModals();
-            
-            // Set body styles for modal
-            document.documentElement.style.overflow = 'hidden';
-            document.body.style.overflow = 'hidden';
-            document.body.classList.add('modal-open');
-            
-            if (overlay) {
-                overlay.style.display = 'flex';
-                overlay.style.visibility = 'visible';
-                overlay.style.opacity = '1';
-                overlay.classList.add('active');
-            }
-        }
-
-        // Add global event listeners for cleanup
-        document.addEventListener('click', function(e) {
-            // If clicking outside the specific modal overlay, close it
-            if (e.target.classList.contains('modal-overlay') && e.target === overlay) {
-                closeAllModals();
-            }
-        });
-
-        // Add escape key listener for modal cleanup
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && overlay && overlay.style.display !== 'none') {
-                closeAllModals();
-            }
-        });
-
-        // Expose cleanup function globally for debugging
+        // Expose cleanup function globally
         window.closeAllModals = closeAllModals;
-        window.globalModalCleanup = globalModalCleanup;
-        
-        // Debug function to check modal state
-        window.debugModal = function() {
-            console.log('Overlay:', overlay);
-            console.log('Overlay display:', overlay ? overlay.style.display : 'undefined');
-            console.log('Overlay visibility:', overlay ? overlay.style.visibility : 'undefined');
-            console.log('Body overflow:', document.body.style.overflow);
-            console.log('Body classes:', document.body.classList.toString());
-        };
-        
-        // Global function to force reset page state
-        window.resetPageState = function() {
-            closeAllModals();
-            document.documentElement.style.overflow = '';
-            document.body.style.overflow = 'auto';
-            document.body.style.position = 'static';
-            document.body.style.top = '';
-            document.body.style.left = '';
-            document.body.style.right = '';
-            document.body.style.bottom = '';
-            document.body.style.paddingRight = '';
-            document.body.classList.remove('modal-open', 'no-scroll');
-            document.body.offsetHeight; // Force reflow
-        };
-        
-        // Emergency reset function for debugging
-        window.emergencyReset = function() {
-            console.log('Emergency reset triggered');
-            closeAllModals();
-            setTimeout(() => {
-                window.resetPageState();
-                console.log('Page state reset complete');
-            }, 100);
-        };
 
 
 

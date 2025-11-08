@@ -65,8 +65,12 @@ def security_dashboard(request):
         'new_reports': all_reports.filter(status='pending').count(),
         'investigating': all_reports.filter(status='investigating').count(),
         'resolved': all_reports.filter(status='resolved').count(),
-        'urgent': all_reports.filter(priority='urgent').count(),
+        'level_3': all_reports.filter(priority='level_3').count(),
     }
+    
+    # Get the latest report ID for initializing the notification system
+    latest_report = all_reports.order_by('-id').first()
+    initial_max_report_id = latest_report.id if latest_report else 0
     
     context = {
         'page_obj': page_obj,
@@ -75,6 +79,7 @@ def security_dashboard(request):
         'priority_filter': priority_filter,
         'search_query': search_query,
         'community': community,
+        'initial_max_report_id': initial_max_report_id,
     }
     
     return render(request, 'security_panel/security.html', context)
@@ -145,3 +150,60 @@ def get_security_users(request):
     ).values('id', 'full_name', 'username')
     
     return JsonResponse({'users': list(security_users)})
+
+@login_required
+@require_http_methods(["GET"])
+def check_new_reports(request):
+    """Check for new reports since last_check_id - only for Security users"""
+    # Only allow Security role users
+    if not request.user.is_authenticated or request.user.role != 'security':
+        return JsonResponse({'error': 'Security access required'}, status=403)
+    
+    # Check if notification sound is enabled
+    notification_sound_enabled = request.user.notification_sound_enabled
+    
+    # Get user's community
+    try:
+        membership = CommunityMembership.objects.select_related('community').filter(user=request.user).first()
+        if not membership or not membership.community:
+            return JsonResponse({'error': 'No community access'}, status=403)
+        community = membership.community
+    except Exception as e:
+        return JsonResponse({'error': f'Community access error: {str(e)}'}, status=403)
+    
+    # Get last checked report ID from request
+    last_check_id = request.GET.get('last_check_id', 0)
+    try:
+        last_check_id = int(last_check_id)
+    except (ValueError, TypeError):
+        last_check_id = 0
+    
+    # Get new reports (reports with ID greater than last_check_id)
+    new_reports = SecurityReport.objects.filter(
+        community=community,
+        id__gt=last_check_id
+    ).order_by('-created_at')[:10]  # Limit to 10 most recent
+    
+    # Format new reports for response
+    reports_data = []
+    for report in new_reports:
+        reports_data.append({
+            'id': report.id,
+            'priority': report.priority,
+            'status': report.status,
+            'subject': report.subject,
+            'reporter': report.get_reporter_display(),
+            'target': report.get_target_display(),
+            'created_at': report.created_at.isoformat(),
+        })
+    
+    # Get the highest report ID to send back for next check
+    latest_report_id = SecurityReport.objects.filter(community=community).order_by('-id').first()
+    current_max_id = latest_report_id.id if latest_report_id else 0
+    
+    return JsonResponse({
+        'new_reports': reports_data,
+        'current_max_id': current_max_id,
+        'notification_sound_enabled': notification_sound_enabled,
+        'has_new_reports': len(reports_data) > 0
+    })

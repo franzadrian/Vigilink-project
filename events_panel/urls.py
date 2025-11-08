@@ -11,4 +11,6 @@ urlpatterns = [
     path('<int:event_id>/delete/', views.delete_event, name='delete_event'),
     path('rsvp/', views.rsvp_event, name='rsvp_event'),
     path('api/get-events/', views.get_events, name='get_events'),
+    path('api/check-new-events/', views.check_new_events, name='check_new_events'),
+    path('api/<int:event_id>/attendees/', views.get_event_attendees, name='get_event_attendees'),
 ]

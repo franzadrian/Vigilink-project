@@ -43,11 +43,11 @@
       </div>
     </div>
 
-    <div class="stat-card stat-card--urgent">
+    <div class="stat-card stat-card--level3">
       <div class="stat-icon"><i class="fa-solid fa-fire" aria-hidden="true"></i></div>
       <div class="stat-content">
-        <h3>Urgent</h3>
-        <div class="stat-value">{{ stats.urgent }}</div>
+        <h3>Level 3</h3>
+        <div class="stat-value">{{ stats.level_3 }}</div>
       </div>
     </div>
   </div>
@@ -70,10 +70,9 @@
         <label for="priority">Priority</label>
         <select id="priority" name="priority">
           <option value="">All Priority</option>
-          <option value="low" {% if priority_filter == 'low' %}selected{% endif %}>Low</option>
-          <option value="medium" {% if priority_filter == 'medium' %}selected{% endif %}>Medium</option>
-          <option value="high" {% if priority_filter == 'high' %}selected{% endif %}>High</option>
-          <option value="urgent" {% if priority_filter == 'urgent' %}selected{% endif %}>Urgent</option>
+          <option value="level_1" {% if priority_filter == 'level_1' %}selected{% endif %}>Level 1</option>
+          <option value="level_2" {% if priority_filter == 'level_2' %}selected{% endif %}>Level 2</option>
+          <option value="level_3" {% if priority_filter == 'level_3' %}selected{% endif %}>Level 3</option>
         </select>
       </div>
       
@@ -182,5 +181,11 @@
 
 {% block extra_js %}
 {{ block.super }}
+<script>
+    // Pass user role and notification settings to JavaScript
+    window.userRole = '{{ request.user.role }}';
+    window.initialMaxReportId = {{ initial_max_report_id }};
+    window.notificationSoundEnabled = {% if request.user.notification_sound_enabled %}true{% else %}false{% endif %};
+</script>
 <script src="{% static 'security_panel/js/security.js' %}"></script>
 {% endblock %}

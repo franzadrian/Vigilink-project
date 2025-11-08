@@ -424,24 +424,40 @@
             Notification Settings
         </h2>
 
+        {% if user.role == 'security' %}
+        <!-- Notification Sound - Only for Security users -->
         <div class="notification-toggle">
             <div class="toggle-label">
                 <strong>Notification Sound</strong>
-                <span>Enable or disable notification sounds for alerts and messages</span>
+                <span>Enable or disable notification sounds for security report alerts</span>
             </div>
             <label class="switch">
                 <input type="checkbox" id="notificationSoundToggle" {% if user.notification_sound_enabled %}checked{% endif %}>
                 <span class="slider"></span>
             </label>
         </div>
+        {% else %}
+        <!-- Receive Notifications - For non-Security users -->
+        <div class="notification-toggle">
+            <div class="toggle-label">
+                <strong>Receive Notifications</strong>
+                <span>Enable or disable notification bubbles for messages and communications</span>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="receiveNotificationsToggle" {% if user.receive_notifications %}checked{% endif %}>
+                <span class="slider"></span>
+            </label>
+        </div>
+        {% endif %}
     </div>
 </div>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const toggle = document.getElementById('notificationSoundToggle');
-        if (toggle) {
-            toggle.addEventListener('change', function() {
+        // Notification Sound toggle (Security users only)
+        const soundToggle = document.getElementById('notificationSoundToggle');
+        if (soundToggle) {
+            soundToggle.addEventListener('change', function() {
                 const enabled = this.checked;
                 
                 fetch('{% url "settings_panel:update_notification_sound" %}', {
@@ -455,20 +471,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Optionally show a success message
-                        const messageContainer = document.getElementById('message-container') || document.createElement('div');
-                        messageContainer.id = 'message-container';
-                        messageContainer.innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
-                        if (!document.getElementById('message-container')) {
-                            document.querySelector('.settings-container').insertBefore(messageContainer, document.querySelector('.settings-container').firstChild);
-                        }
-                        
-                        setTimeout(function() {
-                            messageContainer.style.opacity = '0';
-                            setTimeout(function() {
-                                messageContainer.style.display = 'none';
-                            }, 500);
-                        }, 2000);
+                        showSuccessMessage(data.message);
                     } else {
                         // Revert toggle on error
                         this.checked = !enabled;
@@ -482,6 +485,87 @@
                     alert('An error occurred while updating notification settings.');
                 });
             });
+        }
+
+        // Receive Notifications toggle (non-Security users)
+        const receiveToggle = document.getElementById('receiveNotificationsToggle');
+        if (receiveToggle) {
+            receiveToggle.addEventListener('change', function() {
+                const enabled = this.checked;
+                
+                fetch('{% url "settings_panel:update_receive_notifications" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: 'enabled=' + enabled
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showSuccessMessage(data.message);
+                        // Update global variable
+                        window.receiveNotificationsEnabled = enabled;
+                        
+                        // Immediately update communication badge visibility
+                        const commBadge = document.getElementById('comm-unread-badge');
+                        if (commBadge) {
+                            commBadge.setAttribute('data-notifications-enabled', enabled ? 'true' : 'false');
+                            if (enabled) {
+                                // Refresh badge count
+                                if (typeof refreshGlobalCommBadge === 'function') {
+                                    refreshGlobalCommBadge();
+                                }
+                            } else {
+                                // Hide badge
+                                commBadge.style.display = 'none';
+                            }
+                        }
+                        
+                        // Immediately update events badge visibility
+                        const eventsBadge = document.getElementById('events-unread-badge');
+                        if (eventsBadge) {
+                            eventsBadge.setAttribute('data-notifications-enabled', enabled ? 'true' : 'false');
+                            if (enabled) {
+                                // Refresh event badge
+                                if (typeof window.refreshEventBadge === 'function') {
+                                    window.refreshEventBadge();
+                                }
+                            } else {
+                                // Hide badge
+                                eventsBadge.style.display = 'none';
+                            }
+                        }
+                    } else {
+                        // Revert toggle on error
+                        this.checked = !enabled;
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    // Revert toggle on error
+                    this.checked = !enabled;
+                    console.error('Error:', error);
+                    alert('An error occurred while updating notification settings.');
+                });
+            });
+        }
+
+        function showSuccessMessage(message) {
+            const messageContainer = document.getElementById('message-container') || document.createElement('div');
+            messageContainer.id = 'message-container';
+            messageContainer.innerHTML = '<div class="alert alert-success">' + message + '</div>';
+            if (!document.getElementById('message-container')) {
+                document.querySelector('.settings-container').insertBefore(messageContainer, document.querySelector('.settings-container').firstChild);
+            }
+            
+            setTimeout(function() {
+                messageContainer.style.opacity = '0';
+                setTimeout(function() {
+                    messageContainer.style.display = 'none';
+                }, 500);
+            }, 2000);
         }
     });
 </script>

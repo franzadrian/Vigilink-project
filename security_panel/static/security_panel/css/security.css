@@ -74,7 +74,7 @@
   background: linear-gradient(135deg, var(--primary), var(--primary-2));
 }
 
-.stat-card--urgent .stat-icon {
+.stat-card--level3 .stat-icon {
   background: linear-gradient(135deg, var(--danger), #dc2626);
 }
 
@@ -309,24 +309,19 @@
   color: var(--muted);
 }
 
-.priority-low {
-  background: #f0f9ff;
-  color: #0369a1;
+.priority-level_1 {
+  background: #d1fae5;
+  color: #065f46;
 }
 
-.priority-medium {
+.priority-level_2 {
   background: #fef3c7;
   color: #92400e;
 }
 
-.priority-high {
+.priority-level_3 {
   background: #fed7d7;
   color: #c53030;
-}
-
-.priority-urgent {
-  background: #fecaca;
-  color: #dc2626;
   font-weight: 600;
 }
 
@@ -876,7 +871,7 @@
     grid-row: 2;
   }
   
-  .stat-card--urgent {
+  .stat-card--level3 {
     grid-column: 2;
     grid-row: 2;
   }
@@ -1065,4 +1060,252 @@
 .target-outsider {
   background: #fef3c7;
   color: #92400e;
+}
+
+/* Security Report Notifications */
+#security-notifications-container {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 400px;
+  pointer-events: none;
+}
+
+.security-report-notification {
+  pointer-events: auto;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  transform: translateX(120%);
+  opacity: 0;
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  border-left: 4px solid #3b82f6;
+  cursor: pointer;
+  min-width: 350px;
+  max-width: 400px;
+}
+
+.security-report-notification.show {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+/* Normal/Green Notification */
+.security-notification-normal {
+  border-left-color: #10b981;
+  animation: slideInRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55), 
+             pulseGreen 0.6s ease-in-out 0.2s;
+}
+
+.security-notification-normal .notification-icon {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+/* Warning/Yellow Notification */
+.security-notification-warning {
+  border-left-color: #f59e0b;
+  animation: slideInRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55), 
+             pulseYellow 0.6s ease-in-out 0.2s,
+             shakeWarning 0.5s ease-in-out 0.4s;
+}
+
+.security-notification-warning .notification-icon {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+}
+
+/* Danger/Red Notification */
+.security-notification-danger {
+  border-left-color: #ef4444;
+  animation: slideInRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55), 
+             pulseRed 0.8s ease-in-out 0.2s,
+             shakeDanger 0.6s ease-in-out 0.5s;
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.3);
+}
+
+.security-notification-danger .notification-icon {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+}
+
+.notification-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+}
+
+.notification-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.notification-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.notification-message {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 6px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.notification-meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.notification-close:hover {
+  background: #f1f5f9;
+  opacity: 1;
+  color: var(--text);
+}
+
+/* Animations */
+@keyframes slideInRight {
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulseGreen {
+  0%, 100% {
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2);
+  }
+  50% {
+    box-shadow: 0 8px 32px rgba(16, 185, 129, 0.4), 0 0 0 4px rgba(16, 185, 129, 0.1);
+  }
+}
+
+@keyframes pulseYellow {
+  0%, 100% {
+    box-shadow: 0 8px 24px rgba(245, 158, 11, 0.2);
+  }
+  50% {
+    box-shadow: 0 8px 32px rgba(245, 158, 11, 0.4), 0 0 0 4px rgba(245, 158, 11, 0.15);
+  }
+}
+
+@keyframes pulseRed {
+  0%, 100% {
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.3);
+  }
+  25% {
+    box-shadow: 0 8px 32px rgba(239, 68, 68, 0.5), 0 0 0 4px rgba(239, 68, 68, 0.2);
+  }
+  50% {
+    box-shadow: 0 8px 32px rgba(239, 68, 68, 0.4), 0 0 0 8px rgba(239, 68, 68, 0.15);
+  }
+  75% {
+    box-shadow: 0 8px 32px rgba(239, 68, 68, 0.5), 0 0 0 4px rgba(239, 68, 68, 0.2);
+  }
+}
+
+@keyframes shakeWarning {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-4px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes shakeDanger {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-6px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(6px);
+  }
+}
+
+/* Hover effect */
+.security-report-notification:hover {
+  transform: translateX(-4px) scale(1.02);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+}
+
+.security-notification-danger:hover {
+  box-shadow: 0 12px 32px rgba(239, 68, 68, 0.4);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  #security-notifications-container {
+    top: 70px;
+    right: 10px;
+    left: 10px;
+    max-width: 100%;
+  }
+  
+  .security-report-notification {
+    min-width: auto;
+    max-width: 100%;
+  }
+  
+  .notification-content {
+    padding: 12px;
+  }
+  
+  .notification-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+  }
 }

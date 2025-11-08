@@ -86,9 +86,44 @@
       outsiderFieldTop.appendChild(outLblTop); outsiderFieldTop.appendChild(outInTop); wrap.appendChild(outsiderFieldTop);
     }
 
-    // Quick actions (top-right): Anonymous switch
+    // Toolbar: Priority selector (left) and Anonymous switch (right)
     const toolbar = document.createElement('div');
     toolbar.className = 'res-form-toolbar';
+    toolbar.style.display = 'flex';
+    toolbar.style.justifyContent = 'space-between';
+    toolbar.style.alignItems = 'center';
+    toolbar.style.gap = '16px';
+    
+    // Priority selector (left side)
+    const priorityLeftWrap = document.createElement('div');
+    priorityLeftWrap.style.display = 'flex';
+    priorityLeftWrap.style.alignItems = 'center';
+    priorityLeftWrap.style.gap = '8px';
+    const priorityLbl = document.createElement('label');
+    priorityLbl.className = 'res-label';
+    priorityLbl.style.marginBottom = '0';
+    priorityLbl.style.fontSize = '13px';
+    priorityLbl.textContent = 'Priority Level:';
+    const prioritySelect = document.createElement('select');
+    prioritySelect.id = 'report-priority';
+    prioritySelect.className = 'res-select';
+    prioritySelect.style.width = 'auto';
+    prioritySelect.style.minWidth = '120px';
+    prioritySelect.innerHTML = `
+      <option value="level_1">Level 1</option>
+      <option value="level_2" selected>Level 2</option>
+      <option value="level_3">Level 3</option>
+    `;
+    const priorityHint = document.createElement('span');
+    priorityHint.style.fontSize = '11px';
+    priorityHint.style.color = '#6b7280';
+    priorityHint.style.fontStyle = 'italic';
+    priorityHint.textContent = '(Auto-set, changeable)';
+    priorityLeftWrap.appendChild(priorityLbl);
+    priorityLeftWrap.appendChild(prioritySelect);
+    priorityLeftWrap.appendChild(priorityHint);
+    
+    // Anonymous switch (right side)
     const anonWrap = document.createElement('label');
     anonWrap.className = 'res-switch';
     const anon = document.createElement('input');
@@ -99,6 +134,8 @@
     const thumb = document.createElement('span'); thumb.className = 'res-switch-thumb'; track.appendChild(thumb);
     const anonText = document.createElement('span'); anonText.className = 'res-switch-label'; anonText.textContent = 'Submit anonymously';
     anonWrap.appendChild(anon); anonWrap.appendChild(track); anonWrap.appendChild(anonText);
+    
+    toolbar.appendChild(priorityLeftWrap);
     toolbar.appendChild(anonWrap);
     wrap.appendChild(toolbar);
 
@@ -116,6 +153,84 @@
     });
     reasonsWrap.appendChild(reasonsLbl); reasonsWrap.appendChild(list);
     wrap.appendChild(reasonsWrap);
+
+    // Function to auto-update priority based on selected reasons
+    function updatePriorityFromReasons() {
+      const selected = Array.from(list.querySelectorAll('input[type="checkbox"]:checked')).map(x => x.value.toLowerCase());
+      if (selected.length === 0) {
+        prioritySelect.value = 'level_2'; // Default
+        return;
+      }
+
+      // Level 3 - Serious keywords
+      const level3Keywords = [
+        'possible criminal activity',
+        'criminal activity',
+        'vandalism',
+        'property damage',
+        'harassment',
+        'threats',
+        'reckless driving',
+        'speeding',
+        'trespassing',
+        'impersonation',
+        'identity misuse',
+        'false information'
+      ];
+
+      // Level 2 - Suspicious keywords
+      const level2Keywords = [
+        'suspicious behavior',
+        'animal-related concern',
+        'other'
+      ];
+
+      // Level 1 - Minor keywords
+      const level1Keywords = [
+        'noise disturbance',
+        'observations',
+        'improper garbage disposal',
+        'dumping'
+      ];
+
+      // Check for level 3 (most serious)
+      for (const reason of selected) {
+        for (const keyword of level3Keywords) {
+          if (reason.includes(keyword)) {
+            prioritySelect.value = 'level_3';
+            return;
+          }
+        }
+      }
+
+      // Check for level 2
+      for (const reason of selected) {
+        for (const keyword of level2Keywords) {
+          if (reason.includes(keyword)) {
+            prioritySelect.value = 'level_2';
+            return;
+          }
+        }
+      }
+
+      // Check for level 1
+      for (const reason of selected) {
+        for (const keyword of level1Keywords) {
+          if (reason.includes(keyword)) {
+            prioritySelect.value = 'level_1';
+            return;
+          }
+        }
+      }
+
+      // Default to level 2
+      prioritySelect.value = 'level_2';
+    }
+
+    // Add event listeners to checkboxes to auto-update priority
+    list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', updatePriorityFromReasons);
+    });
 
     // Details
     const detField = document.createElement('div'); detField.className = 'res-field';
@@ -153,13 +268,16 @@
       }
       const anonymous = anon.checked ? '1' : '0';
 
+      const priority = prioritySelect.value || 'level_2';
+      
       const payload = {
         target_type,
         target_user_id,
         reasons: JSON.stringify(selected),
         details,
         outsider_desc,
-        anonymous
+        anonymous,
+        priority
       };
       const url = reportUrl || '/resident/report/';
       fetch(url, {

@@ -45,7 +45,7 @@ def cancel_subscription(request):
 @login_required
 @require_POST
 def update_notification_sound(request):
-    """Update user's notification sound preference"""
+    """Update user's notification sound preference (Security users only)"""
     try:
         enabled = request.POST.get('enabled', 'false').lower() == 'true'
         user = request.user
@@ -55,6 +55,28 @@ def update_notification_sound(request):
         return JsonResponse({
             'success': True,
             'message': 'Notification sound preference updated successfully.',
+            'enabled': enabled
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error updating preference: {str(e)}'
+        }, status=400)
+
+
+@login_required
+@require_POST
+def update_receive_notifications(request):
+    """Update user's receive notifications preference (non-Security users)"""
+    try:
+        enabled = request.POST.get('enabled', 'false').lower() == 'true'
+        user = request.user
+        user.receive_notifications = enabled
+        user.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Notification preferences updated successfully.',
             'enabled': enabled
         })
     except Exception as e:

@@ -1,5 +1,10 @@
 // Community Owner Events Management JavaScript
 
+// Pagination variables for events
+let eventsPageSize = 10;
+let eventsCurrentPage = 1;
+let allEvents = []; // Store all events for pagination
+
 // Initialize events management when script loads
 (function() {
     console.log('Events management script loading...');
@@ -26,16 +31,22 @@ function initEventsManagement() {
         } else {
             console.log('Delete modal not found during initialization');
         }
+        
+        // Ensure "Create New Event" button is hidden on initialization
+        const createEventBtnTop = document.getElementById('co-create-event-btn-top');
+        if (createEventBtnTop) {
+            createEventBtnTop.style.display = 'none';
+        }
     }, 100);
     
     // Event creation modal
-    const createEventBtnBottom = document.getElementById('co-create-event-btn-bottom');
+    const createEventBtnTop = document.getElementById('co-create-event-btn-top');
     const eventModal = document.getElementById('co-event-modal');
     const eventModalClose = document.getElementById('co-event-modal-close');
     const eventForm = document.getElementById('co-event-form');
     
-    if (createEventBtnBottom && eventModal) {
-        createEventBtnBottom.addEventListener('click', function() {
+    if (createEventBtnTop && eventModal) {
+        createEventBtnTop.addEventListener('click', function() {
             showEventModal();
         });
     }
@@ -82,15 +93,6 @@ function initEventsManagement() {
         }
     });
     
-    // Don't close modal on overlay click - only close with X button
-    // if (eventModal) {
-    //     eventModal.addEventListener('click', function(e) {
-    //         if (e.target === eventModal) {
-    //             hideEventModal();
-    //         }
-    //     });
-    // }
-    
     // Events will be loaded when the events section is shown via the main navigation script
     
     // Initialize event filters
@@ -104,8 +106,20 @@ function showEventModal() {
         modal.style.visibility = 'visible';
         modal.style.opacity = '1';
         modal.style.pointerEvents = 'auto';
+        
+        // Lock body scroll while preserving position
+        const scrollY = window.scrollY;
+        const sbw = window.innerWidth - document.documentElement.clientWidth;
+        document.documentElement.style.overflow = 'hidden';
         document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollY}px`;
+        document.body.style.width = '100%';
         document.body.classList.add('modal-open');
+        if (sbw > 0) {
+            document.body.style.paddingRight = sbw + 'px';
+        }
+        document.body.setAttribute('data-scroll-y', scrollY);
         
         // Reset form and modal for create mode
         const form = document.getElementById('co-event-form');
@@ -148,8 +162,20 @@ function hideEventModal() {
         modal.style.visibility = 'hidden';
         modal.style.opacity = '0';
         modal.style.pointerEvents = 'none';
+        
+        // Unlock body scroll and restore position
+        const scrollY = document.body.getAttribute('data-scroll-y');
+        document.documentElement.style.overflow = '';
         document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.paddingRight = '';
         document.body.classList.remove('modal-open');
+        document.body.removeAttribute('data-scroll-y');
+        if (scrollY) {
+            window.scrollTo(0, parseInt(scrollY, 10));
+        }
         
         // Reset form
         const form = document.getElementById('co-event-form');
@@ -283,6 +309,12 @@ function loadEvents() {
         return;
     }
     
+    // Hide the "Create New Event" button while loading
+    const createEventBtnTop = document.getElementById('co-create-event-btn-top');
+    if (createEventBtnTop) {
+        createEventBtnTop.style.display = 'none';
+    }
+    
     console.log('eventsList found, proceeding with load');
     // Show loading state
     eventsList.innerHTML = `
@@ -320,20 +352,33 @@ function loadEvents() {
         if (data.success) {
             console.log('Events loaded successfully:', data.events);
             console.log('Number of events:', data.events ? data.events.length : 0);
-            renderEvents(data.events);
+            // Store all events for pagination
+            allEvents = data.events || [];
+            eventsCurrentPage = 1; // Reset to first page when loading new events
+            renderEvents(allEvents);
             
             // Update stats with events count
-            updateEventsStats(data.events);
+            updateEventsStats(allEvents);
         } else {
             console.log('API returned error:', data.error);
             showNotification(data.error || 'Failed to load events.', 'error');
             eventsList.innerHTML = '<div class="no-events"><h3>Error Loading Events</h3><p>Please try again later.</p></div>';
+            // Hide button on error
+            const createEventBtnTop = document.getElementById('co-create-event-btn-top');
+            if (createEventBtnTop) {
+                createEventBtnTop.style.display = 'none';
+            }
         }
     })
     .catch(error => {
         console.error('Error loading events:', error);
         showNotification('An error occurred while loading events.', 'error');
         eventsList.innerHTML = '<div class="no-events"><h3>Error Loading Events</h3><p>Please try again later.</p></div>';
+        // Hide button on error
+        const createEventBtnTop = document.getElementById('co-create-event-btn-top');
+        if (createEventBtnTop) {
+            createEventBtnTop.style.display = 'none';
+        }
     });
 }
 
@@ -345,8 +390,11 @@ function renderEvents(events) {
         return;
     }
     
-    if (!events || events.length === 0) {
-        console.log('No events to render, showing no events message');
+    // Apply filters first
+    const filteredEvents = filterEventsList(events);
+    
+    if (!filteredEvents || filteredEvents.length === 0) {
+        console.log('No events to render after filtering, showing no events message');
         eventsList.innerHTML = `
             <div class="no-events">
                 <div class="no-events-icon">
@@ -366,6 +414,15 @@ function renderEvents(events) {
             </div>
         `;
         
+        // Hide the "Create New Event" button when there are no events
+        const createEventBtnTop = document.getElementById('co-create-event-btn-top');
+        if (createEventBtnTop) {
+            createEventBtnTop.style.display = 'none';
+        }
+        
+        // Hide pagination when no events
+        renderEventsPager(0);
+        
         // Add event listener to the button instead of using onclick
         const noEventsBtn = document.getElementById('no-events-create-btn');
         if (noEventsBtn) {
@@ -376,19 +433,31 @@ function renderEvents(events) {
         return;
     }
     
-    const eventsHtml = events.map(event => `
+    // Calculate pagination
+    const totalFiltered = filteredEvents.length;
+    const pageCount = Math.max(1, Math.ceil(totalFiltered / eventsPageSize));
+    if (eventsCurrentPage > pageCount) {
+        eventsCurrentPage = pageCount;
+    }
+    
+    const start = (eventsCurrentPage - 1) * eventsPageSize;
+    const end = start + eventsPageSize;
+    const paginatedEvents = filteredEvents.slice(start, end);
+    
+    // Render paginated events
+    const eventsHtml = paginatedEvents.map(event => `
         <div class="co-event-card" data-event-id="${event.id}">
             <div class="co-event-header">
                 <h3 class="co-event-title">${escapeHtml(event.title)}</h3>
                 <div class="co-event-actions">
-                    <button class="co-event-btn view" onclick="viewEvent(${event.id})">
-                        <i class="fas fa-eye"></i> View
+                    <button class="co-event-btn attendees" onclick="showEventAttendees(${event.id})" title="View attendees">
+                        <i class="fas fa-users"></i> <span class="btn-text">Attendees</span> <span class="btn-count">(${event.attending_count || 0})</span>
                     </button>
-                    <button class="co-event-btn edit" onclick="editEvent(${event.id})">
-                        <i class="fas fa-edit"></i> Edit
+                    <button class="co-event-btn edit" onclick="editEvent(${event.id})" title="Edit event">
+                        <i class="fas fa-edit"></i> <span class="btn-text">Edit</span>
                     </button>
-                    <button class="co-event-btn delete" onclick="deleteEvent(${event.id})">
-                        <i class="fas fa-trash"></i> Delete
+                    <button class="co-event-btn delete" onclick="deleteEvent(${event.id})" title="Delete event">
+                        <i class="fas fa-trash"></i> <span class="btn-text">Delete</span>
                     </button>
                 </div>
             </div>
@@ -405,78 +474,278 @@ function renderEvents(events) {
     `).join('');
     
     eventsList.innerHTML = eventsHtml;
+    
+    // Render pagination
+    renderEventsPager(totalFiltered);
+    
+    // Show the "Create New Event" button when there are events
+    const createEventBtnTop = document.getElementById('co-create-event-btn-top');
+    if (createEventBtnTop) {
+        createEventBtnTop.style.display = 'flex';
+    }
 }
 
-function viewEvent(eventId) {
-    // Find the event data from the current events list
-    const eventsList = document.getElementById('co-events-list');
-    const eventCard = eventsList.querySelector(`[data-event-id="${eventId}"]`);
-    if (!eventCard) {
-        showNotification('Event not found', 'error');
+// Filter events list based on search and type filters
+function filterEventsList(events) {
+    if (!events || events.length === 0) {
+        return [];
+    }
+    
+    const searchTerm = (document.getElementById('co-event-filter')?.value || '').trim().toLowerCase();
+    const typeFilter = (document.getElementById('co-event-type-filter')?.value || '').toLowerCase();
+    
+    return events.filter(event => {
+        const title = (event.title || '').toLowerCase();
+        const description = (event.description || '').toLowerCase();
+        const eventType = (event.event_type || '').toLowerCase();
+        
+        const matchesSearch = !searchTerm || 
+            title.includes(searchTerm) || 
+            description.includes(searchTerm);
+        
+        const matchesType = !typeFilter || eventType.includes(typeFilter);
+        
+        return matchesSearch && matchesType;
+    });
+}
+
+// Render events pagination (similar to coRenderPager)
+function renderEventsPager(total) {
+    const root = document.getElementById('co-events-pagination');
+    if (!root) return;
+    root.innerHTML = '';
+    
+    // Hide pagination if no events
+    if (total === 0) {
+        root.style.display = 'none';
         return;
     }
     
-    // Extract event data from the hidden elements
-    const title = eventCard.querySelector('.co-event-title').textContent;
-    const description = eventCard.querySelector('.co-event-data .co-event-description').textContent;
-    const eventType = eventCard.querySelector('.co-event-data .event-type').textContent;
-    const startDate = eventCard.querySelector('.co-event-data .event-start-date').textContent;
-    const location = eventCard.querySelector('.co-event-data .event-location').textContent;
-    const isUpcoming = eventCard.querySelector('.co-event-data .event-status.upcoming') !== null;
-    const isOngoing = eventCard.querySelector('.co-event-data .event-status.ongoing') !== null;
+    root.style.display = 'flex';
+    const pageCount = Math.max(1, Math.ceil(total / eventsPageSize));
     
-    const event = {
-        title: title,
-        description: description,
-        event_type: eventType,
-        start_date: startDate,
-        location: location,
-        is_upcoming: isUpcoming,
-        is_ongoing: isOngoing
+    const mk = (label, p, disabled, active, isPageNumber = false) => {
+        const b = document.createElement('button');
+        b.className = 'page-btn' + (active ? ' active' : '');
+        b.textContent = label;
+        b.style.border = '1px solid #e5e7eb';
+        b.style.background = '#fff';
+        b.style.color = '#374151';
+        b.style.borderRadius = '8px';
+        b.style.padding = '6px 10px';
+        b.style.fontSize = '13px';
+        
+        if (isPageNumber) {
+            b.style.cursor = 'default';
+        } else {
+            b.style.cursor = 'pointer';
+        }
+        
+        if (active) {
+            b.style.borderColor = '#2563eb';
+            b.style.color = '#2563eb';
+            b.style.background = '#eff6ff';
+        }
+        if (disabled) {
+            b.disabled = true;
+            b.style.opacity = '.5';
+            b.style.cursor = 'default';
+        } else if (!isPageNumber) {
+            b.addEventListener('click', () => {
+                eventsCurrentPage = p;
+                renderEvents(allEvents);
+            });
+        }
+        return b;
     };
     
-    // Create a detailed view modal
-    const modal = document.getElementById('co-modal-overlay');
-    const modalShell = document.getElementById('co-modal-shell');
-    const modalTitle = document.getElementById('co-modal-title');
+    // Only show Previous button if not on first page
+    if (eventsCurrentPage > 1) {
+        root.appendChild(mk('Prev', Math.max(1, eventsCurrentPage - 1), false, false));
+    }
     
-    modalTitle.textContent = 'Event Details';
+    // Show only current page number
+    root.appendChild(mk(String(eventsCurrentPage), eventsCurrentPage, false, true, true));
     
-    modalShell.innerHTML = `
-        <div class="event-detail-view">
-            <div class="event-detail-header">
-                <h2>${escapeHtml(event.title)}</h2>
-                <div class="event-detail-badges">
-                    <span class="event-type-badge">${event.event_type}</span>
-                    <span class="event-status-badge ${event.is_upcoming ? 'upcoming' : event.is_ongoing ? 'ongoing' : 'completed'}">
-                        <i class="fas fa-${event.is_upcoming ? 'clock' : event.is_ongoing ? 'play-circle' : 'check-circle'}"></i>
-                        ${event.is_upcoming ? 'Upcoming' : event.is_ongoing ? 'Ongoing' : 'Completed'}
-                    </span>
-                </div>
-            </div>
-            
-            <div class="event-detail-content">
-                <div class="event-detail-info-grid">
-                    <div class="event-detail-info-item">
-                        <h4><i class="fas fa-calendar"></i> Date</h4>
-                        <p>${formatEventDate(event.start_date).split(' at ')[0]}</p>
-                    </div>
-                    <div class="event-detail-info-item">
-                        <h4><i class="fas fa-map-marker-alt"></i> Location</h4>
-                        <p>${event.location ? escapeHtml(event.location) : 'TBA'}</p>
-                    </div>
-                </div>
-                
-                <div class="event-detail-section">
-                    <h3><i class="fas fa-align-left"></i> Description</h3>
-                    <p>${escapeHtml(event.description)}</p>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    modal.style.display = 'flex';
+    // Only show Next button if not on last page
+    if (eventsCurrentPage < pageCount) {
+        root.appendChild(mk('Next', Math.min(pageCount, eventsCurrentPage + 1), false, false));
+    }
 }
+
+// Declare function globally first
+async function showEventAttendees(eventId) {
+    console.log('showEventAttendees called with eventId:', eventId);
+    try {
+        const response = await fetch(`/events/api/${eventId}/attendees/`, {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Attendees data received:', data);
+        
+        if (!data.success) {
+            showNotification(data.error || 'Failed to load attendees', 'error');
+            return;
+        }
+        
+        // Get modal elements
+        const modal = document.getElementById('co-modal-overlay');
+        const modalShell = document.getElementById('co-modal-shell');
+        const modalTitle = document.getElementById('co-modal-title');
+        
+        // Check if modal elements exist
+        if (!modal || !modalShell || !modalTitle) {
+            console.error('Modal elements not found:', { modal: !!modal, modalShell: !!modalShell, modalTitle: !!modalTitle });
+            showNotification('Modal elements not found', 'error');
+            return;
+        }
+        
+        // Close delete confirmation modal if open (but don't close the main modal yet)
+        const deleteModal = document.getElementById('co-delete-confirm-modal');
+        if (deleteModal) {
+            deleteModal.style.display = 'none';
+            deleteModal.style.visibility = 'hidden';
+            deleteModal.style.opacity = '0';
+        }
+        
+        // Set modal title
+        modalTitle.textContent = `Attendees - ${escapeHtml(data.event_title)}`;
+        
+        // Build attendees HTML
+        let attendeesHtml = '';
+        if (data.attendees && data.attendees.length > 0) {
+            attendeesHtml = `
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+                                <th style="padding: 10px; text-align: left; font-weight: 600; color: #374151;">Name</th>
+                                <th style="padding: 10px; text-align: left; font-weight: 600; color: #374151;">Email</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.attendees.map(attendee => `
+                                <tr style="border-bottom: 1px solid #e5e7eb;">
+                                    <td style="padding: 10px; color: #1f2937;">${escapeHtml(attendee.full_name || attendee.username || 'N/A')}</td>
+                                    <td style="padding: 10px; color: #6b7280;">${escapeHtml(attendee.email || 'N/A')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } else {
+            attendeesHtml = `
+                <div style="text-align: center; padding: 40px 20px; color: #6b7280;">
+                    <i class="fas fa-users" style="font-size: 48px; color: #d1d5db; margin-bottom: 16px;"></i>
+                    <p style="font-size: 1.1rem; margin: 0;">No attendees yet</p>
+                    <p style="font-size: 0.9rem; margin-top: 8px;">People who click "Attending" will appear here</p>
+                </div>
+            `;
+        }
+        
+        // Set modal content
+        modalShell.innerHTML = `
+            <div style="padding: 20px;">
+                ${attendeesHtml}
+            </div>
+        `;
+        
+        // Lock body scroll using the global function if available, otherwise use manual method
+        try {
+            if (typeof window.lockBodyScroll === 'function') {
+                window.lockBodyScroll();
+            } else {
+                // Fallback manual scroll lock
+                const scrollY = window.scrollY;
+                const sbw = window.innerWidth - document.documentElement.clientWidth;
+                document.documentElement.style.overflow = 'hidden';
+                document.body.style.overflow = 'hidden';
+                document.body.style.position = 'fixed';
+                document.body.style.top = `-${scrollY}px`;
+                document.body.style.width = '100%';
+                document.body.classList.add('modal-open');
+                if (sbw > 0) {
+                    document.body.style.paddingRight = sbw + 'px';
+                }
+                document.body.setAttribute('data-scroll-y', scrollY);
+            }
+        } catch (e) {
+            console.error('Error locking body scroll:', e);
+        }
+        
+        // Open the modal
+        modal.style.display = 'flex';
+        modal.style.visibility = 'visible';
+        modal.style.opacity = '1';
+        modal.classList.add('active', 'show');
+        
+        // Set up close button handler
+        const closeBtn = document.getElementById('co-modal-close');
+        if (closeBtn) {
+            // Remove any existing listeners by cloning the button
+            const newCloseBtn = closeBtn.cloneNode(true);
+            closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+            
+            // Add click listener to the new button
+            const updatedCloseBtn = document.getElementById('co-modal-close');
+            if (updatedCloseBtn) {
+                updatedCloseBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (typeof window.closeAllModals === 'function') {
+                        window.closeAllModals();
+                    } else {
+                        // Fallback close
+                        modal.style.display = 'none';
+                        modal.style.visibility = 'hidden';
+                        modal.style.opacity = '0';
+                        modal.classList.remove('active', 'show');
+                        if (typeof window.unlockBodyScroll === 'function') {
+                            window.unlockBodyScroll();
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Close on overlay click (but not on modal content click)
+        const overlayClickHandler = function(e) {
+            if (e.target === modal) {
+                if (typeof window.closeAllModals === 'function') {
+                    window.closeAllModals();
+                } else {
+                    // Fallback close
+                    modal.style.display = 'none';
+                    modal.style.visibility = 'hidden';
+                    modal.style.opacity = '0';
+                    modal.classList.remove('active', 'show');
+                    if (typeof window.unlockBodyScroll === 'function') {
+                        window.unlockBodyScroll();
+                    }
+                }
+            }
+        };
+        
+        // Remove old listener if exists and add new one
+        modal.removeEventListener('click', overlayClickHandler);
+        modal.addEventListener('click', overlayClickHandler);
+    } catch (error) {
+        console.error('Error fetching attendees:', error);
+        showNotification('Failed to load attendees', 'error');
+    }
+}
+
+// Ensure function is globally available
+window.showEventAttendees = showEventAttendees;
 
 function editEvent(eventId) {
     // Find the event data from the current events list
@@ -541,7 +810,20 @@ function showDeleteConfirmationModal() {
         modal.style.visibility = 'visible';
         modal.style.opacity = '1';
         modal.style.pointerEvents = 'auto';
-        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        
+        // Lock body scroll while preserving position
+        const scrollY = window.scrollY;
+        const sbw = window.innerWidth - document.documentElement.clientWidth;
+        document.documentElement.style.overflow = 'hidden';
+        document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollY}px`;
+        document.body.style.width = '100%';
+        document.body.classList.add('modal-open');
+        if (sbw > 0) {
+            document.body.style.paddingRight = sbw + 'px';
+        }
+        document.body.setAttribute('data-scroll-y', scrollY);
     } else {
         console.log('Delete modal not found');
     }
@@ -556,7 +838,21 @@ function hideDeleteConfirmationModal() {
         modal.style.visibility = 'hidden';
         modal.style.opacity = '0';
         modal.style.pointerEvents = 'none';
-        document.body.style.overflow = ''; // Restore scrolling
+        
+        // Unlock body scroll and restore position
+        const scrollY = document.body.getAttribute('data-scroll-y');
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.paddingRight = '';
+        document.body.classList.remove('modal-open');
+        document.body.removeAttribute('data-scroll-y');
+        if (scrollY) {
+            window.scrollTo(0, parseInt(scrollY, 10));
+        }
+        
         eventToDelete = null; // Reset the event ID
     } else {
         console.log('Delete modal not found when trying to hide');
@@ -625,28 +921,10 @@ function initEventFilters() {
 }
 
 function filterEvents() {
-    const searchTerm = document.getElementById('co-event-filter')?.value.toLowerCase() || '';
-    const typeFilter = document.getElementById('co-event-type-filter')?.value || '';
-    
-    const eventCards = document.querySelectorAll('.co-event-card');
-    
-    eventCards.forEach(card => {
-        const title = card.querySelector('.co-event-title')?.textContent.toLowerCase() || '';
-        const description = card.querySelector('.co-event-description')?.textContent.toLowerCase() || '';
-        const eventType = card.querySelector('.event-type')?.textContent.toLowerCase() || '';
-        
-        const matchesSearch = !searchTerm || 
-            title.includes(searchTerm) || 
-            description.includes(searchTerm);
-        
-        const matchesType = !typeFilter || eventType.includes(typeFilter);
-        
-        if (matchesSearch && matchesType) {
-            card.style.display = 'block';
-        } else {
-            card.style.display = 'none';
-        }
-    });
+    // Reset to first page when filtering
+    eventsCurrentPage = 1;
+    // Re-render events with filters applied
+    renderEvents(allEvents);
 }
 
 // Utility functions
@@ -669,6 +947,11 @@ function escapeHtml(text) {
 
 function getCSRFToken() {
     return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+}
+
+// Ensure showEventAttendees is available globally (redundant but safe)
+if (typeof window !== 'undefined') {
+    window.showEventAttendees = showEventAttendees;
 }
 
 function showNotification(message, type = 'info') {
@@ -725,3 +1008,8 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// Expose loadEvents globally for use by other scripts
+if (typeof window !== 'undefined') {
+    window.loadEvents = loadEvents;
+}

@@ -97,7 +97,8 @@ function applyEventThemes() {
 
 // RSVP handling
 function initRsvpButtons() {
-    document.querySelectorAll('.event-card').forEach(card => {
+    // Handle both .event-card and .event-row
+    document.querySelectorAll('.event-card, .event-row').forEach(card => {
         const rsvp = card.querySelector('.event-rsvp');
         const buttons = rsvp ? rsvp.querySelectorAll('.event-rsvp-btn') : [];
         if (rsvp) {
@@ -109,7 +110,8 @@ function initRsvpButtons() {
                 btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     const status = btn.getAttribute('data-status');
-                    await submitRsvp(card.getAttribute('data-event-id'), status, buttons);
+                    const eventId = card.getAttribute('data-event-id');
+                    await submitRsvp(eventId, status, buttons, card);
                 });
             });
         }
@@ -119,7 +121,8 @@ function initRsvpButtons() {
             cta.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const status = 'attending';
-                await submitRsvp(card.getAttribute('data-event-id'), status, buttons);
+                const eventId = card.getAttribute('data-event-id');
+                await submitRsvp(eventId, status, buttons, card);
                 // Reflect active state if RSVP group exists
                 if (buttons && buttons.length) {
                     buttons.forEach(b => b.classList.toggle('active', b.getAttribute('data-status') === status));
@@ -129,7 +132,7 @@ function initRsvpButtons() {
     });
 }
 
-async function submitRsvp(eventId, status, buttons) {
+async function submitRsvp(eventId, status, buttons, eventCard) {
     try {
         const csrfToken = getCookie('csrftoken');
         const res = await fetch(window.location.origin + '/events/rsvp/', {
@@ -143,10 +146,313 @@ async function submitRsvp(eventId, status, buttons) {
         const data = await res.json();
         if (data && data.success) {
             buttons.forEach(b => b.classList.toggle('active', b.getAttribute('data-status') === status));
+            
+            // Update event badge - mark this event as seen by updating lastCheckedEventId
+            // This will remove this event from the badge count
+            if (data.event_id) {
+                const STORAGE_KEY = 'events_last_checked_id';
+                try {
+                    const currentLastId = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10) || 0;
+                    const eventId = parseInt(data.event_id, 10);
+                    
+                    if (isNaN(eventId)) {
+                        console.error('RSVP: Invalid event_id:', data.event_id);
+                        return;
+                    }
+                    
+                    // Update to the higher of current or this event's ID
+                    // Since backend uses id__gt (greater than), setting to eventId will exclude this event
+                    const newLastId = Math.max(currentLastId, eventId);
+                    localStorage.setItem(STORAGE_KEY, String(newLastId));
+                    
+                    console.log('RSVP: Updated lastCheckedEventId from', currentLastId, 'to', newLastId, 'for event', eventId);
+                    
+                    // Immediately refresh the badge
+                    // The backend now automatically excludes events the user has RSVP'd to
+                    // So we just need to trigger a refresh
+                    const refreshBadgeNow = () => {
+                        const badge = document.getElementById('events-unread-badge');
+                        if (!badge) {
+                            console.warn('RSVP: Badge element not found');
+                            return;
+                        }
+                        
+                        // Get the current lastCheckedEventId from localStorage
+                        const currentId = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10) || 0;
+                        console.log('RSVP: Refreshing badge after RSVP to event', eventId, 'current lastCheckedEventId:', currentId);
+                        
+                        // Call the API to check for new events
+                        // Backend will automatically exclude this event since user has RSVP'd
+                        fetch(`/events/api/check-new-events/?last_check_id=${currentId}&_t=${Date.now()}`)
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error(`HTTP error! status: ${response.status}`);
+                                }
+                                return response.json();
+                            })
+                            .then(badgeData => {
+                                console.log('RSVP: Badge refresh response:', {
+                                    unseen_events_count: badgeData.unseen_events_count,
+                                    has_new_events: badgeData.has_new_events,
+                                    current_max_id: badgeData.current_max_id
+                                });
+                                
+                                // Check if notifications are enabled
+                                const isEnabled = badge.getAttribute('data-notifications-enabled') === 'true' || 
+                                                 (typeof window.receiveNotificationsEnabled !== 'undefined' && window.receiveNotificationsEnabled);
+                                
+                                if (!isEnabled) {
+                                    badge.style.display = 'none';
+                                    badge.removeAttribute('data-count');
+                                    return;
+                                }
+                                
+                                // Update badge based on response
+                                if (typeof badgeData.unseen_events_count !== 'undefined') {
+                                    if (badgeData.unseen_events_count > 0) {
+                                        badge.textContent = badgeData.unseen_events_count > 99 ? '99+' : String(badgeData.unseen_events_count);
+                                        badge.setAttribute('data-count', String(badgeData.unseen_events_count));
+                                        badge.style.display = 'inline-flex';
+                                    } else {
+                                        // No unseen events - hide badge
+                                        badge.style.display = 'none';
+                                        badge.removeAttribute('data-count');
+                                        console.log('RSVP: Badge hidden - no unseen events');
+                                    }
+                                } else {
+                                    // No unseen_events_count in response - hide badge to be safe
+                                    badge.style.display = 'none';
+                                    badge.removeAttribute('data-count');
+                                    console.log('RSVP: Badge hidden - no unseen_events_count in response');
+                                }
+                            })
+                            .catch(error => {
+                                console.error('RSVP: Error refreshing badge:', error);
+                                // Fallback to using refreshEventBadge if available
+                                if (typeof window.refreshEventBadge === 'function') {
+                                    window.refreshEventBadge();
+                                }
+                            });
+                    };
+                    
+                    // Refresh immediately - backend will exclude RSVP'd events
+                    refreshBadgeNow();
+                    
+                    // Also call the standard refresh function as a backup after a short delay
+                    if (typeof window.refreshEventBadge === 'function') {
+                        setTimeout(() => {
+                            window.refreshEventBadge();
+                        }, 300);
+                    }
+                } catch (e) {
+                    console.error('Error updating event badge:', e);
+                }
+            } else {
+                console.warn('RSVP: No event_id in response:', data);
+            }
+            
+            // Show themed toast notification
+            let eventTitle = 'Event';
+            if (eventCard) {
+                const titleEl = eventCard.querySelector('.event-row-title, .event-title');
+                if (titleEl) {
+                    // Get text content, removing any icons or badges
+                    eventTitle = titleEl.textContent?.trim() || 'Event';
+                }
+            }
+            showThemedToast(status, eventTitle, eventCard);
+        } else {
+            showToast('Failed to update RSVP. Please try again.', 'error');
         }
     } catch (e) {
         console.error('Failed to RSVP:', e);
+        showToast('Failed to update RSVP. Please try again.', 'error');
     }
+}
+
+// Get event theme from card
+function getEventTheme(eventCard) {
+    if (!eventCard) return 'generic';
+    
+    const themes = ['halloween', 'christmas', 'meeting', 'social', 'announcement', 'maintenance', 'emergency', 'generic'];
+    for (const theme of themes) {
+        if (eventCard.classList.contains(`theme-${theme}`)) {
+            return theme;
+        }
+    }
+    return 'generic';
+}
+
+// Show themed toast notification
+function showThemedToast(status, eventTitle, eventCard) {
+    const theme = getEventTheme(eventCard);
+    const isAttending = status === 'attending';
+    
+    // Theme-based colors, icons, and context-specific messages
+    const themeConfig = {
+        halloween: {
+            attending: { 
+                bg: '#f97316', 
+                color: '#fff', 
+                icon: '🎃',
+                message: `Spooky! You're attending "${eventTitle}" 🎃 Get ready for some fun!`
+            },
+            notAttending: { 
+                bg: '#7c2d12', 
+                color: '#fecaca', 
+                icon: '💀',
+                message: `You won't be joining "${eventTitle}". Maybe next time!`
+            }
+        },
+        christmas: {
+            attending: { 
+                bg: '#dc2626', 
+                color: '#fff', 
+                icon: '🎄',
+                message: `🎅 Ho ho ho! You're attending "${eventTitle}" 🎄 See you there!`
+            },
+            notAttending: { 
+                bg: '#065f46', 
+                color: '#ecfdf5', 
+                icon: '❄️',
+                message: `You won't be attending "${eventTitle}". Maybe next year!`
+            }
+        },
+        meeting: {
+            attending: { 
+                bg: '#3b82f6', 
+                color: '#fff', 
+                icon: '👥',
+                message: `You've confirmed attendance for "${eventTitle}" 👥 Looking forward to seeing you!`
+            },
+            notAttending: { 
+                bg: '#1e40af', 
+                color: '#dbeafe', 
+                icon: '📋',
+                message: `You've marked as not attending "${eventTitle}". Your RSVP has been updated.`
+            }
+        },
+        social: {
+            attending: { 
+                bg: '#2563eb', 
+                color: '#fff', 
+                icon: '🎉',
+                message: `Awesome! You're going to "${eventTitle}" 🎉 It's going to be fun!`
+            },
+            notAttending: { 
+                bg: '#7c2d12', 
+                color: '#fed7aa', 
+                icon: '😔',
+                message: `You won't be at "${eventTitle}". We'll miss you!`
+            }
+        },
+        announcement: {
+            attending: { 
+                bg: '#16a34a', 
+                color: '#fff', 
+                icon: '📢',
+                message: `You've acknowledged "${eventTitle}" 📢 Thank you for staying informed!`
+            },
+            notAttending: { 
+                bg: '#166534', 
+                color: '#dcfce7', 
+                icon: '📭',
+                message: `You've marked as not attending "${eventTitle}". You can update this anytime.`
+            }
+        },
+        maintenance: {
+            attending: { 
+                bg: '#d97706', 
+                color: '#fff', 
+                icon: '🔧',
+                message: `You've noted "${eventTitle}" 🔧 Thank you for your attention!`
+            },
+            notAttending: { 
+                bg: '#78350f', 
+                color: '#fef3c7', 
+                icon: '⚠️',
+                message: `You've marked as not attending "${eventTitle}". Your RSVP has been updated.`
+            }
+        },
+        emergency: {
+            attending: { 
+                bg: '#ef4444', 
+                color: '#fff', 
+                icon: '🚨',
+                message: `You've acknowledged "${eventTitle}" 🚨 Stay safe!`
+            },
+            notAttending: { 
+                bg: '#991b1b', 
+                color: '#fee2e2', 
+                icon: '⏸️',
+                message: `You've marked as not attending "${eventTitle}". Please stay informed.`
+            }
+        },
+        generic: {
+            attending: { 
+                bg: '#3b82f6', 
+                color: '#fff', 
+                icon: '✅',
+                message: `Great! You're going to "${eventTitle}" ✅ See you there!`
+            },
+            notAttending: { 
+                bg: '#6b7280', 
+                color: '#f3f4f6', 
+                icon: '❌',
+                message: `You've marked yourself as not attending "${eventTitle}". You can update this anytime if your plans change.`
+            }
+        }
+    };
+    
+    const config = themeConfig[theme] || themeConfig.generic;
+    const statusConfig = isAttending ? config.attending : config.notAttending;
+    
+    showToast(statusConfig.message, 'success', statusConfig.bg, statusConfig.color);
+}
+
+// Generic toast notification function
+function showToast(message, type = 'info', bgColor = null, textColor = null) {
+    // Remove existing toasts
+    const existingToasts = document.querySelectorAll('.event-toast');
+    existingToasts.forEach(toast => toast.remove());
+    
+    const toast = document.createElement('div');
+    toast.className = 'event-toast';
+    toast.textContent = message;
+    
+    // Set colors based on theme or type
+    if (bgColor) {
+        toast.style.backgroundColor = bgColor;
+    } else {
+        switch(type) {
+            case 'success':
+                toast.style.backgroundColor = '#10b981';
+                break;
+            case 'error':
+                toast.style.backgroundColor = '#ef4444';
+                break;
+            case 'warning':
+                toast.style.backgroundColor = '#f59e0b';
+                break;
+            default:
+                toast.style.backgroundColor = '#3b82f6';
+        }
+    }
+    
+    toast.style.color = textColor || '#fff';
+    
+    document.body.appendChild(toast);
+    
+    // Animate in
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+    
+    // Remove after 4 seconds
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
 }
 
 function getCookie(name) {
