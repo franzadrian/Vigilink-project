@@ -1,20 +1,20 @@
-username: guest001 | email: guest001@example.com | password: VigiGuest-U3tfRRKuff
-username: guest002 | email: guest002@example.com | password: VigiGuest-olNpK1yDC4
-username: guest003 | email: guest003@example.com | password: VigiGuest-Y2CRZEwKjY
-username: guest004 | email: guest004@example.com | password: VigiGuest-0RSWVY2cip
-username: guest005 | email: guest005@example.com | password: VigiGuest-Qx7FQY2MnB
-username: guest006 | email: guest006@example.com | password: VigiGuest-GiAt5D9gmu
-username: guest007 | email: guest007@example.com | password: VigiGuest-IF4HX1FzUW
-username: guest008 | email: guest008@example.com | password: VigiGuest-OPbLLng5cb
-username: guest009 | email: guest009@example.com | password: VigiGuest-NnvZ0wWYiS
-username: guest010 | email: guest010@example.com | password: VigiGuest-GYZPLc1jyq
-username: guest011 | email: guest011@example.com | password: VigiGuest-HBjMFKCILa
-username: guest012 | email: guest012@example.com | password: VigiGuest-qw92Pql6yT
-username: guest013 | email: guest013@example.com | password: VigiGuest-miRx5VbzTI
-username: guest014 | email: guest014@example.com | password: VigiGuest-yTMmttPHDd
-username: guest015 | email: guest015@example.com | password: VigiGuest-9KstpaZAua
-username: guest016 | email: guest016@example.com | password: VigiGuest-mIeZLD5an0
-username: guest017 | email: guest017@example.com | password: VigiGuest-WAQnngy97e
-username: guest018 | email: guest018@example.com | password: VigiGuest-8FF8oF97bz
-username: guest019 | email: guest019@example.com | password: VigiGuest-w0WANnn3Qy
-username: guest020 | email: guest020@example.com | password: VigiGuest-bzSrxKWKI0
+username: john.smith | email: guest001@example.com | password: pass1123 | full_name: John Smith
+username: sarah.johnson | email: guest002@example.com | password: pass1123 | full_name: Sarah Johnson
+username: michael.williams | email: guest003@example.com | password: pass1123 | full_name: Michael Williams
+username: emily.brown | email: guest004@example.com | password: pass1123 | full_name: Emily Brown
+username: david.jones | email: guest005@example.com | password: pass1123 | full_name: David Jones
+username: jessica.garcia | email: guest006@example.com | password: pass1123 | full_name: Jessica Garcia
+username: james.miller | email: guest007@example.com | password: pass1123 | full_name: James Miller
+username: amanda.davis | email: guest008@example.com | password: pass1123 | full_name: Amanda Davis
+username: robert.rodriguez | email: guest009@example.com | password: pass1123 | full_name: Robert Rodriguez
+username: lisa.martinez | email: guest010@example.com | password: pass1123 | full_name: Lisa Martinez
+username: william.hernandez | email: guest011@example.com | password: pass1123 | full_name: William Hernandez
+username: jennifer.lopez | email: guest012@example.com | password: pass1123 | full_name: Jennifer Lopez
+username: richard.wilson | email: guest013@example.com | password: pass1123 | full_name: Richard Wilson
+username: maria.anderson | email: guest014@example.com | password: pass1123 | full_name: Maria Anderson
+username: joseph.thomas | email: guest015@example.com | password: pass1123 | full_name: Joseph Thomas
+username: patricia.taylor | email: guest016@example.com | password: pass1123 | full_name: Patricia Taylor
+username: charles.moore | email: guest017@example.com | password: pass1123 | full_name: Charles Moore
+username: linda.jackson | email: guest018@example.com | password: pass1123 | full_name: Linda Jackson
+username: thomas.martin | email: guest019@example.com | password: pass1123 | full_name: Thomas Martin
+username: barbara.lee | email: guest020@example.com | password: pass1123 | full_name: Barbara Lee
