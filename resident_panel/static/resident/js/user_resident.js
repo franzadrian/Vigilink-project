@@ -67,7 +67,8 @@
     'Observations',
     'Other (please specify)'
   ];
-  function buildReportForm(config){
+  // First modal: Select reasons
+  function buildReportReasonsModal(config, preselectedReasons = []){
     const wrap = document.createElement('div');
     wrap.className = 'res-form';
 
@@ -77,14 +78,75 @@
       tgt.className = 'res-target-chip';
       tgt.textContent = `Reporting: ${config.resident.name || ''} (Block ${config.resident.block||''} / Lot ${config.resident.lot||''})`;
       wrap.appendChild(tgt);
-    } else {
-      // Generic incident reporting (non-resident only)
-      // Put brief description at the top of the form
-      const outsiderFieldTop = document.createElement('div'); outsiderFieldTop.className = 'res-field';
-      const outLblTop = document.createElement('label'); outLblTop.className = 'res-label'; outLblTop.textContent = 'Brief description (who/what)';
-      const outInTop = document.createElement('textarea'); outInTop.id = 'report-outsider-desc'; outInTop.className = 'res-textarea'; outInTop.rows = 3; outInTop.placeholder = 'Describe who/what you saw, location, attire, behavior...';
-      outsiderFieldTop.appendChild(outLblTop); outsiderFieldTop.appendChild(outInTop); wrap.appendChild(outsiderFieldTop);
     }
+
+    // Reasons checkboxes
+    const reasonsWrap = document.createElement('div'); reasonsWrap.className = 'res-field';
+    const reasonsLbl = document.createElement('div'); reasonsLbl.className = 'res-label'; reasonsLbl.textContent = 'Reason(s) for report:';
+    const list = document.createElement('div'); list.className = 'res-checkbox-grid';
+    REPORT_REASONS.forEach(label => {
+      const lab = document.createElement('label');
+      lab.className = 'res-check';
+      const cb = document.createElement('input'); cb.type='checkbox'; cb.value = label;
+      // Pre-check if this reason was previously selected
+      if (preselectedReasons.includes(label)) {
+        cb.checked = true;
+      }
+      const chip = document.createElement('span'); chip.className = 'res-check-chip'; chip.textContent = label;
+      lab.appendChild(cb); lab.appendChild(chip); list.appendChild(lab);
+    });
+    reasonsWrap.appendChild(reasonsLbl); reasonsWrap.appendChild(list);
+    wrap.appendChild(reasonsWrap);
+
+    // Actions
+    const next = document.createElement('button'); next.className = 'btn btn-primary'; next.type='button'; next.textContent='Next';
+    next.addEventListener('click', () => {
+      const selected = Array.from(list.querySelectorAll('input[type="checkbox"]:checked')).map(x => x.value);
+      if (selected.length === 0) {
+        showToast('Please select at least one reason for the report.', 'error');
+        return;
+      }
+      // Close first modal and open second modal
+      closeModal();
+      setTimeout(() => {
+        const detailsModal = buildReportDetailsModal(config, selected);
+        openModal('Report Incident - Details', detailsModal.body, detailsModal.actions);
+      }, 250);
+    });
+
+    return { body: wrap, actions: [next] };
+  }
+
+  // Second modal: Location and Details
+  function buildReportDetailsModal(config, selectedReasons){
+    const wrap = document.createElement('div');
+    wrap.className = 'res-form';
+
+    // Determine if this is a resident report or generic incident
+    const isResidentReport = config && config.mode === 'resident' && config.resident;
+
+    // Show selected reasons
+    const selectedReasonsWrap = document.createElement('div');
+    selectedReasonsWrap.className = 'res-field';
+    const selectedLbl = document.createElement('div');
+    selectedLbl.className = 'res-label';
+    selectedLbl.textContent = 'Selected Reason(s):';
+    const selectedChips = document.createElement('div');
+    selectedChips.style.display = 'flex';
+    selectedChips.style.flexWrap = 'wrap';
+    selectedChips.style.gap = '8px';
+    selectedChips.style.marginTop = '8px';
+    selectedReasons.forEach(reason => {
+      const chip = document.createElement('span');
+      chip.className = 'res-check-chip';
+      chip.style.backgroundColor = '#e0e7ff';
+      chip.style.color = '#3730a3';
+      chip.textContent = reason;
+      selectedChips.appendChild(chip);
+    });
+    selectedReasonsWrap.appendChild(selectedLbl);
+    selectedReasonsWrap.appendChild(selectedChips);
+    wrap.appendChild(selectedReasonsWrap);
 
     // Toolbar: Priority selector (left) and Anonymous switch (right)
     const toolbar = document.createElement('div');
@@ -139,30 +201,14 @@
     toolbar.appendChild(anonWrap);
     wrap.appendChild(toolbar);
 
-    // Reasons checkboxes
-    const reasonsWrap = document.createElement('div'); reasonsWrap.className = 'res-field';
-    const reasonsLbl = document.createElement('div'); reasonsLbl.className = 'res-label'; reasonsLbl.textContent = 'Reason(s) for report:';
-    const list = document.createElement('div'); list.className = 'res-checkbox-grid';
-    // Removed inline 'Other' text field; use the Details field instead when 'Other' is selected.
-    REPORT_REASONS.forEach(label => {
-      const lab = document.createElement('label');
-      lab.className = 'res-check';
-      const cb = document.createElement('input'); cb.type='checkbox'; cb.value = label;
-      const chip = document.createElement('span'); chip.className = 'res-check-chip'; chip.textContent = label;
-      lab.appendChild(cb); lab.appendChild(chip); list.appendChild(lab);
-    });
-    reasonsWrap.appendChild(reasonsLbl); reasonsWrap.appendChild(list);
-    wrap.appendChild(reasonsWrap);
-
-    // Function to auto-update priority based on selected reasons
+    // Auto-update priority based on selected reasons
     function updatePriorityFromReasons() {
-      const selected = Array.from(list.querySelectorAll('input[type="checkbox"]:checked')).map(x => x.value.toLowerCase());
+      const selected = selectedReasons.map(x => x.toLowerCase());
       if (selected.length === 0) {
-        prioritySelect.value = 'level_2'; // Default
+        prioritySelect.value = 'level_2';
         return;
       }
 
-      // Level 3 - Serious keywords
       const level3Keywords = [
         'possible criminal activity',
         'criminal activity',
@@ -178,14 +224,12 @@
         'false information'
       ];
 
-      // Level 2 - Suspicious keywords
       const level2Keywords = [
         'suspicious behavior',
         'animal-related concern',
         'other'
       ];
 
-      // Level 1 - Minor keywords
       const level1Keywords = [
         'noise disturbance',
         'observations',
@@ -193,7 +237,6 @@
         'dumping'
       ];
 
-      // Check for level 3 (most serious)
       for (const reason of selected) {
         for (const keyword of level3Keywords) {
           if (reason.includes(keyword)) {
@@ -203,7 +246,6 @@
         }
       }
 
-      // Check for level 2
       for (const reason of selected) {
         for (const keyword of level2Keywords) {
           if (reason.includes(keyword)) {
@@ -213,7 +255,6 @@
         }
       }
 
-      // Check for level 1
       for (const reason of selected) {
         for (const keyword of level1Keywords) {
           if (reason.includes(keyword)) {
@@ -223,59 +264,96 @@
         }
       }
 
-      // Default to level 2
       prioritySelect.value = 'level_2';
     }
+    updatePriorityFromReasons();
 
-    // Add event listeners to checkboxes to auto-update priority
-    list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-      cb.addEventListener('change', updatePriorityFromReasons);
-    });
+    // Location field (only for non-resident reports)
+    let locationField = null;
+    let locationInput = null;
+    if (!isResidentReport) {
+      locationField = document.createElement('div'); locationField.className = 'res-field';
+      const locationLbl = document.createElement('label'); locationLbl.className = 'res-label'; locationLbl.textContent = 'Location where incident happened *';
+      locationInput = document.createElement('input'); locationInput.type = 'text'; locationInput.id = 'report-location'; locationInput.className = 'res-input'; locationInput.required = true; locationInput.placeholder = 'e.g., Block 5, Lot 12, Main Gate, or specific area';
+      locationField.appendChild(locationLbl); locationField.appendChild(locationInput); wrap.appendChild(locationField);
+    }
 
-    // Details
+    // Details field (required)
     const detField = document.createElement('div'); detField.className = 'res-field';
-    const detLbl = document.createElement('label'); detLbl.className = 'res-label'; detLbl.textContent = 'Details (required if selecting Other)';
-    const det = document.createElement('textarea'); det.id='report-details'; det.rows = 4; det.className = 'res-textarea';
+    const detLbl = document.createElement('label'); detLbl.className = 'res-label'; detLbl.id = 'details-label';
+    // Update label based on selected reasons
+    function updateDetailsLabel() {
+      const hasOther = selectedReasons.some(v => (v||'').toLowerCase().startsWith('other'));
+      if (isResidentReport) {
+        detLbl.textContent = hasOther ? 'Details (required if selecting Other)' : 'Details';
+      } else {
+        // For non-resident reports, details are always required
+        detLbl.textContent = 'Details *';
+      }
+    }
+    updateDetailsLabel();
+    const det = document.createElement('textarea'); det.id='report-details'; det.rows = 4; det.className = 'res-textarea'; det.required = !isResidentReport;
+    if (!isResidentReport) {
+      det.placeholder = 'Brief description of the incident, what happened, and any relevant details...';
+    } else {
+      det.placeholder = 'Additional details about the incident (optional)...';
+    }
     detField.appendChild(detLbl); detField.appendChild(det); wrap.appendChild(detField);
 
-    // (brief description for outsiders already added at the top)
-
-    // Anonymous toggle now lives in toolbar above
-
     // Actions
-    const cancel = document.createElement('button'); cancel.className = 'btn btn-soft'; cancel.type='button'; cancel.textContent='Cancel'; cancel.addEventListener('click', closeModal);
+    const back = document.createElement('button'); back.className = 'btn btn-soft'; back.type='button'; back.textContent='Back'; 
+    back.addEventListener('click', () => {
+      closeModal();
+      setTimeout(() => {
+        // Pass the selected reasons back to preserve them
+        const reasonsModal = buildReportReasonsModal(config, selectedReasons);
+        openModal('Report Incident', reasonsModal.body, reasonsModal.actions);
+      }, 250);
+    });
     const submit = document.createElement('button'); submit.className = 'btn btn-primary'; submit.type='button'; submit.textContent='Submit Report';
     submit.addEventListener('click', () => {
-      // Collect selections
-      const selected = Array.from(list.querySelectorAll('input[type="checkbox"]:checked')).map(x => x.value);
-      // If 'Other' is selected, Details must be provided (validated below)
       let target_type = 'resident'; let target_user_id = '';
-      let outsider_desc = '';
       if (config && config.mode === 'resident' && config.resident){
         target_type = 'resident'; target_user_id = config.resident.id;
       } else {
-        // Generic incident: always outsider
         target_type = 'outsider';
-        const out = wrap.querySelector('#report-outsider-desc');
-        outsider_desc = out && out.value ? out.value.trim() : '';
       }
+      
+      // Validate location (required for non-resident reports only)
+      let location = '';
+      if (!isResidentReport) {
+        location = locationInput.value.trim();
+        if (!location) {
+          showToast('Please provide the location where the incident happened.', 'error');
+          try { locationInput.focus(); locationInput.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
+          return;
+        }
+      }
+      
+      // Validate details (required for non-resident reports, or if 'Other' is selected)
       const details = det.value.trim();
-      const selectedOther = selected.some(v => (v||'').toLowerCase().startsWith('other'));
+      const selectedOther = selectedReasons.some(v => (v||'').toLowerCase().startsWith('other'));
+      
+      if (!isResidentReport && !details) {
+        showToast('Please provide details about the incident.', 'error');
+        try { det.focus(); det.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
+        return;
+      }
+      
       if (selectedOther && !details){
         showToast('Please provide details when selecting "Other (please specify)".', 'error');
         try { det.focus(); det.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
         return;
       }
       const anonymous = anon.checked ? '1' : '0';
-
       const priority = prioritySelect.value || 'level_2';
       
       const payload = {
         target_type,
         target_user_id,
-        reasons: JSON.stringify(selected),
+        reasons: JSON.stringify(selectedReasons),
         details,
-        outsider_desc,
+        location,
         anonymous,
         priority
       };
@@ -290,7 +368,12 @@
       }).catch(() => showToast('Unable to submit report', 'error'));
     });
 
-    return { body: wrap, actions: [cancel, submit] };
+    return { body: wrap, actions: [back, submit] };
+  }
+
+  // Legacy function for backward compatibility - now just calls the reasons modal
+  function buildReportForm(config){
+    return buildReportReasonsModal(config);
   }
 
   // Pagination state

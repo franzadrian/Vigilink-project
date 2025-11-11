@@ -293,99 +293,101 @@ def alerts(request):
     try:
         # Get public incidents for this community
         from security_panel.models import Incident
+        from django.utils import timezone
+        from datetime import timedelta
         base_incidents_qs = Incident.objects.filter(community=community)
         incidents_count = base_incidents_qs.count()
-        recent_incidents_qs = base_incidents_qs.order_by('-created_at')[:10]
+        
+        # Get latest 2 incidents
+        latest_2 = list(base_incidents_qs.order_by('-created_at')[:2])
+        
+        if latest_2:
+            # Get the date of the most recent incident
+            most_recent_date = latest_2[0].created_at.date()
+            today = timezone.now().date()
+            
+            # If the most recent incident is from today, show up to 5 incidents from today
+            if most_recent_date == today:
+                same_day_incidents = base_incidents_qs.filter(
+                    created_at__date=today
+                ).order_by('-created_at')[:5]
+                recent_incidents_qs = same_day_incidents
+            else:
+                # If the most recent incident is from a previous day, show only latest 2
+                recent_incidents_qs = latest_2
+        else:
+            recent_incidents_qs = []
     except Exception:
         recent_incidents_qs = []
         incidents_count = 0
 
     recent_incidents = []
     for incident in recent_incidents_qs:
-        # Clean up the message by removing reporter names and formatting properly
-        clean_message = incident.description
+        import re
         
-        # Remove reporter names and change to "Report:"
-        if 'Reported by Guest' in clean_message:
-            import re
-            clean_message = re.sub(r'Reported by Guest \d+', 'Report:', clean_message)
-        elif 'by Guest' in clean_message:
-            import re
-            clean_message = re.sub(r'by Guest \d+', '', clean_message)
-            # If the message doesn't start with "Report:", add it
-            if not clean_message.strip().startswith('Report:'):
-                clean_message = 'Report: ' + clean_message.strip()
+        # Get location from incident model
+        location = incident.location if hasattr(incident, 'location') and incident.location else ''
         
-        # Fix double colons
-        clean_message = clean_message.replace('::', ':')
+        # Clean up the description by removing reporter information
+        details = incident.description
         
-        # Separate Location: from Report: if they're together
-        if 'Report: Location:' in clean_message:
-            clean_message = clean_message.replace('Report: Location:', 'Report:\nLocation:')
-        elif 'Report:Location:' in clean_message:
-            clean_message = clean_message.replace('Report:Location:', 'Report:\nLocation:')
+        # Remove reporter patterns
+        details = re.sub(r'Reported by[^:]*:', '', details, flags=re.IGNORECASE)
+        details = re.sub(r'by Guest \d+', '', details)
+        details = re.sub(r'^Report:\s*', '', details, flags=re.IGNORECASE)
+        details = details.strip()
         
-        # Ensure Location: is always on a new line if it exists
-        if 'Location:' in clean_message and not clean_message.startswith('Location:'):
-            # Find where Location: appears and ensure it's on a new line
-            location_index = clean_message.find('Location:')
-            if location_index > 0:
-                # Check if there's already a newline before Location:
-                before_location = clean_message[:location_index].rstrip()
-                after_location = clean_message[location_index:]
-                
-                # If Location: is not already on a new line, add one
-                if not before_location.endswith('\n'):
-                    clean_message = before_location + '\n' + after_location
+        # Extract location from message if it's embedded
+        if 'Location:' in details:
+            parts = details.split('Location:')
+            if len(parts) > 1:
+                details = parts[0].strip()
+                location_from_msg = parts[1].strip()
+                if location_from_msg and not location:
+                    location = location_from_msg
+        
+        # Clean up any remaining "Location:" text
+        details = re.sub(r'Location:\s*', '', details, flags=re.IGNORECASE)
+        details = details.strip()
         
         recent_incidents.append({
             'id': incident.id,
             'subject': incident.title,
-            'message': clean_message,
+            'details': details,
+            'location': location,
             'created_at': incident.created_at,
             'incident_type': incident.get_incident_type_display_short(),
             'status': incident.get_status_display(),
         })
 
     # Get upcoming events for this community
-    upcoming_events = []
+    upcoming_event = None
     events_count = 0
     try:
         from events_panel.models import Event
         from django.utils import timezone
+        from datetime import timedelta
         
-        # Get only ongoing or upcoming events (no completed/past events)
+        # Get only upcoming events (not ongoing or past events)
         now = timezone.now()
         
-        # Get ongoing and upcoming events only
-        upcoming_events_qs = Event.objects.filter(
+        # Get the next upcoming event (start_date must be after now)
+        # This matches the logic used in events.html where upcoming = start_date__gt=now
+        # Events that haven't started yet are considered "upcoming"
+        upcoming_event_qs = Event.objects.filter(
             community=community,
             is_active=True,
-            start_date__gte=now  # Only ongoing and upcoming events
-        ).order_by('start_date')[:2]  # Get the 2 nearest upcoming events
+            start_date__gt=now  # Events that haven't started yet
+        ).order_by('start_date')[:1]  # Get only the closest upcoming event
         
         events_count = Event.objects.filter(
             community=community,
             is_active=True
         ).count()
         
-        for event in upcoming_events_qs:
-            # Determine event status
-            now = timezone.now()
-            if event.start_date > now:
-                status = 'upcoming'
-                status_text = 'Upcoming'
-                status_icon = 'clock'
-            elif event.start_date <= now:
-                status = 'ongoing'
-                status_text = 'Ongoing'
-                status_icon = 'play-circle'
-            else:
-                status = 'completed'
-                status_text = 'Completed'
-                status_icon = 'check-circle'
-            
-            upcoming_events.append({
+        if upcoming_event_qs.exists():
+            event = upcoming_event_qs[0]
+            upcoming_event = {
                 'id': event.id,
                 'title': event.title,
                 'date': event.start_date.strftime('%b %d, %Y'),
@@ -393,12 +395,9 @@ def alerts(request):
                 'place': event.location if event.location else 'TBA',
                 'event_type': event.get_event_type_display(),
                 'description': event.description[:100] + '...' if len(event.description) > 100 else event.description,
-                'status': status,
-                'status_text': status_text,
-                'status_icon': status_icon
-            })
+            }
     except Exception as e:
-        upcoming_events = []
+        upcoming_event = None
         events_count = 0
 
     from datetime import datetime
@@ -489,7 +488,7 @@ def alerts(request):
         'members_count': members_count,
         'incidents_count': incidents_count,
         'recent_incidents': recent_incidents,
-        'upcoming_events': upcoming_events,
+        'upcoming_event': upcoming_event,
         'events_count': events_count,
         'safety_tip': safety_tip,
         'emergency_contacts': emergency_contacts,
@@ -517,6 +516,7 @@ def submit_report(request):
         target_type = (payload.get('target_type') or 'resident').strip()
         target_user_id = (payload.get('target_user_id') or '').strip()
         details = (payload.get('details') or '').strip()
+        location = (payload.get('location') or '').strip()
         anonymous = str(payload.get('anonymous') or '').lower() in ('1', 'true', 'yes', 'on')
         reasons_raw = payload.get('reasons') or ''
         # reasons may come as JSON array or comma-separated
@@ -528,9 +528,6 @@ def submit_report(request):
                     reasons_list = [str(x) for x in parsed if x]
             except Exception:
                 reasons_list = [r.strip() for r in reasons_raw.split(',') if r.strip()]
-
-        # Optional free-text for outsider description
-        outsider_desc = (payload.get('outsider_desc') or '').strip()
 
         # Resolve community for basic validation
         community = None
@@ -559,11 +556,8 @@ def submit_report(request):
         # Compose subject and message
         if target_type == 'resident':
             subject = f"Report: Resident {reported_name or ('#' + str(target_user_id))}"
-            # No target_line for residents - they're identified in the "Who" field
-            target_line = None
         else:
             subject = "Report: Non-resident"
-            target_line = f"Target Details: {outsider_desc}" if outsider_desc else "Target Details: (no description provided)"
 
         # Only include details if there's actual content
         details_line = f"Details: {details}" if details and details.strip() else None
@@ -571,18 +565,14 @@ def submit_report(request):
         # Reporter identity
         if anonymous:
             reporter_name = "Anonymous"
-            reporter_email = "anonymous@vigilink.local"
             user_ref = None
         else:
             nm = (getattr(request.user, 'full_name', '') or request.user.get_username() or '').strip() or 'Resident'
             reporter_name = nm
-            reporter_email = getattr(request.user, 'email', '') or 'unknown@vigilink.local'
             user_ref = request.user
 
         # Build message with only non-empty lines
         message_lines = []
-        if target_line:
-            message_lines.append(target_line)
         if details_line:
             message_lines.append(details_line)
         
@@ -605,11 +595,10 @@ def submit_report(request):
             priority=priority,  # Auto-assigned based on reasons
             target_type=target_type,
             target_user=target_user if target_type == 'resident' and target_user else None,
-            target_description=outsider_desc if target_type == 'outsider' else '',
+            location=location,
             reporter=request.user,
             is_anonymous=anonymous,
             reporter_name=reporter_name,
-            reporter_email=reporter_email,
             community=community,
             reasons=reasons_list,
             details=details,
@@ -633,10 +622,10 @@ def submit_report(request):
             # Create public incident
             Incident.objects.create(
                 title=f"Suspicious Activity Reported",
-                description=f"Reported by {reporter_name}: {details or 'Suspicious activity observed'}. Location: {outsider_desc or 'Community area'}",
+                description=f"Reported by {reporter_name}: {details or 'Suspicious activity observed'}",
                 incident_type=incident_type,
                 status='reported',
-                location=outsider_desc or 'Community area',
+                location=location or 'Community area',
                 community=community,
                 reporter=request.user,
                 is_anonymous=anonymous,
@@ -647,3 +636,45 @@ def submit_report(request):
         return JsonResponse({'ok': True, 'message': 'Report submitted. Thank you.'})
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)}, status=400)
+
+@login_required
+def my_reports(request):
+    """View for residents to see their previously submitted reports"""
+    # Get user's community
+    community = None
+    mem = CommunityMembership.objects.select_related('community').filter(user=request.user).first()
+    if mem and mem.community:
+        community = mem.community
+    else:
+        # If user is a community owner, use their community profile
+        try:
+            if getattr(request.user, 'role', '') == 'communityowner':
+                owner_cp = CommunityProfile.objects.filter(owner=request.user).first()
+                if owner_cp:
+                    community = owner_cp
+        except Exception:
+            pass
+    
+    if not community:
+        messages.error(request, 'You must be a member of a community to view reports.')
+        return redirect('resident_panel:residents')
+    
+    # Get all reports submitted by this user
+    reports = SecurityReport.objects.filter(
+        reporter=request.user,
+        community=community
+    ).order_by('-created_at')
+    
+    # Pagination
+    from django.core.paginator import Paginator
+    paginator = Paginator(reports, 10)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'page_obj': page_obj,
+        'community': community,
+        'total_reports': reports.count(),
+    }
+    
+    return render(request, 'resident/my_reports.html', context)

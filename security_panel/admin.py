@@ -13,16 +13,13 @@ class SecurityReportAdmin(admin.ModelAdmin):
             'fields': ('subject', 'message', 'status', 'priority', 'community')
         }),
         ('Target Information', {
-            'fields': ('target_type', 'target_user', 'target_description')
+            'fields': ('target_type', 'target_user', 'location')
         }),
         ('Reporter Information', {
-            'fields': ('reporter', 'is_anonymous', 'reporter_name', 'reporter_email')
+            'fields': ('reporter', 'is_anonymous', 'reporter_name')
         }),
         ('Report Content', {
             'fields': ('reasons', 'details')
-        }),
-        ('Security Management', {
-            'fields': ('security_notes', 'assigned_to')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at', 'resolved_at'),
@@ -31,7 +28,7 @@ class SecurityReportAdmin(admin.ModelAdmin):
     )
     
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('reporter', 'target_user', 'community', 'assigned_to')
+        return super().get_queryset(request).select_related('reporter', 'target_user', 'community')
 
 
 @admin.register(Incident)
@@ -49,7 +46,7 @@ class IncidentAdmin(admin.ModelAdmin):
             'fields': ('reporter', 'is_anonymous', 'reporter_name')
         }),
         ('Security Management', {
-            'fields': ('security_notes', 'handled_by', 'security_report')
+            'fields': ('handled_by', 'security_report')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at', 'resolved_at'),

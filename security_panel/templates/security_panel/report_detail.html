@@ -9,245 +9,142 @@
 {% endblock %}
 
 {% block content %}
-<div class="report-detail">
-  <header class="report-header">
-    <div class="report-header-content">
-      <div class="report-title-wrap">
-        <div class="report-meta">
-          <span class="status-badge status-{{ report.status }}">{{ report.get_status_display }}</span>
-          <span class="priority-badge priority-{{ report.priority }}">{{ report.get_priority_display }}</span>
-          <span class="date-badge">{{ report.created_at|date:"M d, Y H:i" }}</span>
-        </div>
-      </div>
-      <div class="report-actions">
-        <a href="{% url 'security_panel:dashboard' %}" class="btn btn-back">
-          <i class="fa-solid fa-arrow-left"></i>
-          <span>Back to Security Dashboard</span>
-        </a>
-      </div>
-    </div>
-  </header>
-
-  <!-- Mobile Timeline and Details Section -->
-  <div class="mobile-timeline-details">
-    <!-- Report Timeline -->
-    <div class="mobile-timeline">
-      <section class="report-section">
-        <h2 class="section-title">Report Timeline</h2>
-        <div class="timeline">
-          <div class="timeline-item">
-            <div class="timeline-marker"></div>
-            <div class="timeline-content">
-              <div class="timeline-title">Report Created</div>
-              <div class="timeline-date">{{ report.created_at|date:"M d, Y H:i" }}</div>
-            </div>
-          </div>
-          
-          {% if report.updated_at != report.created_at %}
-          <div class="timeline-item">
-            <div class="timeline-marker"></div>
-            <div class="timeline-content">
-              <div class="timeline-title">Last Updated</div>
-              <div class="timeline-date">{{ report.updated_at|date:"M d, Y H:i" }}</div>
-            </div>
-          </div>
-          {% endif %}
-          
-          {% if report.resolved_at %}
-          <div class="timeline-item">
-            <div class="timeline-marker"></div>
-            <div class="timeline-content">
-              <div class="timeline-title">Resolved</div>
-              <div class="timeline-date">{{ report.resolved_at|date:"M d, Y H:i" }}</div>
-            </div>
-          </div>
-          {% endif %}
-        </div>
-      </section>
-    </div>
-
-    <!-- Report Statistics -->
-    <div class="mobile-details">
-      <section class="report-section">
-        <h2 class="section-title">Report Details</h2>
-        <div class="report-stats">
-          <div class="stat-item">
-            <label>Report ID</label>
-            <div class="stat-value">#{{ report.id }}</div>
-          </div>
-          <div class="stat-item">
-            <label>Community</label>
-            <div class="stat-value">{{ report.community.community_name }}</div>
-          </div>
-          {% if report.assigned_to %}
-          <div class="stat-item">
-            <label>Assigned To</label>
-            <div class="stat-value">{{ report.assigned_to.full_name|default:report.assigned_to.username }}</div>
-          </div>
-          {% endif %}
-        </div>
-      </section>
-    </div>
+<div class="report-view">
+  <!-- Top Navigation -->
+  <div class="report-nav">
+    <a href="{% url 'security_panel:dashboard' %}" class="nav-back" id="back-to-dashboard">
+      <i class="fa-solid fa-arrow-left"></i>
+      Back
+    </a>
+    <div class="report-id">Report #{{ report.id }}</div>
   </div>
 
-  <div class="report-content">
-    <div class="report-main">
-      <!-- Report Information -->
-      <section class="report-section">
-        <h2 class="section-title">Report Information</h2>
-        <div class="report-info-grid">
-          <div class="info-item">
-            <label>Who</label>
-            <div class="info-value">
-              {% if report.target_type == 'resident' and report.target_user %}
-                {{ report.target_user.full_name|default:report.target_user.username }}
-              {% else %}
-                Non-resident
-              {% endif %}
-            </div>
+  <!-- Status Banner with Update Form -->
+  <div class="status-banner status-{{ report.status }}">
+    <div class="banner-content">
+      <div class="banner-left">
+        <div class="banner-status-row">
+          <div class="banner-status">{{ report.get_status_display }}</div>
+          <div class="banner-priority priority-{{ report.priority }}">
+            {{ report.get_priority_display }}
           </div>
-          {% if report.target_type == 'resident' and report.target_user and report.target_user.block and report.target_user.lot %}
-          <div class="info-item">
-            <label>Block & Lot</label>
-            <div class="info-value">
-              Block {{ report.target_user.block }}, Lot {{ report.target_user.lot }}
-            </div>
-          </div>
-          {% endif %}
-          <div class="info-item">
-            <label>Reasons</label>
-            <div class="info-value">{{ report.get_reasons_display }}</div>
-          </div>
-          {% if report.message and report.message.strip %}
-          <div class="info-item">
-            <label>Additional Information</label>
-            <div class="info-value">{{ report.message|linebreaks }}</div>
-          </div>
-          {% endif %}
         </div>
-      </section>
-
-
-      <!-- Reporter Information -->
-      <section class="report-section">
-        <h2 class="section-title">Reporter Information</h2>
-        <div class="report-info-grid">
-          <div class="info-item">
-            <label>Reporter</label>
-            <div class="info-value">
-              {% if report.is_anonymous %}
-                Anonymous
-              {% else %}
-                {{ report.get_reporter_display }}
-              {% endif %}
-            </div>
-          </div>
-          {% if not report.is_anonymous %}
-          <div class="info-item">
-            <label>Email</label>
-            <div class="info-value">{{ report.reporter_email }}</div>
-          </div>
-          {% endif %}
-        </div>
-      </section>
-
-      <!-- Security Management -->
-      <section class="report-section">
-        <h2 class="section-title">Security Management</h2>
-        <form id="report-update-form" class="security-form">
+        <div class="banner-date">{{ report.created_at|date:"F d, Y • h:i A" }}</div>
+        <form id="report-update-form" class="banner-update-form">
           {% csrf_token %}
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="status">Status</label>
-              <select id="status" name="status" class="form-control">
+          <div class="banner-form-field">
+            <label for="status">Update Status</label>
+            <div class="banner-form-controls">
+              <select id="status" name="status" class="banner-status-select">
                 {% for value, label in report.STATUS_CHOICES %}
                 <option value="{{ value }}" {% if report.status == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
               </select>
+              <button type="submit" class="banner-update-btn">
+                Update
+              </button>
             </div>
-            
-            <div class="form-group">
-              <label for="priority">Priority</label>
-              <select id="priority" name="priority" class="form-control">
-                {% for value, label in report.PRIORITY_CHOICES %}
-                <option value="{{ value }}" {% if report.priority == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            
-          </div>
-          
-          <div class="form-group">
-            <label for="security_notes">Security Notes</label>
-            <textarea id="security_notes" name="security_notes" class="form-control" rows="4" placeholder="Add internal notes about this report...">{{ report.security_notes }}</textarea>
-          </div>
-          
-          <div class="form-actions">
-            <button type="submit" class="btn btn-update">
-              <i class="fa-solid fa-save"></i>
-              <span>Update Report</span>
-            </button>
           </div>
         </form>
-      </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="report-grid">
+    <!-- Incident Information Card -->
+    <div class="info-card">
+      <div class="card-header">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <h3>Incident Information</h3>
+      </div>
+      <div class="card-body">
+        <div class="info-field">
+          <div class="field-label">Complainee</div>
+          <div class="field-value">
+            {% if report.target_type == 'resident' and report.target_user %}
+              {{ report.target_user.full_name|default:report.target_user.username }}
+            {% else %}
+              Non-resident / Outsider
+            {% endif %}
+          </div>
+        </div>
+        <div class="info-field">
+          <div class="field-label">Location</div>
+          <div class="field-value">
+            {% if report.location and report.location.strip %}
+              {{ report.location }}
+            {% elif report.target_type == 'resident' and report.target_user and report.target_user.block and report.target_user.lot %}
+              Block {{ report.target_user.block }}, Lot {{ report.target_user.lot }}
+            {% else %}
+              N/A
+            {% endif %}
+          </div>
+        </div>
+        <div class="info-field">
+          <div class="field-label">Reason</div>
+          <div class="field-value">
+            {% if report.reasons %}
+              {% if "Other (please specify)" in report.reasons %}
+                {% if report.details and report.details.strip %}
+                  {{ report.details }}
+                {% else %}
+                  {{ report.get_reasons_display }}
+                {% endif %}
+              {% else %}
+                {{ report.get_reasons_display }}
+              {% endif %}
+            {% else %}
+              {{ report.get_reasons_display }}
+            {% endif %}
+          </div>
+        </div>
+        {% if not report.reasons or "Other (please specify)" not in report.reasons %}
+          {% if report.details and report.details.strip %}
+            <div class="info-field">
+              <div class="field-label">Details</div>
+              <div class="field-value">{{ report.details|linebreaks }}</div>
+            </div>
+          {% elif report.message and report.message.strip %}
+            <div class="info-field">
+              <div class="field-label">Details</div>
+              <div class="field-value">
+                {% if "Target Details:" in report.message %}
+                  {{ report.message|cut:"Target Details:"|cut:"Details: "|linebreaks }}
+                {% else %}
+                  {{ report.message|cut:"Details: "|linebreaks }}
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
+        {% endif %}
+      </div>
     </div>
 
-    <!-- Desktop Timeline and Details Sidebar -->
-    <div class="report-sidebar">
-      <!-- Report Timeline -->
-      <section class="report-section">
-        <h2 class="section-title">Report Timeline</h2>
-        <div class="timeline">
-          <div class="timeline-item">
-            <div class="timeline-marker"></div>
-            <div class="timeline-content">
-              <div class="timeline-title">Report Created</div>
-              <div class="timeline-date">{{ report.created_at|date:"M d, Y H:i" }}</div>
-            </div>
+    <!-- Complainant Information Card -->
+    <div class="info-card">
+      <div class="card-header">
+        <i class="fa-solid fa-user"></i>
+        <h3>Complainant</h3>
+      </div>
+      <div class="card-body">
+        <div class="info-field">
+          <div class="field-label">Name</div>
+          <div class="field-value">
+            {% if report.is_anonymous %}
+              Anonymous
+            {% else %}
+              {{ report.get_reporter_display }}
+            {% endif %}
           </div>
-          
-          {% if report.updated_at != report.created_at %}
-          <div class="timeline-item">
-            <div class="timeline-marker"></div>
-            <div class="timeline-content">
-              <div class="timeline-title">Last Updated</div>
-              <div class="timeline-date">{{ report.updated_at|date:"M d, Y H:i" }}</div>
-            </div>
-          </div>
-          {% endif %}
-          
-          {% if report.resolved_at %}
-          <div class="timeline-item">
-            <div class="timeline-marker"></div>
-            <div class="timeline-content">
-              <div class="timeline-title">Resolved</div>
-              <div class="timeline-date">{{ report.resolved_at|date:"M d, Y H:i" }}</div>
-            </div>
-          </div>
-          {% endif %}
         </div>
-      </section>
-
-      <!-- Report Statistics -->
-      <section class="report-section">
-        <h2 class="section-title">Report Details</h2>
-        <div class="report-stats">
-          <div class="stat-item">
-            <label>Report ID</label>
-            <div class="stat-value">#{{ report.id }}</div>
-          </div>
-          <div class="stat-item">
-            <label>Community</label>
-            <div class="stat-value">{{ report.community.community_name }}</div>
-          </div>
-          {% if report.assigned_to %}
-          <div class="stat-item">
-            <label>Assigned To</label>
-            <div class="stat-value">{{ report.assigned_to.full_name|default:report.assigned_to.username }}</div>
-          </div>
-          {% endif %}
+        {% if not report.is_anonymous and report.reporter.block and report.reporter.lot %}
+        <div class="info-field">
+          <div class="field-label">Block & Lot</div>
+          <div class="field-value">Block {{ report.reporter.block }}, Lot {{ report.reporter.lot }}</div>
         </div>
-      </section>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>
@@ -259,9 +156,50 @@
 <script>
   // Report-specific JavaScript
   document.addEventListener('DOMContentLoaded', function() {
-    const reportId = {{ report.id }};
+    const reportId = parseInt('{{ report.id }}', 10);
     const updateUrl = "{% url 'security_panel:update_report_status' report.id %}";
     
+    // Ensure audio context is ready when user clicks Back button
+    // This preserves user interaction state for notifications
+    const backButton = document.getElementById('back-to-dashboard');
+    if (backButton) {
+      backButton.addEventListener('click', function(e) {
+        // Create or resume audio context before navigation to ensure notifications work
+        // This preserves the user interaction state across page navigation
+        try {
+          // Create audio context if it doesn't exist
+          if (typeof window.globalAudioContext === 'undefined' || !window.globalAudioContext || window.globalAudioContext.state === 'closed') {
+            window.globalAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+            console.log('Created audio context before navigation');
+          }
+          
+          // Always try to resume to ensure it's running
+          if (window.globalAudioContext && window.globalAudioContext.state === 'suspended') {
+            window.globalAudioContext.resume().then(() => {
+              console.log('Audio context resumed before navigation, state:', window.globalAudioContext.state);
+              // Mark as unlocked in localStorage
+              localStorage.setItem('security_audio_unlocked', 'true');
+              // Also mark with timestamp to ensure it's recent
+              localStorage.setItem('security_audio_unlocked_time', Date.now().toString());
+            }).catch(err => {
+              console.log('Could not resume audio context:', err);
+            });
+          } else if (window.globalAudioContext && window.globalAudioContext.state === 'running') {
+            // Already running, mark as unlocked
+            localStorage.setItem('security_audio_unlocked', 'true');
+            localStorage.setItem('security_audio_unlocked_time', Date.now().toString());
+            console.log('Audio context already running, marked as unlocked');
+          }
+        } catch (err) {
+          console.log('Error handling audio context before navigation:', err);
+        }
+        
+        // Also try to resume via the security.js function if available
+        if (typeof window.resumeAllAudioContexts === 'function') {
+          window.resumeAllAudioContexts();
+        }
+      });
+    }
     
     // Handle form submission
     document.getElementById('report-update-form').addEventListener('submit', function(e) {

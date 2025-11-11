@@ -1,0 +1,327 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}My Reports - VigiLink{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'resident/css/resident.css' %}">
+<style>
+    .my-reports-page {
+        padding: 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .reports-section {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+    }
+    
+    .reports-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .reports-header h2 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #111827;
+    }
+    
+    .reports-count {
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+    
+    .reports-table-container {
+        overflow-x: auto;
+    }
+    
+    .reports-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .reports-table th {
+        background: #f8fafc;
+        padding: 12px 16px;
+        text-align: left;
+        font-weight: 600;
+        color: #111827;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 0.9rem;
+    }
+    
+    .reports-table td {
+        padding: 16px;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: top;
+    }
+    
+    .report-row:hover {
+        background: #f8fafc;
+    }
+    
+    .report-reporter {
+        min-width: 150px;
+        max-width: 200px;
+    }
+    
+    .reporter-name {
+        font-weight: 500;
+        color: #111827;
+        margin-bottom: 4px;
+    }
+    
+    .report-subject {
+        min-width: 200px;
+        max-width: 350px;
+    }
+    
+    .subject-text {
+        font-weight: 500;
+        color: #111827;
+    }
+    
+    .report-target {
+        min-width: 150px;
+        max-width: 200px;
+        font-size: 0.9rem;
+        color: #111827;
+    }
+    
+    .target-name {
+        font-weight: 500;
+    }
+    
+    .target-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        background: #f1f5f9;
+        color: #6b7280;
+    }
+    
+    .target-outsider {
+        background: #f1f5f9;
+        color: #6b7280;
+    }
+    
+    .report-status {
+        min-width: 120px;
+        white-space: nowrap;
+    }
+    
+    .status-badge,
+    .priority-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .status-badge {
+        background: #f1f5f9;
+        color: #6b7280;
+    }
+    
+    .status-pending {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+    
+    .status-investigating {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    
+    .status-resolved {
+        background: #d1fae5;
+        color: #065f46;
+    }
+    
+    .status-false_alarm {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    
+    
+    
+    .no-reports {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6b7280;
+    }
+    
+    .no-reports i {
+        font-size: 3rem;
+        color: #d1d5db;
+        margin-bottom: 16px;
+    }
+    
+    .pagination {
+        display: flex;
+        gap: 6px;
+        justify-content: center;
+        align-items: center;
+        padding: 10px 12px;
+        flex-wrap: wrap;
+    }
+    
+    .pagination a,
+    .pagination span {
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        color: #374151;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 13px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+    }
+    
+    .pagination a:hover {
+        background: #f3f4f6;
+    }
+    
+    .pagination .current {
+        border-color: #2563eb;
+        color: #2563eb;
+        background: #eff6ff;
+    }
+    
+    @media (max-width: 768px) {
+        .reports-table {
+            font-size: 0.8rem;
+        }
+        
+        .reports-table thead th,
+        .reports-table tbody td {
+            padding: 10px 8px;
+        }
+        
+        .reports-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        
+        .reports-header h2 {
+            margin-bottom: 4px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="my-reports-page">
+    <!-- Reports Table -->
+    <div class="reports-section">
+        <div class="reports-header">
+            <div>
+                <h2>My Reports</h2>
+                <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 0.875rem;">View all reports you have submitted to security</p>
+            </div>
+            <div class="reports-count">{{ page_obj.paginator.count }} report{{ page_obj.paginator.count|pluralize }}</div>
+        </div>
+
+        {% if page_obj %}
+        <div class="reports-table-container">
+            <table class="reports-table">
+                <thead>
+                    <tr>
+                        <th>Complainant</th>
+                        <th>Reason</th>
+                        <th>Complainee</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for report in page_obj %}
+                    <tr class="report-row">
+                        <td class="report-reporter">
+                            <div class="reporter-name">{{ report.get_reporter_display }}</div>
+                        </td>
+                        <td class="report-subject">
+                            <div class="subject-text">
+                                {% if report.target_type == 'outsider' and report.public_incident %}
+                                    {% if report.public_incident.incident_type == 'other' %}
+                                        {{ report.details|truncatechars:40 }}
+                                    {% else %}
+                                        {{ report.public_incident.get_incident_type_display_short }}
+                                    {% endif %}
+                                {% else %}
+                                    {% with priority_reason=report.get_priority_reason %}
+                                        {% if priority_reason %}
+                                            {% if priority_reason == "Other (please specify)" %}
+                                                {% if report.details and report.details.strip %}
+                                                    {{ report.details|truncatechars:40 }}
+                                                {% else %}
+                                                    {{ priority_reason|truncatechars:40 }}
+                                                {% endif %}
+                                            {% else %}
+                                                {{ priority_reason|truncatechars:40 }}
+                                            {% endif %}
+                                        {% else %}
+                                            Report
+                                        {% endif %}
+                                    {% endwith %}
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="report-target">
+                            {% if report.target_type == 'resident' and report.target_user %}
+                                <div class="target-name">{{ report.target_user.full_name|default:report.target_user.username }}</div>
+                            {% else %}
+                                <div class="target-badge target-outsider">Non-Resident</div>
+                            {% endif %}
+                        </td>
+                        <td class="report-status">
+                            <span class="status-badge status-{{ report.status }}">{{ report.get_status_display }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+            {% endif %}
+            
+            <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}">Next</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="no-reports">
+            <i class="fas fa-file-alt"></i>
+            <h3>No Reports Yet</h3>
+            <p>You haven't submitted any reports yet. Use the "Report Incident" button to submit a report.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

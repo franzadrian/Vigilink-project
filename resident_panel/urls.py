@@ -8,4 +8,5 @@ urlpatterns = [
     path('join/', views.join_by_code, name='join_by_code'),
     path('alerts/', views.alerts, name='alerts'),
     path('report/', views.submit_report, name='submit_report'),
+    path('my-reports/', views.my_reports, name='my_reports'),
 ]

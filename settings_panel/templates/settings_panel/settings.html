@@ -284,11 +284,14 @@
         .account-buttons {
             flex-direction: row;
             gap: 0.75rem;
+            justify-content: center;
         }
 
         .account-buttons .btn {
-            flex: 1;
-            min-width: 0;
+            flex: 0 0 auto;
+            white-space: nowrap;
+            font-size: 0.875rem;
+            padding: 0.625rem 1rem;
         }
 
         .notification-toggle {
@@ -322,9 +325,11 @@
     {% if messages %}
     <div id="message-container">
         {% for message in messages %}
+        {% if 'Post created successfully!' != message|stringformat:"s" %}
         <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
             {{ message }}
         </div>
+        {% endif %}
         {% endfor %}
     </div>
     <script>
@@ -472,6 +477,14 @@
                 .then(data => {
                     if (data.success) {
                         showSuccessMessage(data.message);
+                        
+                        // If enabling notification sounds, unlock audio context now (user gesture)
+                        if (enabled) {
+                            unlockAudioContextForNotifications();
+                        } else {
+                            // If disabling, mark as locked
+                            localStorage.removeItem('security_audio_unlocked');
+                        }
                     } else {
                         // Revert toggle on error
                         this.checked = !enabled;
@@ -485,6 +498,45 @@
                     alert('An error occurred while updating notification settings.');
                 });
             });
+            
+            // If notification sound is already enabled, unlock audio context on page load
+            if (soundToggle.checked) {
+                unlockAudioContextForNotifications();
+            }
+        }
+        
+        // Function to unlock audio context for notifications (called on user gesture)
+        function unlockAudioContextForNotifications() {
+            try {
+                // Create and immediately resume an audio context to "unlock" audio
+                // This satisfies browser autoplay policies since it's triggered by user interaction
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume().then(() => {
+                        console.log('Audio context unlocked for notifications');
+                        // Mark as unlocked in localStorage so security.js knows it can play immediately
+                        localStorage.setItem('security_audio_unlocked', 'true');
+                        // Store the context globally if the function exists (security.js is loaded)
+                        if (typeof window.initializeGlobalAudioContext === 'function') {
+                            window.initializeGlobalAudioContext();
+                        }
+                        // Close this temporary context - security.js will create its own global one
+                        audioContext.close();
+                    }).catch(err => {
+                        console.log('Could not unlock audio context:', err);
+                    });
+                } else {
+                    // Already running, mark as unlocked
+                    localStorage.setItem('security_audio_unlocked', 'true');
+                    if (typeof window.initializeGlobalAudioContext === 'function') {
+                        window.initializeGlobalAudioContext();
+                    }
+                    audioContext.close();
+                }
+            } catch (e) {
+                console.log('Could not unlock audio context:', e);
+            }
         }
 
         // Receive Notifications toggle (non-Security users)

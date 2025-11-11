@@ -15,45 +15,6 @@
       <h1 class="security-title">Security Dashboard</h1>
       <p class="security-subtitle">{{ community.community_name }} - Incident Reports</p>
     </div>
-  </header>
-
-  <!-- Statistics Cards -->
-  <div class="stats-grid">
-    <div class="stat-card stat-card--total">
-      <div class="stat-icon"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i></div>
-      <div class="stat-content">
-        <h3>Total Reports</h3>
-        <div class="stat-value">{{ stats.total_reports }}</div>
-      </div>
-    </div>
-
-    <div class="stat-card stat-card--new">
-      <div class="stat-icon"><i class="fa-solid fa-exclamation-circle" aria-hidden="true"></i></div>
-      <div class="stat-content">
-        <h3>Pending Reports</h3>
-        <div class="stat-value">{{ stats.new_reports }}</div>
-      </div>
-    </div>
-
-    <div class="stat-card stat-card--investigating">
-      <div class="stat-icon"><i class="fa-solid fa-search" aria-hidden="true"></i></div>
-      <div class="stat-content">
-        <h3>Investigating</h3>
-        <div class="stat-value">{{ stats.investigating }}</div>
-      </div>
-    </div>
-
-    <div class="stat-card stat-card--level3">
-      <div class="stat-icon"><i class="fa-solid fa-fire" aria-hidden="true"></i></div>
-      <div class="stat-content">
-        <h3>Level 3</h3>
-        <div class="stat-value">{{ stats.level_3 }}</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Filters and Search -->
-  <div class="filters-section">
     <form method="GET" class="filters-form">
       <div class="filter-group">
         <label for="status">Status</label>
@@ -75,8 +36,42 @@
           <option value="level_3" {% if priority_filter == 'level_3' %}selected{% endif %}>Level 3</option>
         </select>
       </div>
-      
     </form>
+  </header>
+
+  <!-- Statistics Cards -->
+  <div class="stats-grid">
+    <div class="stat-card stat-card--total">
+      <div class="stat-icon"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i></div>
+      <div class="stat-content">
+        <h3>Total Reports</h3>
+        <div class="stat-value">{{ stats.total_reports }}</div>
+      </div>
+    </div>
+
+    <div class="stat-card stat-card--new">
+      <div class="stat-icon"><i class="fa-solid fa-exclamation-circle" aria-hidden="true"></i></div>
+      <div class="stat-content">
+        <h3>Pending Reports</h3>
+        <div class="stat-value">{{ stats.new_reports }}</div>
+      </div>
+    </div>
+
+    <div class="stat-card stat-card--false-alarm">
+      <div class="stat-icon"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i></div>
+      <div class="stat-content">
+        <h3>False Alarm</h3>
+        <div class="stat-value">{{ stats.false_alarm }}</div>
+      </div>
+    </div>
+
+    <div class="stat-card stat-card--resolved">
+      <div class="stat-icon"><i class="fa-solid fa-check-circle" aria-hidden="true"></i></div>
+      <div class="stat-content">
+        <h3>Resolved</h3>
+        <div class="stat-value">{{ stats.resolved }}</div>
+      </div>
+    </div>
   </div>
 
   <!-- Reports Table -->
@@ -91,12 +86,10 @@
       <table class="reports-table">
         <thead>
           <tr>
-            <th>Reporter</th>
+            <th>Complainant</th>
             <th>Reason</th>
-            <th>Target</th>
+            <th>Complainee</th>
             <th>Status</th>
-            <th>Priority</th>
-            <th>Date</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -110,16 +103,26 @@
               <div class="subject-text">
                 {% if report.target_type == 'outsider' and report.public_incident %}
                   {% if report.public_incident.incident_type == 'other' %}
-                    {{ report.details|truncatechars:30 }}...
+                    {{ report.details|truncatechars:40 }}
                   {% else %}
                     {{ report.public_incident.get_incident_type_display_short }}
                   {% endif %}
                 {% else %}
-                  {% if 'other' in report.reasons|default:'' %}
-                    {{ report.details|truncatechars:30 }}...
-                  {% else %}
-                    {{ report.get_reasons_display|default:"Report" }}
-                  {% endif %}
+                  {% with priority_reason=report.get_priority_reason %}
+                    {% if priority_reason %}
+                      {% if priority_reason == "Other (please specify)" %}
+                        {% if report.details and report.details.strip %}
+                          {{ report.details|truncatechars:40 }}
+                        {% else %}
+                          {{ priority_reason|truncatechars:40 }}
+                        {% endif %}
+                      {% else %}
+                        {{ priority_reason|truncatechars:40 }}
+                      {% endif %}
+                    {% else %}
+                      Report
+                    {% endif %}
+                  {% endwith %}
                 {% endif %}
               </div>
             </td>
@@ -133,10 +136,6 @@
             <td class="report-status">
               <span class="status-badge status-{{ report.status }}">{{ report.get_status_display }}</span>
             </td>
-            <td class="report-priority">
-              <span class="priority-badge priority-{{ report.priority }}">{{ report.get_priority_display }}</span>
-            </td>
-            <td class="report-date">{{ report.created_at|date:"M d, Y H:i" }}</td>
             <td class="report-actions">
               <a href="{% url 'security_panel:report_detail' report.id %}" class="btn btn-view">
                 <i class="fa-solid fa-eye"></i>
@@ -153,17 +152,13 @@
     {% if page_obj.has_other_pages %}
     <div class="pagination">
       {% if page_obj.has_previous %}
-        <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if priority_filter %}&priority={{ priority_filter }}{% endif %}" class="pagination-btn">First</a>
-        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if priority_filter %}&priority={{ priority_filter }}{% endif %}" class="pagination-btn">Previous</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if priority_filter %}&priority={{ priority_filter }}{% endif %}">Previous</a>
       {% endif %}
       
-      <span class="pagination-info">
-        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-      </span>
+      <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
       
       {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if priority_filter %}&priority={{ priority_filter }}{% endif %}" class="pagination-btn">Next</a>
-        <a href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if priority_filter %}&priority={{ priority_filter }}{% endif %}" class="pagination-btn">Last</a>
+        <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if priority_filter %}&priority={{ priority_filter }}{% endif %}">Next</a>
       {% endif %}
     </div>
     {% endif %}

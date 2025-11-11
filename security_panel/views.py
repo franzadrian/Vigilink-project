@@ -4,7 +4,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Q, Case, When, IntegerField
 from .models import SecurityReport
 from communityowner_panel.models import CommunityProfile, CommunityMembership
 from accounts.models import User
@@ -36,7 +36,17 @@ def security_dashboard(request):
     
     # Get reports for this community
     all_reports = SecurityReport.objects.filter(community=community)
-    reports = all_reports.order_by('-created_at')
+    # Order by status (pending first, then investigating), then False Alarm and Resolved by date (newest first)
+    reports = all_reports.annotate(
+        status_priority=Case(
+            When(status='pending', then=1),
+            When(status='investigating', then=2),
+            When(status='false_alarm', then=3),
+            When(status='resolved', then=3),  # Same priority as false_alarm so they're ordered by date
+            default=5,
+            output_field=IntegerField(),
+        )
+    ).order_by('status_priority', '-created_at')
     
     # Filtering
     status_filter = request.GET.get('status', '')
@@ -55,7 +65,7 @@ def security_dashboard(request):
         )
     
     # Pagination
-    paginator = Paginator(reports, 20)
+    paginator = Paginator(reports, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
@@ -63,9 +73,8 @@ def security_dashboard(request):
     stats = {
         'total_reports': all_reports.count(),
         'new_reports': all_reports.filter(status='pending').count(),
-        'investigating': all_reports.filter(status='investigating').count(),
+        'false_alarm': all_reports.filter(status='false_alarm').count(),
         'resolved': all_reports.filter(status='resolved').count(),
-        'level_3': all_reports.filter(priority='level_3').count(),
     }
     
     # Get the latest report ID for initializing the notification system
@@ -114,20 +123,12 @@ def update_report_status(request, report_id):
     try:
         data = json.loads(request.body)
         status = data.get('status')
-        priority = data.get('priority')
-        security_notes = data.get('security_notes', '')
         
         if status and status in [choice[0] for choice in SecurityReport.STATUS_CHOICES]:
             report.status = status
             if status == 'resolved':
                 from django.utils import timezone
                 report.resolved_at = timezone.now()
-        
-        if priority and priority in [choice[0] for choice in SecurityReport.PRIORITY_CHOICES]:
-            report.priority = priority
-        
-        if security_notes is not None:
-            report.security_notes = security_notes
         
         report.save()
         

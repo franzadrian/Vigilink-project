@@ -24,7 +24,7 @@
     <div class="metric-card metric-card--residents">
       <div class="metric-icon"><i class="fa-solid fa-user-group" aria-hidden="true"></i></div>
       <div class="metric-content">
-        <h3>Total Residents</h3>
+        <h3><span class="metric-label-full">Total Residents</span><span class="metric-label-mobile">Residents</span></h3>
         <div class="metric-value">{{ members_count }}</div>
       </div>
     </div>
@@ -32,7 +32,7 @@
     <div class="metric-card metric-card--incidents">
       <div class="metric-icon"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i></div>
       <div class="metric-content">
-        <h3>Total Incidents</h3>
+        <h3><span class="metric-label-full">Total Incidents</span><span class="metric-label-mobile">Incidents</span></h3>
         <div class="metric-value">{{ incidents_count }}</div>
       </div>
     </div>
@@ -40,14 +40,94 @@
     <div class="metric-card metric-card--events">
       <div class="metric-icon"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></div>
       <div class="metric-content">
-        <h3>Total Events</h3>
+        <h3><span class="metric-label-full">Total Events</span><span class="metric-label-mobile">Events</span></h3>
         <div class="metric-value">{{ events_count }}</div>
       </div>
     </div>
   </div>
 
-  <!-- Emergency + Safety Tip (below totals) -->
+  <!-- Safety Tip + Upcoming Events (below totals) -->
   <div class="below-grid">
+    <article class="panel-card card--tip">
+      <header class="panel-card__header">
+        <div class="panel-card__title">
+          <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+          <span>Safety Tip</span>
+        </div>
+      </header>
+      <div class="panel-card__body">
+        <p class="tip">{{ safety_tip }}</p>
+        <p class="tip-note">Short, practical guidance to keep your home and neighborhood safe.</p>
+      </div>
+    </article>
+
+    <!-- Upcoming Events -->
+    <article class="panel-card card--tip">
+      <header class="panel-card__header">
+        <div class="panel-card__title">
+          <i class="fa-solid fa-calendar-check" aria-hidden="true"></i>
+          <span>Upcoming Event</span>
+        </div>
+      </header>
+      <div class="panel-card__body">
+        {% if upcoming_event %}
+        <p class="tip">
+          <strong>{{ upcoming_event.title }}</strong><br>
+          {{ upcoming_event.date }} at {{ upcoming_event.time }}
+          {% if upcoming_event.place and upcoming_event.place != 'TBA' %}
+          • {{ upcoming_event.place }}
+          {% endif %}
+        </p>
+        <p class="tip-note">
+          <span class="event-type-badge">{{ upcoming_event.event_type }}</span>
+        </p>
+        {% else %}
+        <p class="tip">No upcoming events scheduled.</p>
+        <p class="tip-note">Check back later for community events.</p>
+        {% endif %}
+      </div>
+    </article>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="content-grid">
+    <!-- Recent Incidents -->
+    <article class="panel-card">
+      <header class="panel-card__header">
+        <div class="panel-card__title">
+          <i class="fa-solid fa-bell" aria-hidden="true"></i>
+          <span>Recent Incidents</span>
+        </div>
+      </header>
+      <div class="panel-card__body">
+        {% if recent_incidents %}
+        <ul class="list list--incidents">
+          {% for inc in recent_incidents %}
+          <li class="list-item">
+            <div class="list-item__icon"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i></div>
+            <div class="list-item__content">
+              <div class="list-item__title">{{ inc.subject }}</div>
+              {% if inc.details %}
+              <div class="list-item__desc"><strong>Details:</strong> {{ inc.details|truncatechars:120|linebreaksbr }}</div>
+              {% endif %}
+              {% if inc.location %}
+              <div class="list-item__location"><strong>Location:</strong> {{ inc.location }}</div>
+              {% endif %}
+              <div class="list-item__meta">
+                {% if inc.incident_type %}<span class="incident-type">{{ inc.incident_type }}</span>{% endif %}
+                {% if inc.created_at %}<span class="incident-date">{{ inc.created_at }}</span>{% endif %}
+              </div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">No incidents reported recently.</p>
+        {% endif %}
+      </div>
+    </article>
+
+    <!-- Emergency Calls -->
     <aside class="panel-card card--emergency">
       <header class="panel-card__header">
         <div class="panel-card__title">
@@ -91,97 +171,6 @@
         {% endif %}
       </div>
     </aside>
-
-    <article class="panel-card card--tip">
-      <header class="panel-card__header">
-        <div class="panel-card__title">
-          <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
-          <span>Safety Tip</span>
-        </div>
-      </header>
-      <div class="panel-card__body">
-        <p class="tip">{{ safety_tip }}</p>
-        <p class="tip-note">Short, practical guidance to keep your home and neighborhood safe.</p>
-      </div>
-    </article>
-  </div>
-
-  <!-- Main Content Grid -->
-  <div class="content-grid">
-    <!-- Recent Incidents -->
-    <article class="panel-card">
-      <header class="panel-card__header">
-        <div class="panel-card__title">
-          <i class="fa-solid fa-bell" aria-hidden="true"></i>
-          <span>Recent Incidents</span>
-        </div>
-      </header>
-      <div class="panel-card__body">
-        {% if recent_incidents %}
-        <ul class="list list--incidents">
-          {% for inc in recent_incidents %}
-          <li class="list-item">
-            <div class="list-item__icon"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i></div>
-            <div class="list-item__content">
-              <div class="list-item__title">{{ inc.subject }}</div>
-              <div class="list-item__desc">{{ inc.message|truncatechars:120|linebreaksbr }}</div>
-              <div class="list-item__meta">
-                {% if inc.incident_type %}<span class="incident-type">{{ inc.incident_type }}</span>{% endif %}
-                {% if inc.created_at %}<span class="incident-date">{{ inc.created_at }}</span>{% endif %}
-              </div>
-            </div>
-          </li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <p class="empty">No incidents reported recently.</p>
-        {% endif %}
-      </div>
-    </article>
-
-    <!-- Upcoming Events -->
-    <article class="panel-card">
-      <header class="panel-card__header">
-        <div class="panel-card__title">
-          <i class="fa-solid fa-calendar-check" aria-hidden="true"></i>
-          <span>Upcoming Events</span>
-        </div>
-      </header>
-      <div class="panel-card__body">
-        {% if upcoming_events %}
-        <ul class="list list--events">
-          {% for ev in upcoming_events %}
-          <li class="list-item">
-            <div class="list-item__icon">
-              <i class="fa-solid fa-{% if ev.event_type == 'Meeting' %}users{% elif ev.event_type == 'Announcement' %}bullhorn{% elif ev.event_type == 'Maintenance' %}wrench{% elif ev.event_type == 'Social Event' %}party-horn{% elif ev.event_type == 'Emergency' %}exclamation-triangle{% else %}calendar{% endif %}" aria-hidden="true"></i>
-            </div>
-            <div class="list-item__content">
-              <div class="list-item__title">{{ ev.title }}</div>
-              <div class="list-item__desc">
-                <span class="event-date">{{ ev.date }}</span>
-                <span class="event-time">{{ ev.time }}</span>
-                {% if ev.place and ev.place != 'TBA' %}
-                <span class="event-location">• {{ ev.place }}</span>
-                {% endif %}
-              </div>
-              <div class="list-item__meta">
-                <span class="event-type-badge">{{ ev.event_type }}</span>
-                <span class="event-status-badge event-status-badge--{{ ev.status }}">
-                  <i class="fas fa-{{ ev.status_icon }}"></i>
-                  {{ ev.status_text }}
-                </span>
-              </div>
-            </div>
-          </li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <p class="empty">No upcoming events scheduled.</p>
-        {% endif %}
-      </div>
-    </article>
-
-    <!-- (Emergency + Tip moved to top) -->
   </div>
 </section>
 {% endblock %}

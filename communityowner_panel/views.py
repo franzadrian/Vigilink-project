@@ -650,7 +650,7 @@ def reports_list(request):
             Q(subject__icontains=search_query) |
             Q(message__icontains=search_query) |
             Q(reporter_name__icontains=search_query) |
-            Q(target_description__icontains=search_query)
+            Q(details__icontains=search_query)
         )
     
     # Pagination
@@ -673,7 +673,6 @@ def reports_list(request):
             'created_at': report.created_at.strftime('%Y-%m-%d %H:%M'),
             'updated_at': report.updated_at.strftime('%Y-%m-%d %H:%M'),
             'resolved_at': report.resolved_at.strftime('%Y-%m-%d %H:%M') if report.resolved_at else None,
-            'security_notes': report.security_notes,
             'is_anonymous': report.is_anonymous,
         })
     
@@ -726,7 +725,7 @@ def reports_download_pdf(request):
             Q(subject__icontains=search_query) |
             Q(message__icontains=search_query) |
             Q(reporter_name__icontains=search_query) |
-            Q(target_description__icontains=search_query)
+            Q(details__icontains=search_query)
         )
     
     # Create PDF with beautiful styling

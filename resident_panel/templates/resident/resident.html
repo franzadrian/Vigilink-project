@@ -11,14 +11,33 @@
 {% block content %}
   <div class="resident-page">
     <div class="resident-header">
-      <h1 class="resident-heading">Community Residents</h1>
-      {% if community and community.community_name %}
-      {% if request.user.role == 'communityowner' or request.user.role == 'admin' %}
-      <p class="resident-subtitle">View and manage community members in {{ community.community_name }}</p>
-      {% else %}
-      <p class="resident-subtitle">View community members in {{ community.community_name }}</p>
-      {% endif %}
-      {% endif %}
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+        <div style="flex: 1;">
+          <h1 class="resident-heading">Community Residents</h1>
+          {% if community and community.community_name %}
+          {% if request.user.role == 'communityowner' or request.user.role == 'admin' %}
+          <p class="resident-subtitle">View and manage community members in {{ community.community_name }}</p>
+          {% else %}
+          <p class="resident-subtitle">View community members in {{ community.community_name }}</p>
+          {% endif %}
+          {% endif %}
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+          {% if request.user.profile_picture_url %}
+            <img src="{{ request.user.profile_picture_url }}?{% now 'U' %}" alt="{{ request.user.full_name|default:request.user.username }}" class="resident-profile-picture" onerror="this.src='/static/accounts/images/profile.png'">
+          {% elif request.user.profile_picture %}
+            <img src="{{ request.user.profile_picture.url }}?{% now 'U' %}" alt="{{ request.user.full_name|default:request.user.username }}" class="resident-profile-picture" onerror="this.src='/static/accounts/images/profile.png'">
+          {% else %}
+            <img src="{% static 'accounts/images/profile.png' %}" alt="{{ request.user.full_name|default:request.user.username }}" class="resident-profile-picture">
+          {% endif %}
+          {% if request.user.role != 'security' %}
+          <a href="{% url 'resident_panel:my_reports' %}" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+            <i class="fas fa-file-alt"></i>
+            <span>My Reports</span>
+          </a>
+          {% endif %}
+        </div>
+      </div>
     </div>
     <div class="resident-toolbar">
       <div class="resident-search">
@@ -31,7 +50,13 @@
       <div class="resident-toolbar-actions">
         {% if request.user.role != 'security' %}
         <span class="res-inline-help-text">Found a suspicious person or activity?</span>
-        <button type="button" class="btn btn-danger resident-report-incident-btn">Report Incident</button>
+        <div class="resident-toolbar-buttons">
+          <a href="{% url 'resident_panel:my_reports' %}" class="btn btn-primary" style="display: none; align-items: center; gap: 6px; text-decoration: none;">
+            <i class="fas fa-file-alt"></i>
+            <span>My Reports</span>
+          </a>
+          <button type="button" class="btn btn-danger resident-report-incident-btn">Report Incident</button>
+        </div>
         {% endif %}
       </div>
     </div>
