@@ -447,7 +447,7 @@
      data-events-create-url="{% url 'events_panel:create_event' %}"
      data-events-update-url="{% url 'events_panel:update_event' 0 %}"
      data-events-delete-url="{% url 'events_panel:delete_event' 0 %}"></div>
-<div id="co-messages-data" data-messages='[{% if messages %}{% for message in messages %}{"text":"{{ message|escapejs }}","tags":"{{ message.tags|default:"info" }}"}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}]'></div>
+<div id="co-messages-data" data-messages='[{% if messages %}{% for message in messages %}{% with msg_text=message|stringformat:"s"|lower %}{% if "post created successfully" not in msg_text and "post created" not in msg_text %}{"text":"{{ message|escapejs }}","tags":"{{ message.tags|default:"info" }}"}{% if not forloop.last %},{% endif %}{% endif %}{% endwith %}{% endfor %}{% endif %}]'></div>
 <script defer src="{% static 'communityowner/js/communityowner_script.js' %}" onload="window.CO_SCRIPT_LOADED=true;"></script>
 <script defer src="{% static 'communityowner/js/events_management.js' %}" onload="window.EVENTS_MANAGEMENT_LOADED=true;"></script>
 <script>
