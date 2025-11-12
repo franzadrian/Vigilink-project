@@ -335,6 +335,22 @@
         </div>
     </div>
 
+    <!-- Report Details Modal -->
+    <div id="co-report-detail-modal" class="co-onboarding-overlay" style="display:none;">
+        <div class="co-onboarding-modal" role="dialog" aria-modal="true" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+            <div class="co-modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                <h3 class="co-onboarding-title" style="margin:0;">Report Details</h3>
+                <button type="button" id="co-report-detail-close" class="co-modal-close" aria-label="Close">&times;</button>
+            </div>
+            <div id="co-report-detail-content" style="padding:10px 0;">
+                <div style="text-align:center;padding:40px;">
+                    <i class="fas fa-spinner fa-spin" style="font-size:24px;color:#3b82f6;"></i>
+                    <p style="margin-top:15px;color:#6b7280;">Loading report details...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Event Delete Confirmation Modal -->
     <div id="co-delete-confirm-modal" class="co-onboarding-overlay" style="display:none;">
         <div class="co-onboarding-modal" role="dialog" aria-modal="true" style="max-width: 450px;">
@@ -400,6 +416,129 @@
         <div id="co-users-pagination" class="co-users-pagination" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;padding:10px 0;"></div>
     </div>
 
+    <!-- Security Reports Bottom Section (no modal) -->
+    <div id="co-reports-bottom" class="co-reports-bottom-section" style="display:none;">
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">Security Reports</h2>
+                <p class="section-subtitle">View and analyze security incident reports</p>
+            </div>
+            <div></div>
+        </div>
+
+        <div class="co-reports-controls" style="display:flex;gap:10px;align-items:center;margin-bottom:15px;flex-wrap:wrap;">
+            <div class="co-search-wrap" style="position:relative;flex:1;min-width:280px;display:flex;align-items:center;">
+                <svg class="co-search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" aria-hidden="true" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6b7280;pointer-events:none;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <input id="co-report-search" type="text" placeholder="Search by complainant, reason, or complainee..." style="flex:1;min-width:0;padding:10px 12px 10px 28px;border:1px solid #e5e7eb;border-radius:8px;" />
+            </div>
+            <select id="co-report-status-filter" style="padding:10px 40px 10px 12px;border:1px solid #e5e7eb;border-radius:8px;background-image:url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23374151\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 12px center;background-size:12px;-webkit-appearance:none;-moz-appearance:none;appearance:none;">
+                <option value="">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="investigating">Under Investigation</option>
+                <option value="resolved">Resolved</option>
+                <option value="false_alarm">False Alarm</option>
+            </select>
+            <select id="co-report-priority-filter" style="padding:10px 40px 10px 12px;border:1px solid #e5e7eb;border-radius:8px;background-image:url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23374151\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 12px center;background-size:12px;-webkit-appearance:none;-moz-appearance:none;appearance:none;">
+                <option value="">All Priority</option>
+                <option value="level_1">Level 1</option>
+                <option value="level_2">Level 2</option>
+                <option value="level_3">Level 3</option>
+            </select>
+            <select id="co-report-type-filter" style="padding:10px 40px 10px 12px;border:1px solid #e5e7eb;border-radius:8px;background-image:url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23374151\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 12px center;background-size:12px;-webkit-appearance:none;-moz-appearance:none;appearance:none;">
+                <option value="">All Types</option>
+                <option value="resident">Resident</option>
+                <option value="outsider">Non-Resident</option>
+            </select>
+            <select id="co-report-year-filter" style="padding:10px 40px 10px 12px;border:1px solid #e5e7eb;border-radius:8px;background-image:url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23374151\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 12px center;background-size:12px;-webkit-appearance:none;-moz-appearance:none;appearance:none;">
+                <option value="">All Years</option>
+            </select>
+            <select id="co-report-month-filter" style="padding:10px 40px 10px 12px;border:1px solid #e5e7eb;border-radius:8px;background-image:url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23374151\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 12px center;background-size:12px;-webkit-appearance:none;-moz-appearance:none;appearance:none;">
+                <option value="">All Months</option>
+                <option value="1">January</option>
+                <option value="2">February</option>
+                <option value="3">March</option>
+                <option value="4">April</option>
+                <option value="5">May</option>
+                <option value="6">June</option>
+                <option value="7">July</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+            </select>
+            <div class="co-reports-actions" style="display:flex;gap:8px;">
+                <button id="co-reports-download-pdf" class="action-btn edit-btn" style="white-space:nowrap;">
+                    <i class="fas fa-file-pdf"></i> Download Report as PDF
+                </button>
+                <button id="co-reports-analytics" class="action-btn edit-btn" style="white-space:nowrap;" data-view-mode="table">
+                    <i class="fas fa-chart-bar"></i> Statistics
+                </button>
+            </div>
+        </div>
+
+        <div class="co-reports-summary" style="display:flex;justify-content:space-between;gap:30px;margin-bottom:20px;padding:20px;background:#f8f9fa;border-radius:8px;flex-wrap:wrap;">
+            <div class="summary-stat-item">
+                <span class="stat-label">Total Reports:</span>
+                <span id="co-total-reports-count" class="stat-value">-</span>
+            </div>
+            <div class="summary-stat-item">
+                <span class="stat-label">Filtered Reports:</span>
+                <span id="co-filtered-reports-count" class="stat-value">-</span>
+            </div>
+            <div class="summary-stat-item">
+                <span class="stat-label">Pending:</span>
+                <span id="co-pending-count" class="stat-value">-</span>
+            </div>
+            <div class="summary-stat-item">
+                <span class="stat-label">Under Investigation:</span>
+                <span id="co-investigating-count" class="stat-value">-</span>
+            </div>
+            <div class="summary-stat-item">
+                <span class="stat-label">False Alarm:</span>
+                <span id="co-false-alarm-count" class="stat-value">-</span>
+            </div>
+            <div class="summary-stat-item">
+                <span class="stat-label">Resolved:</span>
+                <span id="co-resolved-count" class="stat-value">-</span>
+            </div>
+        </div>
+
+        <!-- Table View -->
+        <div id="co-reports-table-view" class="co-reports-table-view">
+            <div class="co-table-wrap" style="overflow:auto;background:white;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                <table class="co-reports-table" id="co-reports-table" style="width:100%;border-collapse:collapse;">
+                    <thead>
+                        <tr style="text-align:left;border-bottom:2px solid #e5e7eb;background:#f9fafb;">
+                            <th style="padding:12px 16px;font-weight:600;color:#374151;">Complainant</th>
+                            <th style="padding:12px 16px;font-weight:600;color:#374151;">Reason</th>
+                            <th style="padding:12px 16px;font-weight:600;color:#374151;">Complainee</th>
+                            <th style="padding:12px 16px;font-weight:600;color:#374151;">Status</th>
+                            <th style="padding:12px 16px;font-weight:600;color:#374151;">Priority</th>
+                        </tr>
+                    </thead>
+                    <tbody id="co-reports-tbody">
+                        <tr>
+                            <td colspan="5" style="padding:40px;text-align:center;color:#6b7280;">
+                                <i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;display:block;"></i>
+                                Loading reports...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="co-reports-pagination" class="co-users-pagination" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;padding:10px 0;"></div>
+        </div>
+
+        <!-- Trend/Analytics View -->
+        <div id="co-reports-trend-view" class="co-reports-trend-view" style="display:none;">
+            <div style="text-align:center;padding:40px;">
+                <i class="fas fa-spinner fa-spin" style="font-size:24px;color:#3b82f6;"></i>
+                <p style="margin-top:15px;color:#6b7280;">Loading analytics...</p>
+            </div>
+        </div>
+    </div>
+
     
 
     {% if needs_onboarding %}
@@ -429,6 +568,8 @@
 
 {% block extra_js %}
 {{ block.super }}
+<!-- Chart.js for Analytics -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 {% comment %} Embed members data for JS {% endcomment %}
 {{ members|json_script:"co-members-data" }}
 <div id="co-api-endpoints"
@@ -441,6 +582,7 @@
      data-ec-delete-url="{% url 'communityowner_panel:emergency_delete' %}"
      data-ec-update-url="{% url 'communityowner_panel:emergency_update' %}"
      data-reports-list-url="{% url 'communityowner_panel:reports_list' %}"
+     data-reports-detail-url="{% url 'communityowner_panel:report_detail' 0 %}"
      data-reports-download-pdf-url="{% url 'communityowner_panel:reports_download_pdf' %}"
      data-reports-analytics-url="{% url 'communityowner_panel:reports_analytics' %}"
      data-events-list-url="{% url 'events_panel:get_events' %}"

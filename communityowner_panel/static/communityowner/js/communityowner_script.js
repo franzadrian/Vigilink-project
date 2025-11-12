@@ -47,7 +47,7 @@
             
             // Always allow reports to be re-rendered
             if (sectionId === 'reports') {
-                renderReports();
+                showReportsSection();
                 return;
             }
             
@@ -356,6 +356,26 @@
 
         // Initialize the dashboard with performance optimizations
         document.addEventListener('DOMContentLoaded', function() {
+            // Immediately hide all modals to prevent flash
+            const deleteModal = document.getElementById('co-delete-confirm-modal');
+            if (deleteModal) {
+                deleteModal.style.display = 'none';
+                deleteModal.style.visibility = 'hidden';
+                deleteModal.style.opacity = '0';
+            }
+            const reportDetailModal = document.getElementById('co-report-detail-modal');
+            if (reportDetailModal) {
+                reportDetailModal.style.display = 'none';
+                reportDetailModal.style.visibility = 'hidden';
+                reportDetailModal.style.opacity = '0';
+            }
+            const eventModal = document.getElementById('co-event-modal');
+            if (eventModal) {
+                eventModal.style.display = 'none';
+                eventModal.style.visibility = 'hidden';
+                eventModal.style.opacity = '0';
+            }
+            
             // Initialize DOM cache first
             initDOMCache();
             
@@ -565,6 +585,10 @@
                         if (eventsSection) {
                             eventsSection.style.display = 'none';
                         }
+                        const reportsBottom = document.getElementById('co-reports-bottom');
+                        if (reportsBottom) {
+                            reportsBottom.style.display = 'none';
+                        }
                         const usersBottom = document.getElementById('co-users-bottom');
                         if (usersBottom) {
                             usersBottom.style.display = 'block';
@@ -582,10 +606,14 @@
                             }, 100);
                         }
                     } else if (targetId === 'events') {
-                        // Hide users section and other content
+                        // Hide users section, reports section, and other content
                         const usersBottom = document.getElementById('co-users-bottom');
                         if (usersBottom) {
                             usersBottom.style.display = 'none';
+                        }
+                        const reportsBottom = document.getElementById('co-reports-bottom');
+                        if (reportsBottom) {
+                            reportsBottom.style.display = 'none';
                         }
                         const contentArea = document.querySelector('.content-area');
                         if (contentArea) contentArea.style.display = 'none';
@@ -620,7 +648,7 @@
                             }, 150);
                         }
                     } else {
-                        // Hide users and events sections when clicking other cards
+                        // Hide users, events, and reports sections when clicking other cards
                         const usersBottom = document.getElementById('co-users-bottom');
                         if (usersBottom) {
                             usersBottom.style.display = 'none';
@@ -629,14 +657,16 @@
                         if (eventsSection) {
                             eventsSection.style.display = 'none';
                         }
+                        const reportsBottom = document.getElementById('co-reports-bottom');
+                        if (reportsBottom) {
+                            reportsBottom.style.display = 'none';
+                        }
                         
                         if (targetId === 'emergency') {
                             if (window.CO_openEmergencyModal) { window.CO_openEmergencyModal(); }
                         } else if (targetId === 'reports') {
-                            // Always render reports section and open modal
-                            lazyLoad(() => {
-                                openReportsModal();
-                            }, 100);
+                            // Show reports bottom section instead of modal
+                            showReportsSection();
                         } else {
                             // Lazy load other sections
                             console.log('Navigation handler - targetId:', targetId);
@@ -988,6 +1018,7 @@
                 ecDelete: el.dataset.ecDeleteUrl,
                 ecUpdate: el.dataset.ecUpdateUrl,
                 reportsList: el.dataset.reportsListUrl,
+                reportsDetail: el.dataset.reportsDetailUrl,
                 reportsDownloadPdf: el.dataset.reportsDownloadPdfUrl,
                 reportsAnalytics: el.dataset.reportsAnalyticsUrl,
             } : {};
@@ -1564,19 +1595,53 @@
         })();
 
 
-        // Open reports modal directly
-        function openReportsModal() {
-            if (!overlay || !modalShell) return;
+        // Show reports section (replaces modal)
+        function showReportsSection() {
+            // Close all modals first to prevent any modal from showing
+            closeAllModals();
             
-            // Close other modals first (but don't unlock scroll yet)
-            if (overlay) {
-                overlay.style.display = 'none';
-                overlay.style.visibility = 'hidden';
-                overlay.style.opacity = '0';
-                overlay.classList.remove('active', 'show');
+            // Hide other bottom sections
+            const usersSection = document.getElementById('co-users-bottom');
+            const eventsSection = document.getElementById('events');
+            const reportsSection = document.getElementById('co-reports-bottom');
+            
+            if (usersSection) usersSection.style.display = 'none';
+            if (eventsSection) eventsSection.style.display = 'none';
+            
+            // Show reports section
+            if (reportsSection) {
+                reportsSection.style.display = 'block';
+                
+                // Scroll to reports section
+                setTimeout(() => {
+                    reportsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+                
+                // Initialize reports if not already loaded
+                if (!reportsSection.hasAttribute('data-initialized')) {
+                    initializeReportsSection();
+                    reportsSection.setAttribute('data-initialized', 'true');
+                } else {
+                    // Reload reports with current filters
+                    loadReportsTable();
+                }
+            }
+        }
+        
+        // Initialize reports section
+        function initializeReportsSection() {
+            // Close all modals to ensure nothing is showing
+            closeAllModals();
+            
+            // Ensure report detail modal is hidden on initialization
+            const modal = document.getElementById('co-report-detail-modal');
+            if (modal) {
+                modal.style.display = 'none';
+                modal.style.visibility = 'hidden';
+                modal.style.opacity = '0';
             }
             
-            // Close delete confirmation modal if open
+            // Ensure delete confirmation modal is hidden
             const deleteModal = document.getElementById('co-delete-confirm-modal');
             if (deleteModal) {
                 deleteModal.style.display = 'none';
@@ -1584,191 +1649,582 @@
                 deleteModal.style.opacity = '0';
             }
             
-            // Clear modal shell
-            modalShell.innerHTML = '';
-            
-            // Set modal title
-            if (modalTitle) modalTitle.textContent = 'Security Reports';
-            
-            // Create reports content directly in modal
-            modalShell.innerHTML = `
-                <div class="reports-modal">
-                    <div class="reports-header">
-                        <div class="reports-filters">
-                            <div class="filter-group">
-                                <label for="year-filter">Year:</label>
-                                <select id="year-filter">
-                                    <option value="">All Years</option>
-                                    <option value="2023">2023</option>
-                                    <option value="2024">2024</option>
-                                    <option value="2025" selected>2025</option>
-                                </select>
-                            </div>
-                            <div class="filter-group">
-                                <label for="month-filter">Month:</label>
-                                <select id="month-filter">
-                                    <option value="">All Months</option>
-                                    <option value="1">January</option>
-                                    <option value="2">February</option>
-                                    <option value="3">March</option>
-                                    <option value="4">April</option>
-                                    <option value="5">May</option>
-                                    <option value="6">June</option>
-                                    <option value="7">July</option>
-                                    <option value="8">August</option>
-                                    <option value="9">September</option>
-                                    <option value="10" selected>October</option>
-                                    <option value="11">November</option>
-                                    <option value="12">December</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="reports-actions">
-                            <button id="reports-download-pdf" class="action-btn edit-btn">
-                                <i class="fas fa-file-pdf"></i> Download PDF
-                            </button>
-                            <button id="reports-analytics" class="action-btn edit-btn">
-                                <i class="fas fa-chart-bar"></i> Analytics
-                            </button>
-                        </div>
-                    </div>
-                    <div class="reports-summary">
-                        <div class="summary-stats">
-                            <div class="stat-item">
-                                <span class="stat-label">Total Reports:</span>
-                                <span id="total-reports-count">-</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">Filtered Reports:</span>
-                                <span id="filtered-reports-count">-</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // Open the modal
-            overlay.style.display = 'flex';
-            overlay.style.visibility = 'visible';
-            overlay.style.opacity = '1';
-            overlay.classList.add('active');
-            
-            // Set body styles for modal - preserve scroll position
-            try {
-                lockBodyScroll();
-            } catch (e) {
-                console.error('Error locking body scroll in reports modal:', e);
+            // Ensure event modal is hidden
+            const eventModal = document.getElementById('co-event-modal');
+            if (eventModal) {
+                eventModal.style.display = 'none';
+                eventModal.style.visibility = 'hidden';
+                eventModal.style.opacity = '0';
             }
             
-            // Bind action events after DOM update
-            setTimeout(() => {
-                bindReportsActions();
-                
-                // Set dynamic defaults based on current date
+            // Populate year filter
+            const yearFilter = document.getElementById('co-report-year-filter');
+            if (yearFilter) {
+                const currentYear = new Date().getFullYear();
+                const startYear = 2020; // Start from 2020
+                yearFilter.innerHTML = '<option value="">All Years</option>';
+                for (let year = currentYear; year >= startYear; year--) {
+                    const option = document.createElement('option');
+                    option.value = year;
+                    option.textContent = year;
+                    yearFilter.appendChild(option);
+                }
+            }
+            
+            // Set default filters to current month/year
                 const now = new Date();
                 const currentYear = now.getFullYear();
-                const currentMonth = now.getMonth() + 1; // getMonth() returns 0-11
-                
-                const yearSelect = document.getElementById('year-filter');
-                const monthSelect = document.getElementById('month-filter');
-                
-                if (yearSelect && monthSelect) {
-                    // Set year default (2025 or current year if later)
-                    const defaultYear = Math.max(2025, currentYear);
-                    yearSelect.value = defaultYear.toString();
-                    
-                    // Set month default (October or current month if later in year)
-                    let defaultMonth = 10; // October
-                    if (currentYear > 2025 || (currentYear === 2025 && currentMonth > 10)) {
-                        defaultMonth = currentMonth;
-                    }
-                    monthSelect.value = defaultMonth.toString();
-                    
-                    // Update summary with new defaults
-                    updateReportsSummary();
-                }
-                
-                // Add close button functionality
-                const closeBtn = document.getElementById('co-modal-close');
-                if (closeBtn) {
-                    closeBtn.addEventListener('click', function() {
-                        closeAllModals();
+            const currentMonth = now.getMonth() + 1;
+            
+            if (yearFilter) yearFilter.value = currentYear.toString();
+            const monthFilter = document.getElementById('co-report-month-filter');
+            if (monthFilter) monthFilter.value = currentMonth.toString();
+            
+            // Bind filter events
+            bindReportsFilters();
+            
+            // Load initial reports
+            loadReportsTable();
+        }
+        
+        // Bind reports filter events
+        function bindReportsFilters() {
+            const searchInput = document.getElementById('co-report-search');
+            const statusFilter = document.getElementById('co-report-status-filter');
+            const priorityFilter = document.getElementById('co-report-priority-filter');
+            const typeFilter = document.getElementById('co-report-type-filter');
+            const yearFilter = document.getElementById('co-report-year-filter');
+            const monthFilter = document.getElementById('co-report-month-filter');
+            const downloadBtn = document.getElementById('co-reports-download-pdf');
+            const analyticsBtn = document.getElementById('co-reports-analytics');
+            
+            // Debounce search
+            let searchTimeout;
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => {
+                        loadReportsTable();
+                    }, 300);
+                });
+            }
+            
+            // Filter change handlers
+            [statusFilter, priorityFilter, typeFilter].forEach(filter => {
+                if (filter) {
+                    filter.addEventListener('change', () => {
+                        loadReportsTable();
+                        updateReportsSummary();
                     });
                 }
-                
-                // Add overlay click to close
-                if (overlay) {
-                    overlay.addEventListener('click', function(e) {
-                        if (e.target === overlay) {
-                            closeAllModals();
+            });
+            
+            // Year and Month filters - update analytics if trend view is visible
+            [yearFilter, monthFilter].forEach(filter => {
+                if (filter) {
+                    filter.addEventListener('change', () => {
+                        const tableView = document.getElementById('co-reports-table-view');
+                        const trendView = document.getElementById('co-reports-trend-view');
+                        
+                        // Check if trend view is currently visible
+                        if (trendView && trendView.style.display !== 'none' && tableView && tableView.style.display === 'none') {
+                            // Reload analytics with new filters
+                            const year = yearFilter ? yearFilter.value : '';
+                            const month = monthFilter ? monthFilter.value : '';
+                            showReportsTrend(year, month);
+                        } else {
+                            // Otherwise just update table
+                            loadReportsTable();
+                            updateReportsSummary();
                         }
                     });
                 }
-            }, 10);
-        }
-
-        // Render reports with analytics
-        function renderReports() {
-            if (!reportList) return;
+            });
             
-            reportList.innerHTML = `
-                <div class="reports-header">
-                    <div class="reports-actions">
-                        <button id="reports-download-pdf" class="action-btn edit-btn">
-                            <i class="fas fa-file-pdf"></i> Download PDF
-                        </button>
-                        <button id="reports-analytics" class="action-btn edit-btn">
-                            <i class="fas fa-chart-bar"></i> Analytics
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            // Always bind action events (remove any existing listeners first)
-            bindReportsActions();
-        }
-
-        // Bind reports action events
-        function bindReportsActions() {
-            const downloadPdfBtn = document.getElementById('reports-download-pdf');
-            const analyticsBtn = document.getElementById('reports-analytics');
-            const yearFilter = document.getElementById('year-filter');
-            const monthFilter = document.getElementById('month-filter');
-
-            if (downloadPdfBtn) {
-                // Clone the button to remove all event listeners
-                const newDownloadBtn = downloadPdfBtn.cloneNode(true);
-                downloadPdfBtn.parentNode.replaceChild(newDownloadBtn, downloadPdfBtn);
-                
-                newDownloadBtn.addEventListener('click', function() {
+            // Action buttons
+            if (downloadBtn) {
+                downloadBtn.addEventListener('click', function() {
                     const year = yearFilter ? yearFilter.value : '';
                     const month = monthFilter ? monthFilter.value : '';
-                    showDownloadOptions('pdf', year, month);
+                    actualDownload('pdf', year, month);
                 });
             }
 
             if (analyticsBtn) {
-                // Clone the button to remove all event listeners
-                const newAnalyticsBtn = analyticsBtn.cloneNode(true);
-                analyticsBtn.parentNode.replaceChild(newAnalyticsBtn, analyticsBtn);
-                
-                newAnalyticsBtn.addEventListener('click', function() {
+                analyticsBtn.addEventListener('click', function() {
+                    const viewMode = this.getAttribute('data-view-mode');
+                    if (viewMode === 'trend') {
+                        // Switch back to table
+                        showReportsTable();
+                    } else {
+                        // Switch to trend view
                     const year = yearFilter ? yearFilter.value : '';
                     const month = monthFilter ? monthFilter.value : '';
-                    showReportsAnalytics(year, month);
+                        showReportsTrend(year, month);
+                    }
                 });
             }
-
-            // Add filter change listeners
-            if (yearFilter) {
-                yearFilter.addEventListener('change', updateReportsSummary);
+        }
+        
+        // Load reports table
+        let currentReportsPage = 1;
+        function loadReportsTable(page = 1) {
+            currentReportsPage = page;
+            const tbody = document.getElementById('co-reports-tbody');
+            if (!tbody) return;
+            
+            // Show loading state
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" style="padding:40px;text-align:center;color:#6b7280;">
+                        <i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;display:block;"></i>
+                        Loading reports...
+                    </td>
+                </tr>
+            `;
+            
+            // Get filter values
+            const searchInput = document.getElementById('co-report-search');
+            const statusFilter = document.getElementById('co-report-status-filter');
+            const priorityFilter = document.getElementById('co-report-priority-filter');
+            const typeFilter = document.getElementById('co-report-type-filter');
+            const yearFilter = document.getElementById('co-report-year-filter');
+            const monthFilter = document.getElementById('co-report-month-filter');
+            
+            const params = new URLSearchParams({
+                page: page,
+                per_page: 10
+            });
+            
+            if (searchInput && searchInput.value) params.append('search', searchInput.value);
+            if (statusFilter && statusFilter.value) params.append('status', statusFilter.value);
+            if (priorityFilter && priorityFilter.value) params.append('priority', priorityFilter.value);
+            if (typeFilter && typeFilter.value) params.append('target_type', typeFilter.value);
+            if (yearFilter && yearFilter.value) params.append('year', yearFilter.value);
+            if (monthFilter && monthFilter.value) params.append('month', monthFilter.value);
+            
+            const { reportsList } = endpoints();
+            if (!reportsList) {
+                tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#dc2626;">Error: API endpoint not found</td></tr>';
+                return;
             }
-            if (monthFilter) {
-                monthFilter.addEventListener('change', updateReportsSummary);
+            
+            fetch(`${reportsList}?${params.toString()}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.ok && Array.isArray(data.reports)) {
+                    renderReportsTable(data.reports, data.pagination);
+                    updateReportsSummary();
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#dc2626;">Error loading reports</td></tr>';
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load reports:', err);
+                tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:#dc2626;">Error loading reports. Please try again.</td></tr>';
+            });
+        }
+        
+        // Render reports table
+        function renderReportsTable(reports, pagination) {
+            const tbody = document.getElementById('co-reports-tbody');
+            if (!tbody) return;
+            
+            if (reports.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="padding:40px;text-align:center;color:#6b7280;">
+                            <i class="fas fa-inbox" style="font-size:48px;margin-bottom:15px;display:block;opacity:0.3;"></i>
+                            <p style="font-size:16px;margin:0;">No reports found matching your filters.</p>
+                        </td>
+                    </tr>
+                `;
+                renderReportsPagination(null);
+                return;
             }
+            
+            tbody.innerHTML = reports.map(report => {
+                const priorityClass = `priority-${report.priority}`;
+                const statusClass = `status-${report.status}`;
+                const priorityLabel = report.priority.replace('level_', 'Level ');
+                const statusLabel = report.status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                const date = new Date(report.created_at);
+                const formattedDate = date.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                // Process reasons - if "Other" is in the list, use details instead
+                let reasons = report.reasons || 'N/A';
+                const reasonsList = report.reasons_list || [];
+                
+                // If "Other" is in reasons, replace it with details
+                if (reasonsList && (reasonsList.includes('Other') || reasonsList.some(r => r && r.toLowerCase() === 'other'))) {
+                    const reasonsArray = typeof reasons === 'string' ? reasons.split(', ') : [];
+                    const filteredReasons = reasonsArray.filter(r => r && r.toLowerCase() !== 'other');
+                    if (report.details) {
+                        filteredReasons.push(report.details);
+                    }
+                    reasons = filteredReasons.join(', ') || 'N/A';
+                }
+                
+                const reasonsDisplay = reasons.length > 50 ? reasons.substring(0, 50) + '...' : reasons;
+                
+                // Clean up subject: remove "Report:" prefix, but keep "Non-Resident" intact
+                let cleanSubject = report.subject || '';
+                cleanSubject = cleanSubject.replace(/^Report:\s*/i, '').trim();
+                // Only remove standalone "Resident" word, not "Non-Resident"
+                cleanSubject = cleanSubject.replace(/(?<!Non-)\bResident\b/gi, '').trim();
+                cleanSubject = cleanSubject.replace(/\s+/g, ' ').trim();
+                
+                return `
+                    <tr style="border-bottom:1px solid #e5e7eb;transition:background 0.2s;cursor:pointer;" 
+                        onmouseover="this.style.background='#f3f4f6'" 
+                        onmouseout="this.style.background=''"
+                        data-report-id="${report.id}"
+                        class="report-row">
+                        <td style="padding:12px 16px;color:#6b7280;">${escapeHtml(report.reporter_display || 'Anonymous')}</td>
+                        <td style="padding:12px 16px;color:#6b7280;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(reasons)}">${escapeHtml(reasonsDisplay)}</td>
+                        <td style="padding:12px 16px;">
+                            <div style="font-weight:500;color:#1f2937;">${escapeHtml(cleanSubject)}</div>
+                        </td>
+                        <td style="padding:12px 16px;">
+                            <span class="badge ${statusClass}" style="padding:4px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;text-transform:uppercase;">${statusLabel}</span>
+                        </td>
+                        <td style="padding:12px 16px;">
+                            <span class="badge ${priorityClass}" style="padding:4px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;text-transform:uppercase;">${priorityLabel}</span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            // Bind click handlers to rows (with mobile touch support)
+            tbody.querySelectorAll('.report-row').forEach(row => {
+                let touchStartTime = null;
+                let touchStartY = 0;
+                let touchMoved = false;
+                let clickAllowed = true;
+                
+                // Handle touch start for mobile
+                row.addEventListener('touchstart', function(e) {
+                    touchStartTime = Date.now();
+                    touchStartY = e.touches[0].clientY;
+                    touchMoved = false;
+                    clickAllowed = true;
+                }, { passive: true });
+                
+                // Track if user is scrolling
+                row.addEventListener('touchmove', function(e) {
+                    if (touchStartTime !== null) {
+                        const currentY = e.touches[0].clientY;
+                        if (Math.abs(currentY - touchStartY) > 10) {
+                            touchMoved = true;
+                            clickAllowed = false;
+                        }
+                    }
+                }, { passive: true });
+                
+                // Reset on touch end
+                row.addEventListener('touchend', function(e) {
+                    if (touchStartTime !== null) {
+                        const touchDuration = Date.now() - touchStartTime;
+                        // If it was a long press (> 500ms) or user scrolled, don't allow click
+                        if (touchDuration > 500 || touchMoved) {
+                            clickAllowed = false;
+                        }
+                        // Reset after a short delay
+            setTimeout(() => {
+                            touchStartTime = null;
+                            touchMoved = false;
+                            clickAllowed = true;
+                        }, 100);
+                    }
+                }, { passive: true });
+                
+                // Handle click/tap
+                row.addEventListener('click', function(e) {
+                    // Prevent accidental triggers on mobile
+                    // Only trigger if it's a mouse click OR a valid touch tap
+                    const isMouseClick = touchStartTime === null;
+                    const isValidTouch = touchStartTime !== null && clickAllowed && !touchMoved;
+                    
+                    if (isMouseClick || isValidTouch) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        const reportId = this.getAttribute('data-report-id');
+                        if (reportId) {
+                            showReportDetailModal(reportId);
+                        }
+                    }
+                });
+            });
+            
+            renderReportsPagination(pagination);
+        }
+        
+        // Show report detail modal
+        function showReportDetailModal(reportId) {
+            const modal = document.getElementById('co-report-detail-modal');
+            const content = document.getElementById('co-report-detail-content');
+            const closeBtn = document.getElementById('co-report-detail-close');
+            
+            if (!modal || !content) return;
+            
+            // Show modal with loading state
+            modal.style.display = 'flex';
+            modal.style.visibility = 'visible';
+            modal.style.opacity = '1';
+            content.innerHTML = `
+                <div style="text-align:center;padding:40px;">
+                    <i class="fas fa-spinner fa-spin" style="font-size:24px;color:#3b82f6;"></i>
+                    <p style="margin-top:15px;color:#6b7280;">Loading report details...</p>
+                </div>
+            `;
+            
+            // Lock body scroll
+                try {
+                    const sbw = window.innerWidth - document.documentElement.clientWidth;
+                    document.documentElement.style.overflow = 'hidden';
+                    document.body.style.overflow = 'hidden';
+                    document.body.classList.add('modal-open');
+                    if (sbw > 0) {
+                        document.body.style.paddingRight = sbw + 'px';
+                    }
+                } catch (e) {}
+            
+            // Fetch report details
+            const { reportsDetail } = endpoints();
+            if (!reportsDetail) {
+                content.innerHTML = '<div style="padding:20px;color:#dc2626;">Error: API endpoint not found</div>';
+                return;
+            }
+            
+            const detailUrl = reportsDetail.replace('0', reportId);
+            fetch(detailUrl, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.ok && data.report) {
+                    renderReportDetail(data.report);
+                } else {
+                    content.innerHTML = `<div style="padding:20px;color:#dc2626;">Error: ${data.error || 'Failed to load report details'}</div>`;
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load report details:', err);
+                content.innerHTML = '<div style="padding:20px;color:#dc2626;">Error loading report details. Please try again.</div>';
+            });
+            
+            // Close button handler
+            if (closeBtn) {
+                closeBtn.onclick = () => closeReportDetailModal();
+            }
+            
+            // Close on overlay click
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    closeReportDetailModal();
+                }
+            };
+        }
+        
+        // Render report detail content
+        function renderReportDetail(report) {
+            const content = document.getElementById('co-report-detail-content');
+            if (!content) return;
+            
+            // Process reasons - if "Other" is in the list, use details instead
+            let reasons = report.reasons || 'N/A';
+            const reasonsList = report.reasons_list || [];
+            
+            // If "Other" is in reasons, replace it with details
+            if (reasonsList && (reasonsList.includes('Other') || reasonsList.some(r => r && r.toLowerCase() === 'other'))) {
+                const reasonsArray = typeof reasons === 'string' ? reasons.split(', ') : [];
+                const filteredReasons = reasonsArray.filter(r => r && r.toLowerCase() !== 'other');
+                if (report.details) {
+                    filteredReasons.push(report.details);
+                }
+                reasons = filteredReasons.join(', ') || 'N/A';
+            }
+            
+            // Clean up subject - keep "Non-Resident" intact
+            let cleanSubject = report.subject || '';
+            cleanSubject = cleanSubject.replace(/^Report:\s*/i, '').trim();
+            // Only remove standalone "Resident" word, not "Non-Resident"
+            cleanSubject = cleanSubject.replace(/(?<!Non-)\bResident\b/gi, '').trim();
+            cleanSubject = cleanSubject.replace(/\s+/g, ' ').trim();
+            // If it's just "Non-" left, restore "Non-Resident"
+            if (cleanSubject === 'Non-') {
+                cleanSubject = 'Non-Resident';
+            }
+            
+            const priorityClass = `priority-${report.priority}`;
+            const statusClass = `status-${report.status}`;
+            const priorityLabel = report.priority.replace('level_', 'Level ');
+            const statusLabel = report.status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+            
+            const createdDate = new Date(report.created_at);
+            const formattedCreatedDate = createdDate.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            content.innerHTML = `
+                <div style="display:flex;flex-direction:column;gap:20px;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                        <div>
+                            <label style="display:block;font-size:0.875rem;font-weight:600;color:#6b7280;margin-bottom:6px;">Complainant</label>
+                            <div style="font-size:1rem;color:#1f2937;">${escapeHtml(report.reporter_display || 'Anonymous')}</div>
+                            </div>
+                        <div>
+                            <label style="display:block;font-size:0.875rem;font-weight:600;color:#6b7280;margin-bottom:6px;">Complainee</label>
+                            <div style="font-size:1rem;color:#1f2937;">${escapeHtml(cleanSubject)}</div>
+                            </div>
+                            </div>
+                    
+                    <div>
+                        <label style="display:block;font-size:0.875rem;font-weight:600;color:#6b7280;margin-bottom:6px;">Reason</label>
+                        <div style="font-size:1rem;color:#1f2937;padding:12px;background:#f9fafb;border-radius:8px;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:break-word;">${escapeHtml(reasons)}</div>
+                            </div>
+                    
+                    ${report.message ? `
+                    <div>
+                        <label style="display:block;font-size:0.875rem;font-weight:600;color:#6b7280;margin-bottom:6px;">Details</label>
+                        <div style="font-size:1rem;color:#1f2937;padding:12px;background:#f9fafb;border-radius:8px;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:break-word;line-height:1.6;">${escapeHtml(report.message.replace(/^Details:\s*/i, '').trim())}</div>
+                        </div>
+                    ` : ''}
+                    
+                    ${report.location ? `
+                    <div>
+                        <label style="display:block;font-size:0.875rem;font-weight:600;color:#6b7280;margin-bottom:6px;">Location</label>
+                        <div style="font-size:1rem;color:#1f2937;">${escapeHtml(report.location)}</div>
+                        </div>
+                    ` : ''}
+                    
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;padding-top:20px;border-top:1px solid #e5e7eb;">
+                        <div>
+                            <label style="display:block;font-size:0.875rem;font-weight:600;color:#6b7280;margin-bottom:6px;">Status</label>
+                            <div>
+                                <span class="badge ${statusClass}" style="padding:6px 12px;border-radius:12px;font-size:0.875rem;font-weight:600;text-transform:uppercase;">${statusLabel}</span>
+                        </div>
+                    </div>
+                        <div>
+                            <label style="display:block;font-size:0.875rem;font-weight:600;color:#6b7280;margin-bottom:6px;">Priority</label>
+                            <div>
+                                <span class="badge ${priorityClass}" style="padding:6px 12px;border-radius:12px;font-size:0.875rem;font-weight:600;text-transform:uppercase;">${priorityLabel}</span>
+                        </div>
+                    </div>
+                        <div>
+                            <label style="display:block;font-size:0.875rem;font-weight:600;color:#6b7280;margin-bottom:6px;">Reported On</label>
+                            <div style="font-size:0.875rem;color:#6b7280;">${formattedCreatedDate}</div>
+                    </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Close report detail modal
+        function closeReportDetailModal() {
+            const modal = document.getElementById('co-report-detail-modal');
+            if (modal) {
+                modal.style.display = 'none';
+                modal.style.visibility = 'hidden';
+                modal.style.opacity = '0';
+            }
+            
+            // Unlock body scroll
+            try {
+                document.documentElement.style.overflow = '';
+                document.body.style.overflow = '';
+                document.body.classList.remove('modal-open');
+                document.body.style.paddingRight = '';
+            } catch (e) {}
+        }
+        
+        // Render pagination (same style as Manage Users)
+        function renderReportsPagination(pagination) {
+            const paginationEl = document.getElementById('co-reports-pagination');
+            if (!paginationEl) return;
+            
+            if (!pagination || pagination.total_pages <= 1) {
+                paginationEl.innerHTML = '';
+                return;
+            }
+            
+            const currentPage = pagination.current_page;
+            const totalPages = pagination.total_pages;
+            
+            // Helper function to create pagination buttons (same style as Manage Users)
+            const mk = (label, p, disabled, active, isPageNumber = false) => {
+                const b = document.createElement('button');
+                b.className = 'page-btn' + (active ? ' active' : '');
+                b.textContent = label;
+                b.style.border = '1px solid #e5e7eb';
+                b.style.background = '#fff';
+                b.style.color = '#374151';
+                b.style.borderRadius = '8px';
+                b.style.padding = '6px 10px';
+                b.style.fontSize = '13px';
+                
+                if (isPageNumber) {
+                    // Page numbers are unclickable but look normal
+                    b.style.cursor = 'default';
+                } else {
+                    b.style.cursor = 'pointer';
+                }
+                
+                if (active) {
+                    b.style.borderColor = '#2563eb';
+                    b.style.color = '#2563eb';
+                    b.style.background = '#eff6ff';
+                }
+                if (disabled) {
+                    b.disabled = true;
+                    b.style.opacity = '.5';
+                    b.style.cursor = 'default';
+                } else if (!isPageNumber) {
+                    b.addEventListener('click', () => {
+                        loadReportsTable(p);
+                    });
+                }
+                return b;
+            };
+            
+            paginationEl.innerHTML = '';
+            
+            // Only show Previous button if not on first page
+            if (currentPage > 1) {
+                paginationEl.appendChild(mk('Prev', Math.max(1, currentPage - 1), false, false));
+            }
+            
+            // Show only current page number
+            paginationEl.appendChild(mk(String(currentPage), currentPage, false, true, true));
+            
+            // Only show Next button if not on last page
+            if (currentPage < totalPages) {
+                paginationEl.appendChild(mk('Next', Math.min(totalPages, currentPage + 1), false, false));
+            }
+        }
+        
+        // Helper function to escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
 
-            // Load initial summary
-            updateReportsSummary();
+        // Render reports with analytics (legacy function - now redirects to showReportsSection)
+        function renderReports() {
+            showReportsSection();
         }
 
         // Helper functions for filtering
@@ -1793,389 +2249,95 @@
 
         // Update reports summary based on filters
         function updateReportsSummary() {
-            const yearFilter = document.getElementById('year-filter');
-            const monthFilter = document.getElementById('month-filter');
-            const totalCountEl = document.getElementById('total-reports-count');
-            const filteredCountEl = document.getElementById('filtered-reports-count');
+            const yearFilter = document.getElementById('co-report-year-filter');
+            const monthFilter = document.getElementById('co-report-month-filter');
+            const statusFilter = document.getElementById('co-report-status-filter');
+            const priorityFilter = document.getElementById('co-report-priority-filter');
+            const typeFilter = document.getElementById('co-report-type-filter');
+            const searchInput = document.getElementById('co-report-search');
+            
+            const totalCountEl = document.getElementById('co-total-reports-count');
+            const filteredCountEl = document.getElementById('co-filtered-reports-count');
+            const pendingCountEl = document.getElementById('co-pending-count');
+            const investigatingCountEl = document.getElementById('co-investigating-count');
+            const falseAlarmCountEl = document.getElementById('co-false-alarm-count');
+            const resolvedCountEl = document.getElementById('co-resolved-count');
             
             if (!totalCountEl || !filteredCountEl) return;
-            
-            const year = yearFilter ? yearFilter.value : '';
-            const month = monthFilter ? monthFilter.value : '';
             
             // Get total reports count
             const { reportsList } = endpoints();
             if (!reportsList) return;
             
-            fetch(`${reportsList}?per_page=1000`, { 
+            // Build filter parameters for API call
+            const year = yearFilter ? yearFilter.value : '';
+            const month = monthFilter ? monthFilter.value : '';
+            const status = statusFilter ? statusFilter.value : '';
+            const priority = priorityFilter ? priorityFilter.value : '';
+            const type = typeFilter ? typeFilter.value : '';
+            const search = searchInput ? searchInput.value : '';
+            
+            // Build query string with all filters
+            const params = new URLSearchParams();
+            params.append('per_page', '1000');
+            if (year) params.append('year', year);
+            if (month) params.append('month', month);
+            if (status) params.append('status', status);
+            if (priority) params.append('priority', priority);
+            if (type) params.append('target_type', type);
+            if (search) params.append('search', search);
+            
+            fetch(`${reportsList}?${params.toString()}`, { 
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             })
             .then(r => r.json())
             .then(data => {
                 if (data && data.ok && Array.isArray(data.reports)) {
-                    const totalReports = data.reports.length;
-                    totalCountEl.textContent = totalReports;
-                    
-                    // Filter reports based on year/month
-                    let filteredReports = data.reports;
-                    if (year) {
-                        filteredReports = filteredReports.filter(report => {
-                            const reportDate = new Date(report.created_at);
-                            return reportDate.getFullYear() == year;
-                        });
-                    }
-                    if (month) {
-                        filteredReports = filteredReports.filter(report => {
-                            const reportDate = new Date(report.created_at);
-                            return reportDate.getMonth() + 1 == month; // getMonth() returns 0-11
-                        });
-                    }
-                    
-                    filteredCountEl.textContent = filteredReports.length;
+                    // Get total reports (unfiltered) for comparison
+                    const totalReportsParams = new URLSearchParams();
+                    totalReportsParams.append('per_page', '1000');
+                    return fetch(`${reportsList}?${totalReportsParams.toString()}`, { 
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                    .then(r2 => r2.json())
+                    .then(totalData => {
+                        if (totalData && totalData.ok && Array.isArray(totalData.reports)) {
+                            // Total reports (unfiltered)
+                            totalCountEl.textContent = totalData.reports.length;
+                        }
+                        
+                        // Filtered reports count
+                        const filteredReports = data.reports;
+                        filteredCountEl.textContent = filteredReports.length;
+                        
+                        // Count statuses from FILTERED reports
+                        const pending = filteredReports.filter(r => r.status === 'pending').length;
+                        const investigating = filteredReports.filter(r => r.status === 'investigating').length;
+                        const falseAlarm = filteredReports.filter(r => r.status === 'false_alarm').length;
+                        const resolved = filteredReports.filter(r => r.status === 'resolved').length;
+                        
+                        if (pendingCountEl) pendingCountEl.textContent = pending;
+                        if (investigatingCountEl) investigatingCountEl.textContent = investigating;
+                        if (falseAlarmCountEl) falseAlarmCountEl.textContent = falseAlarm;
+                        if (resolvedCountEl) resolvedCountEl.textContent = resolved;
+                    });
                 }
             })
             .catch(err => {
                 console.error('Failed to load reports summary:', err);
                 totalCountEl.textContent = '-';
                 filteredCountEl.textContent = '-';
+                if (pendingCountEl) pendingCountEl.textContent = '-';
+                if (investigatingCountEl) investigatingCountEl.textContent = '-';
+                if (falseAlarmCountEl) falseAlarmCountEl.textContent = '-';
+                if (resolvedCountEl) resolvedCountEl.textContent = '-';
             });
         }
+        
+        // Make loadReportsTable globally accessible for pagination
+        window.loadReportsTable = loadReportsTable;
 
-        // Show download options (preview or direct download)
-        function showDownloadOptions(format, year = '', month = '') {
-            if (!overlay || !modalShell) return;
-            
-            const filterText = getFilterText(year, month);
-            modalTitle.textContent = `Download ${format.toUpperCase()}${filterText}`;
-            modalShell.innerHTML = `
-                <div class="download-options">
-                    <div class="download-option">
-                        <div class="option-icon">
-                            <i class="fas fa-eye"></i>
-                        </div>
-                        <div class="option-content">
-                            <h3>Preview First</h3>
-                            <p>See what will be included in your ${format.toUpperCase()} download${filterText} before downloading</p>
-                            <button id="preview-download-pdf" class="action-btn edit-btn">
-                                <i class="fas fa-eye"></i> Preview & Download
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="download-option">
-                        <div class="option-icon">
-                            <i class="fas fa-download"></i>
-                        </div>
-                        <div class="option-content">
-                            <h3>Download Directly</h3>
-                            <p>Download your ${format.toUpperCase()} file${filterText} immediately without preview</p>
-                            <button id="direct-download-pdf" class="action-btn edit-btn">
-                                <i class="fas fa-download"></i> Download Now
-                            </button>
-                        </div>
-                    </div>
-                    
-                </div>
-            `;
-            
-            // Open the modal first
-            overlay.style.display = 'flex';
-            overlay.style.visibility = 'visible';
-            overlay.style.opacity = '1';
-            overlay.classList.add('active');
-            
-            // Set body styles for modal
-            try {
-                const sbw = window.innerWidth - document.documentElement.clientWidth;
-                document.documentElement.style.overflow = 'hidden';
-                document.body.style.overflow = 'hidden';
-                document.body.classList.add('modal-open');
-                if (sbw > 0) {
-                    document.body.style.paddingRight = sbw + 'px';
-                }
-            } catch (e) {}
-            
-            // Wait for DOM to update, then bind events
-            setTimeout(() => {
-                const previewBtn = document.getElementById('preview-download-pdf');
-                const directBtn = document.getElementById('direct-download-pdf');
-                
-                if (previewBtn) {
-                    previewBtn.addEventListener('click', function() {
-                        closeAllModals();
-                        showDownloadPreview('pdf', year, month);
-                    });
-                }
-                
-                if (directBtn) {
-                    directBtn.addEventListener('click', function() {
-                        closeAllModals();
-                        actualDownload('pdf', year, month);
-                    });
-                }
-            }, 10);
-        }
-
-        // Show preview before download
-        function downloadReports(format) {
-            showDownloadPreview(format);
-        }
-
-        // Show download preview modal
-        function showDownloadPreview(format, year = '', month = '') {
-            const { reportsList, reportsAnalytics } = endpoints();
-            if (!reportsList || !reportsAnalytics) return;
-
-            const filterText = getFilterText(year, month);
-
-            // Show loading state
-            if (overlay && modalShell) {
-                modalTitle.textContent = `Preview ${format.toUpperCase()} Download${filterText}`;
-                modalShell.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary);"></i><p style="margin-top: 20px;">Loading preview...</p></div>';
-                
-                // Open the modal
-                overlay.style.display = 'flex';
-                overlay.style.visibility = 'visible';
-                overlay.style.opacity = '1';
-                overlay.classList.add('active');
-                
-                // Set body styles for modal
-                try {
-                    const sbw = window.innerWidth - document.documentElement.clientWidth;
-                    document.documentElement.style.overflow = 'hidden';
-                    document.body.style.overflow = 'hidden';
-                    document.body.classList.add('modal-open');
-                    if (sbw > 0) {
-                        document.body.style.paddingRight = sbw + 'px';
-                    }
-                } catch (e) {}
-            }
-
-            // Build URLs with filters
-            let reportsUrl = `${reportsList}?per_page=1000`;
-            let analyticsUrl = reportsAnalytics;
-            
-            const params = new URLSearchParams();
-            if (year) params.append('year', year);
-            if (month) params.append('month', month);
-            params.append('_t', Date.now()); // Cache busting
-            params.append('_r', Math.random()); // Additional cache busting
-            
-            if (params.toString()) {
-                reportsUrl += '&' + params.toString();
-                analyticsUrl += (analyticsUrl.includes('?') ? '&' : '?') + params.toString();
-            }
-
-            // Fetch both reports and analytics data
-            Promise.all([
-                fetch(reportsUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }}).then(r => r.json()),
-                fetch(analyticsUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }}).then(r => r.json())
-            ])
-            .then(([reportsData, analyticsData]) => {
-                if (reportsData && reportsData.ok && analyticsData && analyticsData.ok) {
-                    const reports = reportsData.reports || [];
-                    const analytics = analyticsData.analytics || {};
-                    
-                    showPDFPreview(reports, analytics, year, month);
-                } else {
-                    throw new Error('Failed to load data');
-                }
-            })
-            .catch(err => {
-                console.error('Failed to load preview data:', err);
-                CO_showToast && CO_showToast('Failed to load preview data', 'error');
-                if (overlay) overlay.style.display = 'none';
-            });
-        }
-
-        // Show PDF preview
-        function showPDFPreview(reports, analytics, year = '', month = '') {
-            if (!modalShell) return;
-
-            // Determine the period title based on filters
-            let periodTitle = '';
-            
-            if (year && month) {
-                // Specific month and year
-                const monthName = getMonthName(month);
-                periodTitle = `Reports for ${monthName} ${year}`;
-            } else if (year) {
-                // Entire year
-                periodTitle = `Reports for ${year}`;
-            } else if (month) {
-                // Specific month (current year)
-                const monthName = getMonthName(month);
-                const currentYear = new Date().getFullYear();
-                periodTitle = `Reports for ${monthName} ${currentYear}`;
-            } else {
-                // All reports - show current month as reference
-                const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
-                periodTitle = `Reports This Month (${currentMonth})`;
-            }
-
-            // Use the reports as-is since they're already filtered server-side
-            const periodReports = reports;
-
-            // Check if there's no data for the selected period
-            if (periodReports.length === 0) {
-                modalShell.innerHTML = `
-                    <div class="download-preview">
-                        <div class="preview-header">
-                            <h3><i class="fas fa-file-pdf"></i> PDF Preview</h3>
-                            <p>This is what your PDF download will contain:</p>
-                        </div>
-                        <div class="preview-content">
-                            <div class="empty-state">
-                                <div class="empty-icon">
-                                    <i class="fas fa-inbox"></i>
-                                </div>
-                                <h3>No Data Found</h3>
-                                <p>There are no security reports for the selected period.</p>
-                                <div class="empty-details">
-                                    <p><strong>Selected Period:</strong> ${periodTitle}</p>
-                                    <p><strong>Total Reports Available:</strong> ${reports.length}</p>
-                                </div>
-                                <div class="empty-suggestions">
-                                    <h4>Suggestions:</h4>
-                                    <ul>
-                                        <li>Try selecting a different year or month</li>
-                                        <li>Download all reports to see available data</li>
-                                        <li>Check if reports exist for other time periods</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                return;
-            }
-
-            const residentReports = periodReports.filter(r => r.target_type === 'resident');
-            const nonResidentReports = periodReports.filter(r => r.target_type === 'outsider');
-
-            modalShell.innerHTML = `
-                <div class="download-preview">
-                    <div class="preview-header">
-                        <h3><i class="fas fa-file-pdf"></i> PDF Preview</h3>
-                        <p>This is what your PDF download will contain:</p>
-                    </div>
-                    <div class="preview-content">
-                    
-                    <div class="preview-stats">
-                        <div class="stat-grid">
-                            <div class="stat-item">
-                                <h4>${periodReports.length}</h4>
-                                <p>${periodTitle}</p>
-                            </div>
-                            <div class="stat-item">
-                                <h4>${residentReports.length}</h4>
-                                <p>Resident Reports</p>
-                            </div>
-                            <div class="stat-item">
-                                <h4>${nonResidentReports.length}</h4>
-                                <p>Non-Resident Reports</p>
-                            </div>
-                            <div class="stat-item">
-                                <h4>${reports.length}</h4>
-                                <p>Total Available Reports</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="preview-section">
-                        <h4>Common Issues/Reasons Reported</h4>
-                        <div class="reasons-list">
-                            ${analytics.common_reasons && analytics.common_reasons.length > 0 ? 
-                                analytics.common_reasons.map(reason => 
-                                    `<div class="reason-item">
-                                        <span class="reason-name">${reason.reason}</span>
-                                        <span class="reason-count">${reason.count} reports</span>
-                                    </div>`
-                                ).join('') : 
-                                '<p>No common reasons data available</p>'
-                            }
-                        </div>
-                    </div>
-
-                    <div class="preview-section">
-                        <h4>Resident Reports Table (${residentReports.length} reports)</h4>
-                        <div class="preview-table">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Subject</th>
-                                        <th>Priority</th>
-                                        <th>Status</th>
-                                        <th>Reporter</th>
-                                        <th>Date</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${residentReports.slice(0, 10).map(report => `
-                                        <tr>
-                                            <td>${report.subject.substring(0, 30)}${report.subject.length > 30 ? '...' : ''}</td>
-                                            <td><span class="badge priority-${report.priority}">${report.priority.toUpperCase()}</span></td>
-                                            <td><span class="badge status-${report.status}">${report.status.replace('_', ' ').toUpperCase()}</span></td>
-                                            <td>${report.reporter_display}</td>
-                                            <td>${new Date(report.created_at).toLocaleDateString()}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                            ${residentReports.length > 10 ? `<p class="table-note">... and ${residentReports.length - 10} more resident reports</p>` : ''}
-                        </div>
-                    </div>
-
-                    <div class="preview-section">
-                        <h4>Non-Resident Reports Table (${nonResidentReports.length} reports)</h4>
-                        <div class="preview-table">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Subject</th>
-                                        <th>Priority</th>
-                                        <th>Status</th>
-                                        <th>Reporter</th>
-                                        <th>Date</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${nonResidentReports.slice(0, 10).map(report => `
-                                        <tr>
-                                            <td>${report.subject.substring(0, 30)}${report.subject.length > 30 ? '...' : ''}</td>
-                                            <td><span class="badge priority-${report.priority}">${report.priority.toUpperCase()}</span></td>
-                                            <td><span class="badge status-${report.status}">${report.status.replace('_', ' ').toUpperCase()}</span></td>
-                                            <td>${report.reporter_display}</td>
-                                            <td>${new Date(report.created_at).toLocaleDateString()}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                            ${nonResidentReports.length > 10 ? `<p class="table-note">... and ${nonResidentReports.length - 10} more non-resident reports</p>` : ''}
-                        </div>
-                    </div>
-
-                    </div>
-                    <div class="preview-actions">
-                        <button id="confirm-download-pdf" class="action-btn edit-btn">
-                            <i class="fas fa-download"></i> Download PDF
-                        </button>
-                    </div>
-                </div>
-            `;
-
-            // Bind preview actions after DOM update
-            setTimeout(() => {
-                const confirmBtn = document.getElementById('confirm-download-pdf');
-                if (confirmBtn) {
-                    confirmBtn.addEventListener('click', function() {
-                        closeAllModals();
-                        actualDownload('pdf', year, month);
-                    });
-                }
-            }, 10);
-        }
+        // Preview functions removed - direct download only
 
         // Comprehensive modal cleanup function
         function closeAllModals() {
@@ -2204,6 +2366,14 @@
                 eventModal.style.pointerEvents = 'none';
             }
             
+            // Close report detail modal
+            const reportDetailModal = document.getElementById('co-report-detail-modal');
+            if (reportDetailModal) {
+                reportDetailModal.style.display = 'none';
+                reportDetailModal.style.visibility = 'hidden';
+                reportDetailModal.style.opacity = '0';
+            }
+            
             // Reset document and body styles completely - restore scroll position
             unlockBodyScroll();
             
@@ -2224,7 +2394,7 @@
             });
         }
 
-        // Actual download function
+        // Direct download function (no modal/preview)
         function actualDownload(format, year = '', month = '') {
             const { reportsDownloadPdf } = endpoints();
             let url = reportsDownloadPdf;
@@ -2236,10 +2406,19 @@
 
             // Add filter parameters to URL
             const params = new URLSearchParams();
+            const statusFilter = document.getElementById('co-report-status-filter');
+            const priorityFilter = document.getElementById('co-report-priority-filter');
+            const typeFilter = document.getElementById('co-report-type-filter');
+            const searchInput = document.getElementById('co-report-search');
+            
             if (year) params.append('year', year);
             if (month) params.append('month', month);
+            if (statusFilter && statusFilter.value) params.append('status', statusFilter.value);
+            if (priorityFilter && priorityFilter.value) params.append('priority', priorityFilter.value);
+            if (typeFilter && typeFilter.value) params.append('target_type', typeFilter.value);
+            if (searchInput && searchInput.value) params.append('search', searchInput.value);
+            
             params.append('_t', Date.now()); // Cache busting
-            params.append('_r', Math.random()); // Additional cache busting
             
             if (params.toString()) {
                 url += (url.includes('?') ? '&' : '?') + params.toString();
@@ -2247,91 +2426,54 @@
 
             // Show loading message
             const filterText = getFilterText(year, month);
-            CO_showToast && CO_showToast(`Preparing ${format.toUpperCase()} download${filterText}...`, 'info');
+            CO_showToast && CO_showToast(`Downloading PDF${filterText}...`, 'info');
             
-            // First check if there's data for the selected period
-            const { reportsList } = endpoints();
-            if (reportsList) {
-                let checkUrl = `${reportsList}?per_page=1000`;
-                if (params.toString()) {
-                    checkUrl += '&' + params.toString();
-                }
-                
-                fetch(checkUrl, { 
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if (data && data.ok && Array.isArray(data.reports)) {
-                        if (data.reports.length === 0) {
-                            // No data found for the selected period
-                            const periodTitle = getFilterText(year, month);
-                            CO_showToast && CO_showToast(`No data found${periodTitle}. Please try a different time period.`, 'warning');
-                            return;
-                        }
-                        
-                        // Data exists, proceed with download
-                        performDownload(url, format, filterText);
-                    } else {
-                        // Error or no data
-                        CO_showToast && CO_showToast('Unable to verify data availability', 'error');
-                    }
-                })
-                .catch(err => {
-                    console.error('Failed to check data availability:', err);
-                    // Proceed with download anyway
-                    performDownload(url, format, filterText);
-                });
-            } else {
-                // No reportsList endpoint, proceed with download
-                performDownload(url, format, filterText);
-            }
-        }
-
-        // Helper function to perform the actual download
-        function performDownload(url, format, filterText) {
             // Create temporary link and trigger download
             const link = document.createElement('a');
             link.href = url;
-            const filename = `security_reports${filterText.replace(/ /g, '_')}_${new Date().toISOString().split('T')[0]}.${format}`;
-            link.download = filename;
-            link.target = '_blank'; // Open in new tab as fallback
+            link.target = '_blank';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             
-            // Comprehensive modal cleanup immediately
-            closeAllModals();
-            
-            // Additional cleanup after a short delay to ensure everything is reset
-            setTimeout(() => {
-                closeAllModals();
-                
-                // Force page state reset
-                document.documentElement.style.overflow = '';
-                document.body.style.overflow = '';
-                document.body.style.position = '';
-                document.body.style.top = '';
-                document.body.style.left = '';
-                document.body.style.right = '';
-                document.body.style.bottom = '';
-                document.body.style.paddingRight = '';
-                document.body.classList.remove('modal-open', 'no-scroll');
-                
-                // Force reflow
-                document.body.offsetHeight;
-            }, 50);
-            
             // Show success message
             setTimeout(() => {
-                CO_showToast && CO_showToast(`${format.toUpperCase()} download${filterText} started`, 'success');
+                CO_showToast && CO_showToast(`PDF download${filterText} started`, 'success');
             }, 500);
         }
 
-        // Show reports analytics
-        function showReportsAnalytics(year = '', month = '') {
+        // Show reports trend/analytics view (replaces modal)
+        function showReportsTrend(year = '', month = '') {
+            const tableView = document.getElementById('co-reports-table-view');
+            const trendView = document.getElementById('co-reports-trend-view');
+            const analyticsBtn = document.getElementById('co-reports-analytics');
+            
+            if (!tableView || !trendView) return;
+            
+            // Hide table view and show trend view
+            tableView.style.display = 'none';
+            trendView.style.display = 'block';
+            
+            // Update Analytics button to show "Back to Table"
+            if (analyticsBtn) {
+                analyticsBtn.innerHTML = '<i class="fas fa-table"></i> Back to Table';
+                analyticsBtn.setAttribute('data-view-mode', 'trend');
+            }
+            
+            // Show loading state
+            trendView.innerHTML = `
+                <div style="text-align:center;padding:40px;">
+                    <i class="fas fa-spinner fa-spin" style="font-size:24px;color:#3b82f6;"></i>
+                    <p style="margin-top:15px;color:#6b7280;">Loading analytics...</p>
+                </div>
+            `;
+            
+            // Fetch analytics data
             const { reportsAnalytics } = endpoints();
-            if (!reportsAnalytics) return;
+            if (!reportsAnalytics) {
+                trendView.innerHTML = '<div style="padding:20px;color:#dc2626;">Error: API endpoint not found</div>';
+                return;
+            }
 
             // Add filter parameters to URL
             let url = reportsAnalytics;
@@ -2348,93 +2490,374 @@
             })
             .then(r => r.json())
             .then(data => {
-                if (data && data.ok) {
-                    showAnalyticsModal(data.analytics, year, month);
+                if (data && data.ok && data.analytics) {
+                    renderReportsTrend(data.analytics, year, month);
+                } else {
+                    trendView.innerHTML = '<div style="padding:20px;color:#dc2626;">Error loading analytics</div>';
                 }
             })
             .catch(err => {
                 console.error('Failed to load analytics:', err);
-                CO_showToast && CO_showToast('Failed to load analytics', 'error');
+                trendView.innerHTML = '<div style="padding:20px;color:#dc2626;">Error loading analytics. Please try again.</div>';
             });
         }
-
-        // Show analytics modal
-        function showAnalyticsModal(analytics, year = '', month = '') {
-            if (!overlay || !modalShell) return;
+        
+        // Show table view (back from trend)
+        function showReportsTable() {
+            const tableView = document.getElementById('co-reports-table-view');
+            const trendView = document.getElementById('co-reports-trend-view');
+            const analyticsBtn = document.getElementById('co-reports-analytics');
+            
+            if (!tableView || !trendView) return;
+            
+            // Destroy charts before hiding
+            destroyAnalyticsCharts();
+            
+            // Hide trend view and show table view
+            trendView.style.display = 'none';
+            tableView.style.display = 'block';
+            
+            // Update Statistics button back to original
+            if (analyticsBtn) {
+                analyticsBtn.innerHTML = '<i class="fas fa-chart-bar"></i> Statistics';
+                analyticsBtn.setAttribute('data-view-mode', 'table');
+            }
+        }
+        
+        // Chart instances storage
+        let analyticsCharts = {};
+        
+        // Destroy existing charts
+        function destroyAnalyticsCharts() {
+            Object.values(analyticsCharts).forEach(chart => {
+                if (chart && typeof chart.destroy === 'function') {
+                    chart.destroy();
+                }
+            });
+            analyticsCharts = {};
+        }
+        
+        // Render reports trend/analytics view with Chart.js
+        function renderReportsTrend(analytics, year = '', month = '') {
+            const trendView = document.getElementById('co-reports-trend-view');
+            if (!trendView) return;
+            
+            // Destroy any existing charts
+            destroyAnalyticsCharts();
             
             const filterText = getFilterText(year, month);
-            modalTitle.textContent = `Reports Analytics${filterText}`;
-            modalShell.innerHTML = `
-                <div class="analytics-modal">
-                    <div class="analytics-stats">
-                        <div class="stat-card">
-                            <h3>${analytics.total_reports}</h3>
-                            <p>Total Reports</p>
+            
+            // Create chart containers
+            trendView.innerHTML = `
+                <div class="analytics-header" style="margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #e5e7eb;">
+                    <h2 style="margin:0;font-size:1.75rem;font-weight:700;color:#1f2937;">Reports Statistics${filterText}</h2>
+                    <p style="margin:8px 0 0;color:#6b7280;font-size:0.95rem;">Visual insights and trends for your security reports</p>
                         </div>
-                        <div class="stat-card">
-                            <h3>${analytics.resident_reports}</h3>
-                            <p>Resident Reports</p>
+                
+                <!-- Summary Stats -->
+                <div class="analytics-stats-grid" style="display:grid;gap:20px;margin-bottom:32px;">
+                    <div class="stat-card" style="background:linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);padding:24px;border-radius:16px;box-shadow:0 4px 12px rgba(59,130,246,0.3);color:white;">
+                        <div style="font-size:0.875rem;opacity:0.9;margin-bottom:8px;font-weight:500;">Total Reports</div>
+                        <div style="font-size:2.5rem;font-weight:700;">${analytics.total_reports || 0}</div>
                         </div>
-                        <div class="stat-card">
-                            <h3>${analytics.non_resident_reports}</h3>
-                            <p>Non-Resident Reports</p>
+                    <div class="stat-card" style="background:linear-gradient(135deg, #10b981 0%, #059669 100%);padding:24px;border-radius:16px;box-shadow:0 4px 12px rgba(16,185,129,0.3);color:white;">
+                        <div style="font-size:0.875rem;opacity:0.9;margin-bottom:8px;font-weight:500;">Resident Reports</div>
+                        <div style="font-size:2.5rem;font-weight:700;">${analytics.resident_reports || 0}</div>
+                    </div>
+                    <div class="stat-card" style="background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%);padding:24px;border-radius:16px;box-shadow:0 4px 12px rgba(245,158,11,0.3);color:white;">
+                        <div style="font-size:0.875rem;opacity:0.9;margin-bottom:8px;font-weight:500;">Non-Resident Reports</div>
+                        <div style="font-size:2.5rem;font-weight:700;">${analytics.non_resident_reports || 0}</div>
                         </div>
                     </div>
                     
-                    <div class="analytics-breakdown">
-                        <h4>Status Breakdown</h4>
-                        <div class="breakdown-list">
-                            ${Object.entries(analytics.status_breakdown).map(([status, count]) => 
-                                `<div class="breakdown-item">
-                                    <span class="breakdown-label">${status.replace('_', ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</span>
-                                    <span class="breakdown-count">${count}</span>
-                                </div>`
-                            ).join('')}
+                <!-- Charts Grid -->
+                <div class="charts-grid" style="display:grid;gap:24px;margin-bottom:32px;">
+                    <!-- Monthly Trends Bar Chart -->
+                    <div class="chart-container" style="background:white;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                        <h3 style="margin:0 0 20px;font-size:1.125rem;font-weight:600;color:#1f2937;padding-bottom:12px;border-bottom:1px solid #e5e7eb;">Monthly Trends</h3>
+                        <canvas id="monthlyTrendsChart"></canvas>
                         </div>
+                    
+                    <!-- Status Breakdown Pie Chart -->
+                    <div class="chart-container" style="background:white;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                        <h3 style="margin:0 0 20px;font-size:1.125rem;font-weight:600;color:#1f2937;padding-bottom:12px;border-bottom:1px solid #e5e7eb;">Status Breakdown</h3>
+                        <canvas id="statusChart"></canvas>
                     </div>
                     
-                    <div class="analytics-breakdown">
-                        <h4>Priority Breakdown</h4>
-                        <div class="breakdown-list">
-                            ${Object.entries(analytics.priority_breakdown).map(([priority, count]) => 
-                                `<div class="breakdown-item">
-                                    <span class="breakdown-label">${priority.replace('_', ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</span>
-                                    <span class="breakdown-count">${count}</span>
-                                </div>`
-                            ).join('')}
-                        </div>
+                    <!-- Priority Breakdown Doughnut Chart -->
+                    <div class="chart-container" style="background:white;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                        <h3 style="margin:0 0 20px;font-size:1.125rem;font-weight:600;color:#1f2937;padding-bottom:12px;border-bottom:1px solid #e5e7eb;">Priority Breakdown</h3>
+                        <canvas id="priorityChart"></canvas>
                     </div>
                     
-                    <div class="analytics-breakdown">
-                        <h4>Common Reasons</h4>
-                        <div class="breakdown-list">
-                            ${analytics.common_reasons.map(reason => 
-                                `<div class="breakdown-item">
-                                    <span class="breakdown-label">${reason.reason}</span>
-                                    <span class="breakdown-count">${reason.count}</span>
-                                </div>`
-                            ).join('')}
+                    <!-- Common Reasons Bar Chart -->
+                    ${analytics.common_reasons && analytics.common_reasons.length > 0 ? `
+                    <div class="chart-container" style="background:white;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                        <h3 style="margin:0 0 20px;font-size:1.125rem;font-weight:600;color:#1f2937;padding-bottom:12px;border-bottom:1px solid #e5e7eb;">Common Reasons</h3>
+                        <canvas id="reasonsChart"></canvas>
                         </div>
-                    </div>
+                    ` : ''}
                 </div>
             `;
             
-            // Open the modal
-            overlay.style.display = 'flex';
-            overlay.style.visibility = 'visible';
-            overlay.style.opacity = '1';
-            overlay.classList.add('active');
+            // Wait for DOM to update, then create charts
+            setTimeout(() => {
+                createAnalyticsCharts(analytics);
+            }, 100);
+        }
+        
+        // Create all analytics charts
+        function createAnalyticsCharts(analytics) {
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js is not loaded');
+                return;
+            }
             
-            // Set body styles for modal
-            try {
-                const sbw = window.innerWidth - document.documentElement.clientWidth;
-                document.documentElement.style.overflow = 'hidden';
-                document.body.style.overflow = 'hidden';
-                document.body.classList.add('modal-open');
-                if (sbw > 0) {
-                    document.body.style.paddingRight = sbw + 'px';
+            // Monthly Trends Bar Chart
+            if (analytics.monthly_trends && analytics.monthly_trends.length > 0) {
+                const monthlyCtx = document.getElementById('monthlyTrendsChart');
+                if (monthlyCtx) {
+                    const labels = analytics.monthly_trends.map(t => {
+                        const date = new Date(t.month + '-01');
+                        return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    });
+                    const data = analytics.monthly_trends.map(t => t.count);
+                    
+                    analyticsCharts.monthlyTrends = new Chart(monthlyCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Reports',
+                                data: data,
+                                backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                                borderColor: 'rgba(59, 130, 246, 1)',
+                                borderWidth: 2,
+                                borderRadius: 8,
+                                borderSkipped: false,
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                tooltip: {
+                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                    padding: 12,
+                                    titleFont: { size: 14, weight: 'bold' },
+                                    bodyFont: { size: 13 },
+                                    cornerRadius: 8
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 1,
+                                        font: { size: 12 }
+                                    },
+                                    grid: {
+                                        color: 'rgba(0, 0, 0, 0.05)'
+                                    }
+                                },
+                                x: {
+                                    ticks: {
+                                        font: { size: 11 },
+                                        maxRotation: 45,
+                                        minRotation: 45
+                                    },
+                                    grid: {
+                                        display: false
+                                    }
+                                }
+                            }
+                        }
+                    });
                 }
-            } catch (e) {}
+            }
+            
+            // Status Breakdown Pie Chart
+            const statusCtx = document.getElementById('statusChart');
+            if (statusCtx && analytics.status_breakdown) {
+                const statusData = Object.entries(analytics.status_breakdown)
+                    .filter(([_, count]) => count > 0)
+                    .map(([status, count]) => ({
+                        label: status.replace('_', ' ').split(' ').map(word => 
+                            word.charAt(0).toUpperCase() + word.slice(1)
+                        ).join(' '),
+                        value: count
+                    }));
+                
+                const statusColors = {
+                    'Pending': 'rgba(59, 130, 246, 0.8)',
+                    'Investigating': 'rgba(245, 158, 11, 0.8)',
+                    'Resolved': 'rgba(16, 185, 129, 0.8)',
+                    'False Alarm': 'rgba(239, 68, 68, 0.8)'
+                };
+                
+                analyticsCharts.status = new Chart(statusCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: statusData.map(d => d.label),
+                        datasets: [{
+                            data: statusData.map(d => d.value),
+                            backgroundColor: statusData.map(d => statusColors[d.label] || 'rgba(156, 163, 175, 0.8)'),
+                            borderColor: '#ffffff',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 15,
+                                    font: { size: 12 },
+                                    usePointStyle: true
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                callbacks: {
+                                    label: function(context) {
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                        return `${context.label}: ${context.parsed} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Priority Breakdown Doughnut Chart
+            const priorityCtx = document.getElementById('priorityChart');
+            if (priorityCtx && analytics.priority_breakdown) {
+                const priorityData = Object.entries(analytics.priority_breakdown)
+                    .filter(([_, count]) => count > 0)
+                    .map(([priority, count]) => ({
+                        label: priority.replace('level_', 'Level '),
+                        value: count
+                    }));
+                
+                const priorityColors = {
+                    'Level 1': 'rgba(16, 185, 129, 0.8)',
+                    'Level 2': 'rgba(245, 158, 11, 0.8)',
+                    'Level 3': 'rgba(239, 68, 68, 0.8)'
+                };
+                
+                analyticsCharts.priority = new Chart(priorityCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: priorityData.map(d => d.label),
+                        datasets: [{
+                            data: priorityData.map(d => d.value),
+                            backgroundColor: priorityData.map(d => priorityColors[d.label] || 'rgba(156, 163, 175, 0.8)'),
+                            borderColor: '#ffffff',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 15,
+                                    font: { size: 12 },
+                                    usePointStyle: true
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                callbacks: {
+                                    label: function(context) {
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                        return `${context.label}: ${context.parsed} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Common Reasons Horizontal Bar Chart
+            if (analytics.common_reasons && analytics.common_reasons.length > 0) {
+                const reasonsCtx = document.getElementById('reasonsChart');
+                if (reasonsCtx) {
+                    const reasonsLabels = analytics.common_reasons.map(r => {
+                        const text = r.reason.length > 30 ? r.reason.substring(0, 30) + '...' : r.reason;
+                        return escapeHtml(text);
+                    });
+                    const reasonsData = analytics.common_reasons.map(r => r.count);
+                    
+                    analyticsCharts.reasons = new Chart(reasonsCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: reasonsLabels,
+                            datasets: [{
+                                label: 'Count',
+                                data: reasonsData,
+                                backgroundColor: 'rgba(139, 92, 246, 0.8)',
+                                borderColor: 'rgba(139, 92, 246, 1)',
+                                borderWidth: 2,
+                                borderRadius: 8
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                tooltip: {
+                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                    padding: 12,
+                                    callbacks: {
+                                        title: function(context) {
+                                            const index = context[0].dataIndex;
+                                            return analytics.common_reasons[index].reason;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 1,
+                                        font: { size: 12 }
+                                    },
+                                    grid: {
+                                        color: 'rgba(0, 0, 0, 0.05)'
+                                    }
+                                },
+                                y: {
+                                    ticks: {
+                                        font: { size: 11 }
+                                    },
+                                    grid: {
+                                        display: false
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
         }
 
 

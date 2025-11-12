@@ -16,14 +16,20 @@ from django.dispatch import receiver
 from django.core.paginator import Paginator
 from django.utils import timezone
 from datetime import datetime, timedelta
+from calendar import monthrange
 import csv
 import io
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image, KeepTogether
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.graphics.shapes import Drawing, Rect, Circle, Line, String
+from reportlab.graphics.charts.barcharts import VerticalBarChart, HorizontalBarChart
+from reportlab.graphics.charts.piecharts import Pie
+from reportlab.graphics import renderPDF
+import math
 from security_panel.models import SecurityReport, Incident
 
 
@@ -670,6 +676,9 @@ def reports_list(request):
             'target_display': report.get_target_display(),
             'reporter_display': report.get_reporter_display(),
             'reasons': report.get_reasons_display(),
+            'reasons_list': report.reasons if isinstance(report.reasons, list) else [],
+            'details': report.details,
+            'location': report.location,
             'created_at': report.created_at.strftime('%Y-%m-%d %H:%M'),
             'updated_at': report.updated_at.strftime('%Y-%m-%d %H:%M'),
             'resolved_at': report.resolved_at.strftime('%Y-%m-%d %H:%M') if report.resolved_at else None,
@@ -687,6 +696,57 @@ def reports_list(request):
             'has_previous': page_obj.has_previous(),
         }
     })
+
+
+@login_required
+@require_GET
+def report_detail(request, report_id):
+    """Get detailed information for a single security report"""
+    profile, err = _ensure_owner_and_profile(request)
+    if err:
+        return err
+    
+    try:
+        report = SecurityReport.objects.get(id=report_id, community=profile)
+        
+        # Get reasons - if "Other" is in the list, use details instead
+        reasons_list = report.reasons if isinstance(report.reasons, list) else []
+        reasons_display = report.get_reasons_display()
+        
+        # If "Other" is in reasons, replace it with details
+        if 'Other' in reasons_list or 'other' in [r.lower() for r in reasons_list]:
+            # Replace "Other" with details in the display
+            reasons_display_list = reasons_display.split(', ') if reasons_display else []
+            reasons_display_list = [r for r in reasons_display_list if r.lower() != 'other']
+            if report.details:
+                reasons_display_list.append(report.details)
+            reasons_display = ', '.join(reasons_display_list)
+        
+        return JsonResponse({
+            'ok': True,
+            'report': {
+                'id': report.id,
+                'subject': report.subject,
+                'message': report.message,
+                'priority': report.priority,
+                'status': report.status,
+                'target_type': report.target_type,
+                'target_display': report.get_target_display(),
+                'reporter_display': report.get_reporter_display(),
+                'reasons': reasons_display,
+                'reasons_list': reasons_list,
+                'details': report.details,
+                'location': report.location,
+                'created_at': report.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'updated_at': report.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'resolved_at': report.resolved_at.strftime('%Y-%m-%d %H:%M:%S') if report.resolved_at else None,
+                'is_anonymous': report.is_anonymous,
+            }
+        })
+    except SecurityReport.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'Report not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
 
 
 @login_required
@@ -728,66 +788,78 @@ def reports_download_pdf(request):
             Q(details__icontains=search_query)
         )
     
-    # Create PDF with beautiful styling
+    # Create PDF with professional modern styling
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=50, leftMargin=50, topMargin=50, bottomMargin=50)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=60)
     
-    # Modern Enhanced Styles
+    # Professional Enhanced Styles
     styles = getSampleStyleSheet()
     
-    # Modern gradient-inspired title style
+    # Elegant title style with better spacing
     title_style = ParagraphStyle(
         'ModernTitle',
         parent=styles['Heading1'],
-        fontSize=28,
-        spaceAfter=25,
-        spaceBefore=20,
+        fontSize=32,
+        spaceAfter=8,
+        spaceBefore=0,
         alignment=TA_CENTER,
-        textColor=colors.HexColor('#0f172a'),  # Deep slate
+        textColor=colors.HexColor('#0f172a'),
         fontName='Helvetica-Bold',
-        leading=32
+        leading=38
     )
     
-    # Modern subtitle style
+    # Professional subtitle style
     subtitle_style = ParagraphStyle(
         'ModernSubtitle',
         parent=styles['Normal'],
-        fontSize=14,
-        spaceAfter=30,
-        spaceBefore=0,  # Remove space before to bring it closer
+        fontSize=13,
+        spaceAfter=25,
+        spaceBefore=0,
         alignment=TA_CENTER,
-        textColor=colors.HexColor('#64748b'),  # Slate gray
+        textColor=colors.HexColor('#64748b'),
         fontName='Helvetica',
-        leading=18
+        leading=16
     )
     
-    # Modern section heading style
+    # Section heading with accent line
     heading_style = ParagraphStyle(
         'ModernHeading',
         parent=styles['Heading2'],
-        fontSize=18,
-        spaceAfter=20,
-        spaceBefore=25,
-        textColor=colors.HexColor('#1e293b'),  # Dark slate
+        fontSize=20,
+        spaceAfter=18,
+        spaceBefore=30,
+        textColor=colors.HexColor('#0f172a'),
         fontName='Helvetica-Bold',
-        leading=22,
+        leading=24,
         borderWidth=0,
         borderPadding=0,
         backColor=colors.HexColor('#ffffff')
     )
     
-    # Modern info text style
+    # Subsection heading
+    subheading_style = ParagraphStyle(
+        'SubHeading',
+        parent=styles['Heading3'],
+        fontSize=15,
+        spaceAfter=12,
+        spaceBefore=20,
+        textColor=colors.HexColor('#1e293b'),
+        fontName='Helvetica-Bold',
+        leading=18
+    )
+    
+    # Info text style
     info_style = ParagraphStyle(
         'ModernInfo',
         parent=styles['Normal'],
         fontSize=10,
         spaceAfter=6,
-        textColor=colors.HexColor('#475569'),  # Slate 600
+        textColor=colors.HexColor('#475569'),
         fontName='Helvetica',
         leading=14
     )
     
-    # Modern card style for stats
+    # Card style for stats
     card_style = ParagraphStyle(
         'ModernCard',
         parent=styles['Normal'],
@@ -803,427 +875,527 @@ def reports_download_pdf(request):
     # Build content
     story = []
     
-    # Modern header with elegant design
+    # Professional header with elegant design
+    story.append(Spacer(1, 10))
     story.append(Paragraph("SECURITY REPORTS", title_style))
     story.append(Paragraph("Comprehensive Security Analysis & Insights", subtitle_style))
+    story.append(Spacer(1, 20))
     
-    # Modern report info section with better formatting
+    # Format report period
     current_time = timezone.now().strftime('%B %d, %Y at %I:%M %p')
+    report_period = 'All Time'
+    if year_filter and year_filter.strip() and month_filter and month_filter.strip():
+        try:
+            year = int(year_filter)
+            month = int(month_filter)
+            month_name = datetime(year, month, 1).strftime('%B')
+            report_period = f"{month_name} {year}"
+        except (ValueError, TypeError):
+            report_period = f"{year_filter if year_filter else 'All Years'} {month_filter if month_filter else ''}".strip()
+    elif year_filter and year_filter.strip():
+        report_period = f"Year {year_filter}"
+    elif month_filter and month_filter.strip():
+        try:
+            month = int(month_filter)
+            current_year = timezone.now().year
+            month_name = datetime(current_year, month, 1).strftime('%B')
+            report_period = f"{month_name} {current_year}"
+        except (ValueError, TypeError):
+            report_period = f"Month {month_filter}"
     
-    # Create a modern info box
+    # Create elegant info box with better design
     info_data = [
-        ['Generated', current_time],
-        ['Community', profile.community_name],
-        ['Total Reports', str(reports.count())],
-        ['Report Period', f"{year_filter if year_filter else 'All Years'} {month_filter if month_filter else ''}".strip()]
+        [Paragraph('<b>Generated:</b>', ParagraphStyle('InfoLabel', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#475569'), fontName='Helvetica-Bold')), current_time],
+        [Paragraph('<b>Community:</b>', ParagraphStyle('InfoLabel', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#475569'), fontName='Helvetica-Bold')), profile.community_name],
+        [Paragraph('<b>Report Period:</b>', ParagraphStyle('InfoLabel', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#475569'), fontName='Helvetica-Bold')), report_period]
     ]
     
-    info_table = Table(info_data, colWidths=[1.5*inch, 3*inch])
+    info_table = Table(info_data, colWidths=[1.8*inch, 3.7*inch])
     info_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f1f5f9')),  # Light slate
-        ('BACKGROUND', (1, 0), (1, -1), colors.HexColor('#ffffff')),  # White
-        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#475569')),  # Slate 600
-        ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#1e293b')),  # Dark slate
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8fafc')),
+        ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#0f172a')),
         ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('FONTSIZE', (1, 0), (1, -1), 10),
         ('ALIGN', (0, 0), (0, -1), 'LEFT'),
         ('ALIGN', (1, 0), (1, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('LEFTPADDING', (0, 0), (-1, -1), 12),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
-        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),  # Slate 200
-        ('LINEBELOW', (0, 0), (-1, 0), 1, colors.HexColor('#e2e8f0')),
-        ('LINEBELOW', (0, 1), (-1, 1), 1, colors.HexColor('#e2e8f0')),
-        ('LINEBELOW', (0, 2), (-1, 2), 1, colors.HexColor('#e2e8f0')),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (-1, -1), 15),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 15),
+        ('BOX', (0, 0), (-1, -1), 1.5, colors.HexColor('#3b82f6')),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
     ]))
     
     story.append(info_table)
-    story.append(Spacer(1, 30))
+    story.append(Spacer(1, 35))
     
-    # Beautiful Statistics Section
-    resident_reports = reports.filter(target_type='resident').count()
-    non_resident_reports = reports.filter(target_type='outsider').count()
-    pending_reports = reports.filter(status='pending').count()
-    investigating_reports = reports.filter(status='investigating').count()
-    resolved_reports = reports.filter(status='resolved').count()
-    false_alarm_reports = reports.filter(status='false_alarm').count()
+    # ========== ANALYTICS & CHARTS SECTION ==========
+    story.append(Paragraph("ANALYTICS & TRENDS", heading_style))
+    story.append(Spacer(1, 20))
     
-    # Create modern stats cards in a 3x2 grid
-    stats_data = [
-        ['RESIDENT REPORTS', 'NON-RESIDENT REPORTS', 'PENDING REPORTS'],
-        [str(resident_reports), str(non_resident_reports), str(pending_reports)],
-        ['INVESTIGATING', 'RESOLVED', 'FALSE ALARMS'],
-        [str(investigating_reports), str(resolved_reports), str(false_alarm_reports)]
-    ]
+    # Calculate analytics data
+    resident_reports_count = reports.filter(target_type='resident').count()
+    non_resident_reports_count = reports.filter(target_type='outsider').count()
+    total_reports_count = reports.count()
     
-    stats_table = Table(stats_data, colWidths=[1.8*inch, 1.8*inch, 1.8*inch])
-    stats_table.setStyle(TableStyle([
-        # Header rows (labels)
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0f172a')),  # Dark slate
-        ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#0f172a')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('TEXTCOLOR', (0, 2), (-1, 2), colors.white),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTNAME', (0, 2), (-1, 2), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 9),
-        ('FONTSIZE', (0, 2), (-1, 2), 9),
-        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-        ('ALIGN', (0, 2), (-1, 2), 'CENTER'),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('TOPPADDING', (0, 0), (-1, 0), 8),
-        ('BOTTOMPADDING', (0, 2), (-1, 2), 8),
-        ('TOPPADDING', (0, 2), (-1, 2), 8),
-        
-        # Data rows (numbers)
-        ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#f8fafc')),  # Light slate
-        ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor('#f8fafc')),
-        ('TEXTCOLOR', (0, 1), (-1, 1), colors.HexColor('#0f172a')),
-        ('TEXTCOLOR', (0, 3), (-1, 3), colors.HexColor('#0f172a')),
-        ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
-        ('FONTNAME', (0, 3), (-1, 3), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 1), (-1, 1), 16),
-        ('FONTSIZE', (0, 3), (-1, 3), 16),
-        ('ALIGN', (0, 1), (-1, 1), 'CENTER'),
-        ('ALIGN', (0, 3), (-1, 3), 'CENTER'),
-        ('BOTTOMPADDING', (0, 1), (-1, 1), 12),
-        ('TOPPADDING', (0, 1), (-1, 1), 12),
-        ('BOTTOMPADDING', (0, 3), (-1, 3), 12),
-        ('TOPPADDING', (0, 3), (-1, 3), 12),
-        
-        # Borders
-        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-        ('LINEBELOW', (0, 0), (-1, 0), 1, colors.HexColor('#e2e8f0')),
-        ('LINEBELOW', (0, 1), (-1, 1), 1, colors.HexColor('#e2e8f0')),
-        ('LINEBELOW', (0, 2), (-1, 2), 1, colors.HexColor('#e2e8f0')),
-        ('LINEABOVE', (0, 3), (-1, 3), 1, colors.HexColor('#e2e8f0')),
-        ('LINEABOVE', (0, 0), (-1, 0), 1, colors.HexColor('#e2e8f0')),
-    ]))
+    # Status breakdown
+    status_breakdown = {}
+    for status, _ in SecurityReport.STATUS_CHOICES:
+        status_breakdown[status] = reports.filter(status=status).count()
     
-    story.append(stats_table)
-    story.append(Spacer(1, 25))
+    # Priority breakdown
+    priority_breakdown = {}
+    for priority, _ in SecurityReport.PRIORITY_CHOICES:
+        priority_breakdown[priority] = reports.filter(priority=priority).count()
     
-    # Beautiful Common Reasons Section
+    # Monthly trends - adjust based on filters
+    monthly_trends = []
+    if year_filter and year_filter.strip() and month_filter and month_filter.strip():
+        # If specific month/year is selected, show that month only
+        try:
+            year = int(year_filter)
+            month = int(month_filter)
+            days_in_month = monthrange(year, month)[1]
+            month_start = timezone.make_aware(datetime(year, month, 1, 0, 0, 0))
+            month_end = month_start + timedelta(days=days_in_month)
+            count = reports.filter(created_at__gte=month_start, created_at__lt=month_end).count()
+            monthly_trends.append({
+                'month': month_start.strftime('%b %Y'),
+                'count': count
+            })
+        except (ValueError, TypeError):
+            # Fallback to last 6 months if parsing fails
+            for i in range(6):
+                month_start = timezone.now().replace(day=1) - timedelta(days=30*i)
+                month_end = month_start + timedelta(days=30)
+                count = reports.filter(created_at__gte=month_start, created_at__lt=month_end).count()
+                monthly_trends.append({
+                    'month': month_start.strftime('%b %Y'),
+                    'count': count
+                })
+            monthly_trends.reverse()
+    elif year_filter and year_filter.strip():
+        # If only year is selected, show all months of that year
+        try:
+            year = int(year_filter)
+            for month_num in range(1, 13):
+                days_in_month = monthrange(year, month_num)[1]
+                month_start = timezone.make_aware(datetime(year, month_num, 1, 0, 0, 0))
+                month_end = month_start + timedelta(days=days_in_month)
+                count = reports.filter(created_at__gte=month_start, created_at__lt=month_end).count()
+                monthly_trends.append({
+                    'month': month_start.strftime('%b %Y'),
+                    'count': count
+                })
+        except (ValueError, TypeError):
+            # Fallback to last 6 months if parsing fails
+            for i in range(6):
+                month_start = timezone.now().replace(day=1) - timedelta(days=30*i)
+                month_end = month_start + timedelta(days=30)
+                count = reports.filter(created_at__gte=month_start, created_at__lt=month_end).count()
+                monthly_trends.append({
+                    'month': month_start.strftime('%b %Y'),
+                    'count': count
+                })
+            monthly_trends.reverse()
+    else:
+        # No year/month filter - show last 6 months
+        for i in range(6):
+            month_start = timezone.now().replace(day=1) - timedelta(days=30*i)
+            month_end = month_start + timedelta(days=30)
+            count = reports.filter(created_at__gte=month_start, created_at__lt=month_end).count()
+            monthly_trends.append({
+                'month': month_start.strftime('%b %Y'),
+                'count': count
+            })
+        monthly_trends.reverse()
+    
+    # Common reasons
     from collections import Counter
     all_reasons = []
     for report in reports:
         if isinstance(report.reasons, list):
             all_reasons.extend(report.reasons)
     reason_counts = Counter(all_reasons)
-    
-    # Get top 5 most common reasons, but include ties
     common_reasons = reason_counts.most_common(5)
-    if len(reason_counts) > 5:
-        # Check for ties at 5th place and beyond
-        fifth_count = common_reasons[4][1] if len(common_reasons) >= 5 else 0
+    
+    # Summary Stats Cards - Include status counts based on filtered reports
+    pending_count = status_breakdown.get('pending', 0)
+    investigating_count = status_breakdown.get('investigating', 0)
+    false_alarm_count = status_breakdown.get('false_alarm', 0)
+    resolved_count = status_breakdown.get('resolved', 0)
+    
+    stats_data = [
+        [
+            'TOTAL REPORTS',
+            'RESIDENT REPORTS',
+            'NON-RESIDENT REPORTS'
+        ],
+        [
+            str(total_reports_count),
+            str(resident_reports_count),
+            str(non_resident_reports_count)
+        ]
+    ]
+    
+    stats_table = Table(stats_data, colWidths=[2.2*inch, 2.2*inch, 2.2*inch])
+    stats_table.setStyle(TableStyle([
+        # Header row - clean professional design
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        # Value row - clean white background
+        ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#ffffff')),
+        ('TEXTCOLOR', (0, 1), (-1, 1), colors.HexColor('#0f172a')),
+        ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 1), (-1, 1), 18),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+        ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#1e293b')),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+    ]))
+    story.append(stats_table)
+    story.append(Spacer(1, 25))
         
-        # Find all reasons with the same count as 5th place
-        tied_reasons = []
-        for reason, count in reason_counts.most_common():
-            if count == fifth_count:
-                tied_reasons.append((reason, count))
-            elif count < fifth_count:
-                break
+    
+    # Status and Priority Breakdown - Tables Only
+    status_data = [(status.replace('_', ' ').title(), count) for status, count in status_breakdown.items() if count > 0]
+    priority_data = [(priority.replace('level_', 'Level ').title(), count) for priority, count in priority_breakdown.items() if count > 0]
+    
+    if status_data or priority_data:
+        # Create a section for both breakdowns
+        story.append(Paragraph("Status & Priority Breakdown", subheading_style))
+        story.append(Spacer(1, 15))
         
-        # If we have more than 5 reasons with the same count as 5th place, include them all
-        if len(tied_reasons) > 5:
-            common_reasons = tied_reasons
-    if common_reasons:
-        reasons_data = [['TOP SECURITY CONCERNS', 'REPORTS']]
-        others_details = []  # Store details for "Others" reason
+        # Calculate totals for percentages
+        status_total = sum(count for _, count in status_data)
+        priority_total = sum(count for _, count in priority_data)
         
-        for reason, count in common_reasons:
-            reasons_data.append([reason, str(count)])
-            
-            # If this is "Others" reason, collect the actual messages
-            if reason.lower() in ['other (please specify)', 'others', 'other']:
-                for report in reports:
-                    if isinstance(report.reasons, list) and reason in report.reasons:
-                        if report.message and report.message.strip():
-                            others_details.append({
-                                'subject': report.subject,
-                                'message': report.message,
-                                'date': report.created_at.strftime('%m/%d/%Y'),
-                                'reporter': report.get_reporter_display()
-                            })
+        # Create side-by-side layout using a table
+        tables_row = []
         
-        reasons_table = Table(reasons_data, colWidths=[3.5*inch, 1.5*inch])
-        reasons_table.setStyle(TableStyle([
-            # Header row
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#dc2626')),  # Modern red
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('TOPPADDING', (0, 0), (-1, 0), 12),
-            # Data rows
-            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#fef2f2')),  # Light red
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 10),
-            ('TOPPADDING', (0, 1), (-1, -1), 10),
-            ('ALIGN', (1, 1), (1, -1), 'CENTER'),
-            ('FONTNAME', (1, 1), (1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (1, 1), (1, -1), 14),
-            ('TEXTCOLOR', (1, 1), (1, -1), colors.HexColor('#dc2626')),
-            # Borders
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#fecaca')),
-            ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#dc2626')),
-        ] + [('LINEBELOW', (0, i), (-1, i), 1, colors.HexColor('#fecaca')) for i in range(1, len(reasons_data))]))
-        
-        story.append(reasons_table)
-        story.append(Spacer(1, 25))
-        
-        # Add "Others" details table if "Others" is in the top reasons
-        if others_details:
-            story.append(Paragraph("DETAILS FOR 'OTHERS' REPORTS", heading_style))
-            
-            others_data = [['SUBJECT', 'MESSAGE', 'REPORTER', 'DATE']]
-            for detail in others_details[:10]:  # Limit to 10 most recent "Others" reports
-                # Keep full subject and message, truncate only reporter
-                subject_text = detail['subject']  # Keep full subject
-                # Create a Paragraph for message to enable text wrapping
-                message_para = Paragraph(detail['message'], ParagraphStyle(
-                    'MessageText',
-                    parent=styles['Normal'],
-                    fontSize=8,
-                    fontName='Helvetica',
-                    textColor=colors.HexColor('#1e293b'),
-                    alignment=TA_LEFT,
-                    spaceAfter=0,
-                    spaceBefore=0
-                ))
-                reporter_text = detail['reporter'][:12] + '...' if len(detail['reporter']) > 12 else detail['reporter']
-                
-                others_data.append([
-                    subject_text,
-                    message_para,  # Use Paragraph object for wrapping
-                    reporter_text,
-                    detail['date']
+        # Status Breakdown Table
+        if status_data:
+            status_table_data = [['STATUS', 'COUNT', '%']]
+            for label, count in status_data:
+                percentage = (count / status_total * 100) if status_total > 0 else 0
+                status_table_data.append([
+                    Paragraph(f"<b>{label}</b>", ParagraphStyle('TableText', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold', leading=12)),
+                    Paragraph(str(count), ParagraphStyle('TableText', parent=styles['Normal'], fontSize=9, alignment=TA_CENTER, leading=12)),
+                    Paragraph(f"{percentage:.1f}%", ParagraphStyle('TableText', parent=styles['Normal'], fontSize=9, alignment=TA_CENTER, leading=12))
                 ])
             
-            others_table = Table(others_data, colWidths=[2.2*inch, 2.2*inch, 1*inch, 0.8*inch])
-            others_table.setStyle(TableStyle([
-                # Header row
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#059669')),  # Modern green
+            status_table = Table(status_table_data, colWidths=[2*inch, 0.8*inch, 0.8*inch])
+            status_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 9),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-                ('TOPPADDING', (0, 0), (-1, 0), 8),
-                # Data rows
-                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f0fdf4')),  # Light green
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 1), (-1, -1), 8),
-                ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
-                ('TOPPADDING', (0, 1), (-1, -1), 8),
-                ('ALIGN', (0, 1), (0, -1), 'LEFT'),  # Subject left-aligned
-                ('ALIGN', (1, 1), (1, -1), 'LEFT'),  # Message left-aligned
-                ('ALIGN', (2, 1), (-1, -1), 'CENTER'),  # Other columns centered
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Top alignment for better text handling
-            # Borders
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#d1fae5')),
-            ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#059669')),
-                # Alternating row colors
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f0fdf4'), colors.white]),
-                # Add borders between rows for better readability
-                ('LINEBELOW', (0, 1), (-1, -1), 0.5, colors.HexColor('#d1fae5')),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#3b82f6')),
+                ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#1e40af')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#ffffff'), colors.HexColor('#f8fafc')]),
+                ('LINEBELOW', (0, 1), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
             ]))
+            tables_row.append(status_table)
+        else:
+            tables_row.append(Spacer(3.6*inch, 0.5*inch))
+        
+        # Priority Breakdown Table
+        if priority_data:
+            priority_table_data = [['PRIORITY', 'COUNT', '%']]
+            for label, count in priority_data:
+                percentage = (count / priority_total * 100) if priority_total > 0 else 0
+                priority_table_data.append([
+                    Paragraph(f"<b>{label}</b>", ParagraphStyle('TableText', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold', leading=12)),
+                    Paragraph(str(count), ParagraphStyle('TableText', parent=styles['Normal'], fontSize=9, alignment=TA_CENTER, leading=12)),
+                    Paragraph(f"{percentage:.1f}%", ParagraphStyle('TableText', parent=styles['Normal'], fontSize=9, alignment=TA_CENTER, leading=12))
+                ])
             
-            story.append(others_table)
-            if len(others_details) > 10:
-                story.append(Paragraph(f"... and {len(others_details) - 10} more 'Others' reports", info_style))
+            priority_table = Table(priority_table_data, colWidths=[2*inch, 0.8*inch, 0.8*inch])
+            priority_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#8b5cf6')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#8b5cf6')),
+                ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#7c3aed')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#ffffff'), colors.HexColor('#f8fafc')]),
+                ('LINEBELOW', (0, 1), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+            ]))
+            tables_row.append(priority_table)
+        else:
+            tables_row.append(Spacer(3.6*inch, 0.5*inch))
+        
+        # Create table to place breakdown tables side by side
+        breakdown_table = Table([tables_row], colWidths=[3.6*inch, 3.6*inch])
+        breakdown_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        story.append(breakdown_table)
         story.append(Spacer(1, 25))
     
-    # Beautiful Resident Reports Section
-    resident_reports = reports.filter(target_type='resident')
-    if resident_reports.exists():
-        # Table headers (NO ID COLUMN)
-        table_data = [['RESIDENT REPORTS', 'PRIORITY', 'STATUS', 'REPORTER', 'DATE']]
+    # Common Reasons - Professional table design (chart removed for cleaner PDF)
+    if common_reasons:
+        # Keep title and table together on the same page
+        common_reasons_content = []
+        common_reasons_content.append(Paragraph("Common Reasons", subheading_style))
         
-        # Add resident report data
-        for report in resident_reports:  # Show ALL reports, no limit
-            # Format priority with colors
-            priority_text = report.priority.title()
-            if report.priority == 'urgent':
-                priority_text = 'URGENT'
-            elif report.priority == 'high':
-                priority_text = 'HIGH'
-            elif report.priority == 'medium':
-                priority_text = 'MEDIUM'
-            else:
-                priority_text = 'LOW'
-            
-            # Format status
-            status_text = report.status.replace('_', ' ').title()
-            if report.status == 'pending':
-                status_text = 'Pending'
-            elif report.status == 'investigating':
-                status_text = 'Investigating'
-            elif report.status == 'resolved':
-                status_text = 'Resolved'
-            elif report.status == 'false_alarm':
-                status_text = 'False Alarm'
-            
-            # Create Paragraph for subject to enable text wrapping
-            subject_para = Paragraph(report.subject, ParagraphStyle(
-                'SubjectText',
+        # Create professional table with full reason text
+        reasons_list_data = [['REASON', 'COUNT']]
+        for reason, count in common_reasons:
+            reason_para = Paragraph(reason, ParagraphStyle(
+                'ReasonText',
                 parent=styles['Normal'],
                 fontSize=9,
                 fontName='Helvetica',
                 textColor=colors.HexColor('#1e293b'),
                 alignment=TA_LEFT,
                 spaceAfter=0,
+                spaceBefore=0,
+                leading=13
+            ))
+            reasons_list_data.append([reason_para, str(count)])
+        
+        reasons_list_table = Table(reasons_list_data, colWidths=[4.8*inch, 0.7*inch])
+        reasons_list_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#8b5cf6')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#ffffff')),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+            ('TOPPADDING', (0, 0), (-1, -1), 10),
+            ('LEFTPADDING', (0, 0), (-1, -1), 12),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#8b5cf6')),
+            ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#7c3aed')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#ffffff'), colors.HexColor('#f8fafc')]),
+            ('LINEBELOW', (0, 1), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+        ]))
+        common_reasons_content.append(reasons_list_table)
+        common_reasons_content.append(Spacer(1, 30))
+        
+        # Use KeepTogether to ensure title and table stay on the same page
+        story.append(KeepTogether(common_reasons_content))
+    
+    # ========== REPORTS LIST SECTION ==========
+    story.append(Paragraph("ALL REPORTS", heading_style))
+    story.append(Spacer(1, 15))
+    
+    # All Reports Table (combined)
+    if reports.exists():
+        # Table headers
+        table_data = [['COMPLAINANT', 'REASON', 'COMPLAINEE', 'STATUS', 'PRIORITY']]
+        
+        # Add all report data
+        for report in reports:
+            # Get reporter display
+            reporter_display = report.get_reporter_display() or 'Anonymous'
+            
+            # Get reason - use details if "Other" is in reasons
+            reasons_list = report.reasons if isinstance(report.reasons, list) else []
+            if 'Other (please specify)' in reasons_list or 'Other' in reasons_list:
+                reason_text = report.details or 'Other'
+            else:
+                reason_text = ', '.join(reasons_list) if reasons_list else 'N/A'
+            
+            # Get complainee (subject cleaned)
+            complainee_text = report.subject
+            # Remove "Report:" prefix, but keep "Non-Resident" intact
+            import re
+            complainee_text = re.sub(r'^Report:\s*', '', complainee_text, flags=re.IGNORECASE)
+            # Only remove standalone "Resident" word, not "Non-Resident"  
+            # Use negative lookbehind to avoid removing "Resident" from "Non-Resident"
+            complainee_text = re.sub(r'(?<!Non-)\bResident\b\s*', '', complainee_text, flags=re.IGNORECASE)
+            # If it's just "Non-" left, restore "Non-Resident"
+            if complainee_text.strip() == 'Non-':
+                complainee_text = 'Non-Resident'
+            complainee_text = complainee_text.strip()
+            # Don't truncate - let it wrap in the Paragraph
+            
+            # Format priority with color coding
+            priority_text = report.priority.replace('level_', 'Level ').title()
+            priority_color = colors.HexColor('#1e293b')
+            if 'Level 1' in priority_text:
+                priority_color = colors.HexColor('#065f46')
+            elif 'Level 2' in priority_text:
+                priority_color = colors.HexColor('#92400e')
+            elif 'Level 3' in priority_text:
+                priority_color = colors.HexColor('#c53030')
+            
+            priority_para = Paragraph(f'<b>{priority_text}</b>', ParagraphStyle(
+                'CellText',
+                parent=styles['Normal'],
+                fontSize=9,
+                fontName='Helvetica-Bold',
+                textColor=priority_color,
+                alignment=TA_CENTER,
+                spaceAfter=0,
                 spaceBefore=0
             ))
             
-            table_data.append([
-                subject_para,  # Use Paragraph object for wrapping
-                priority_text,
-                status_text,
-                report.get_reporter_display()[:12] + '...' if len(report.get_reporter_display()) > 12 else report.get_reporter_display(),
-                report.created_at.strftime('%m/%d/%Y')
-            ])
-        
-        # Create modern resident reports table
-        resident_table = Table(table_data, colWidths=[2.5*inch, 1*inch, 1.2*inch, 1.2*inch, 0.8*inch])
-        resident_table.setStyle(TableStyle([
-            # Header row
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2563eb')),  # Modern blue
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('TOPPADDING', (0, 0), (-1, 0), 12),
-            # Data rows
-            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#eff6ff')),  # Light blue
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
-            ('TOPPADDING', (0, 1), (-1, -1), 8),
-            ('ALIGN', (0, 1), (0, -1), 'LEFT'),  # Subject left-aligned
-            ('ALIGN', (1, 1), (-1, -1), 'CENTER'),  # Other columns centered
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            # Borders
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#dbeafe')),
-            ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#2563eb')),
-            # Alternating row colors
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#eff6ff'), colors.white]),
-        ]))
-        
-        story.append(resident_table)
-        story.append(Spacer(1, 25))
-    
-    # Beautiful Non-Resident Reports Section
-    non_resident_reports = reports.filter(target_type='outsider')
-    if non_resident_reports.exists():
-        # Table headers (NO ID COLUMN)
-        table_data = [['NON-RESIDENT REPORTS', 'PRIORITY', 'STATUS', 'REPORTER', 'DATE']]
-        
-        # Add non-resident report data
-        for report in non_resident_reports:  # Show ALL reports, no limit
-            # Format priority with colors
-            priority_text = report.priority.title()
-            if report.priority == 'urgent':
-                priority_text = 'URGENT'
-            elif report.priority == 'high':
-                priority_text = 'HIGH'
-            elif report.priority == 'medium':
-                priority_text = 'MEDIUM'
-            else:
-                priority_text = 'LOW'
-            
-            # Format status
+            # Format status with color coding
             status_text = report.status.replace('_', ' ').title()
-            if report.status == 'pending':
-                status_text = 'Pending'
-            elif report.status == 'investigating':
-                status_text = 'Investigating'
-            elif report.status == 'resolved':
-                status_text = 'Resolved'
-            elif report.status == 'false_alarm':
-                status_text = 'False Alarm'
+            status_color = colors.HexColor('#1e293b')
+            if 'Pending' in status_text:
+                status_color = colors.HexColor('#1e40af')
+            elif 'Investigating' in status_text:
+                status_color = colors.HexColor('#92400e')
+            elif 'Resolved' in status_text:
+                status_color = colors.HexColor('#065f46')
+            elif 'False Alarm' in status_text:
+                status_color = colors.HexColor('#991b1b')
             
-            # Create Paragraph for subject to enable text wrapping
-            subject_para = Paragraph(report.subject, ParagraphStyle(
-                'SubjectText',
+            status_para = Paragraph(f'<b>{status_text}</b>', ParagraphStyle(
+                'CellText',
+                parent=styles['Normal'],
+                fontSize=9,
+                fontName='Helvetica-Bold',
+                textColor=status_color,
+                alignment=TA_CENTER,
+                spaceAfter=0,
+                spaceBefore=0
+            ))
+            
+            # Create Paragraphs for text wrapping
+            reporter_para = Paragraph(reporter_display[:30] + '...' if len(reporter_display) > 30 else reporter_display, ParagraphStyle(
+                'CellText',
                 parent=styles['Normal'],
                 fontSize=9,
                 fontName='Helvetica',
                 textColor=colors.HexColor('#1e293b'),
                 alignment=TA_LEFT,
                 spaceAfter=0,
-                spaceBefore=0
+                spaceBefore=0,
+                leading=12
+            ))
+            
+            reason_para = Paragraph(reason_text, ParagraphStyle(
+                'CellText',
+                parent=styles['Normal'],
+                fontSize=9,
+                fontName='Helvetica',
+                textColor=colors.HexColor('#1e293b'),
+                alignment=TA_LEFT,
+                spaceAfter=0,
+                spaceBefore=0,
+                leading=12
+            ))
+            
+            complainee_para = Paragraph(complainee_text, ParagraphStyle(
+                'CellText',
+                parent=styles['Normal'],
+                fontSize=9,
+                fontName='Helvetica',
+                textColor=colors.HexColor('#1e293b'),
+                alignment=TA_LEFT,
+                spaceAfter=0,
+                spaceBefore=0,
+                leading=12
             ))
             
             table_data.append([
-                subject_para,  # Use Paragraph object for wrapping
-                priority_text,
-                status_text,
-                report.get_reporter_display()[:12] + '...' if len(report.get_reporter_display()) > 12 else report.get_reporter_display(),
-                report.created_at.strftime('%m/%d/%Y')
+                reporter_para,
+                reason_para,
+                complainee_para,
+                status_para,
+                priority_para
             ])
         
-        # Create modern non-resident reports table
-        non_resident_table = Table(table_data, colWidths=[2.5*inch, 1*inch, 1.2*inch, 1.2*inch, 0.8*inch])
-        non_resident_table.setStyle(TableStyle([
-            # Header row
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#dc2626')),  # Modern red
+        # Create professional reports table with better styling
+        reports_table = Table(table_data, colWidths=[1.6*inch, 2.1*inch, 2.1*inch, 1.3*inch, 1.1*inch])
+        reports_table.setStyle(TableStyle([
+            # Header row - professional dark header
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('TOPPADDING', (0, 0), (-1, 0), 12),
+            ('LEFTPADDING', (0, 0), (-1, 0), 8),
+            ('RIGHTPADDING', (0, 0), (-1, 0), 8),
             # Data rows
-            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#fef2f2')),  # Light red
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#ffffff')),
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('ALIGN', (0, 1), (1, -1), 'LEFT'),
+            ('ALIGN', (2, 1), (2, -1), 'LEFT'),
+            ('ALIGN', (3, 1), (-1, -1), 'CENTER'),
             ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
             ('TOPPADDING', (0, 1), (-1, -1), 8),
-            ('ALIGN', (0, 1), (0, -1), 'LEFT'),  # Subject left-aligned
-            ('ALIGN', (1, 1), (-1, -1), 'CENTER'),  # Other columns centered
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 1), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 1), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             # Borders
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#fecaca')),
-            ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#dc2626')),
-            # Alternating row colors
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#fef2f2'), colors.white]),
+            ('BOX', (0, 0), (-1, -1), 1.5, colors.HexColor('#3b82f6')),
+            ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#1e40af')),
+            # Alternating row colors for better readability
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#ffffff'), colors.HexColor('#f8fafc')]),
+            ('LINEBELOW', (0, 1), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
         ]))
         
-        story.append(non_resident_table)
+        story.append(reports_table)
     
     if not reports.exists():
         story.append(Paragraph("No reports found.", info_style))
     
-    # Modern footer with elegant design
-    story.append(Spacer(1, 40))
+    # Professional footer with elegant design
+    story.append(Spacer(1, 35))
     
-    # Add a modern divider line
-    story.append(Paragraph("─" * 60, ParagraphStyle(
-        'Divider',
-        parent=styles['Normal'],
-        fontSize=8,
-        alignment=TA_CENTER,
-        textColor=colors.HexColor('#e2e8f0'),
-        spaceAfter=15,
-        spaceBefore=15
-    )))
+    # Add elegant divider line
+    divider_table = Table([['']], colWidths=[5.5*inch])
+    divider_table.setStyle(TableStyle([
+        ('LINEBELOW', (0, 0), (0, 0), 2, colors.HexColor('#3b82f6')),
+        ('TOPPADDING', (0, 0), (0, 0), 0),
+        ('BOTTOMPADDING', (0, 0), (0, 0), 0),
+    ]))
+    story.append(divider_table)
+    story.append(Spacer(1, 15))
     
-    # Modern footer content
-    story.append(Paragraph("Generated by Vigilink Security Management System", ParagraphStyle(
+    # Professional footer content
+    story.append(Paragraph("<b>Vigilink Security Management System</b>", ParagraphStyle(
         'FooterTitle',
         parent=styles['Normal'],
         fontSize=11,
         alignment=TA_CENTER,
-        textColor=colors.HexColor('#475569'),
+        textColor=colors.HexColor('#3b82f6'),
         fontName='Helvetica-Bold',
-        spaceAfter=5
+        spaceAfter=6
     )))
     story.append(Paragraph(f"Report generated on {current_time}", ParagraphStyle(
         'FooterInfo',
@@ -1232,9 +1404,9 @@ def reports_download_pdf(request):
         alignment=TA_CENTER,
         textColor=colors.HexColor('#64748b'),
         fontName='Helvetica',
-        spaceAfter=10
+        spaceAfter=8
     )))
-    story.append(Paragraph("Confidential Security Report - For Authorized Personnel Only", ParagraphStyle(
+    story.append(Paragraph("<i>Confidential Security Report - For Authorized Personnel Only</i>", ParagraphStyle(
         'FooterConfidential',
         parent=styles['Normal'],
         fontSize=8,
