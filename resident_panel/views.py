@@ -155,14 +155,23 @@ def residents(request):
 @require_http_methods(["POST"])
 def join_by_code(request):
     code = (request.POST.get('community_code') or '').strip()
+    # Check where user came from to redirect appropriately
+    next_url = request.POST.get('next') or request.GET.get('next') or 'resident_panel:residents'
+    
     if not code:
         messages.error(request, 'Please enter a valid community code.')
+        # Try to redirect back to the page they came from
+        if next_url == 'dashboard' or 'dashboard' in next_url:
+            return redirect('user_panel:dashboard')
         return redirect('resident_panel:residents')
 
     # Case-insensitive match on the stored code
     community = CommunityProfile.objects.filter(secret_code__iexact=code).first()
     if not community:
         messages.error(request, 'Invalid code. Please check with your Community Owner and try again.')
+        # Try to redirect back to the page they came from
+        if next_url == 'dashboard' or 'dashboard' in next_url:
+            return redirect('user_panel:dashboard')
         return redirect('resident_panel:residents')
 
     # Create/update membership for this user (one community per user)
@@ -193,6 +202,11 @@ def join_by_code(request):
         request.session['res_toast'] = f"Joined community: {community.community_name or 'Unnamed Community'}."
     except Exception:
         pass
+    
+    # Redirect to dashboard if that's where they came from, otherwise to residents
+    if next_url == 'dashboard' or 'dashboard' in next_url:
+        messages.success(request, f'Successfully joined {community.community_name or "the community"}!')
+        return redirect('user_panel:dashboard')
     return redirect('resident_panel:residents')
 
 def determine_priority_from_reasons(reasons_list):

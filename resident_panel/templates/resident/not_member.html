@@ -4,6 +4,7 @@
 {% block title %}
   {% if page_type == 'events' %}Events - Not Available
   {% elif page_type == 'alerts' %}Alerts - Not Available
+  {% elif page_type == 'dashboard' %}Dashboard - Not Available
   {% else %}Residents - Not Available
   {% endif %}
 {% endblock %}
@@ -151,12 +152,13 @@
       <h2 class="nm-title">
         {% if page_type == 'events' %}Events Access Unavailable
         {% elif page_type == 'alerts' %}Alerts Access Unavailable
+        {% elif page_type == 'dashboard' %}Dashboard Access Unavailable
         {% else %}Residents Access Unavailable
         {% endif %}
       </h2>
     </div>
     <p class="nm-text">
-      You are not part of any community yet. Enter the community code shared by your Community Owner to join.
+      You are not part of any community yet. Enter the community code shared by your Community President to join.
     </p>
     {% if messages %}
     <div class="nm-messages">
@@ -167,6 +169,7 @@
     {% endif %}
     <form class="nm-form" method="post" action="{% url 'resident_panel:join_by_code' %}">
       {% csrf_token %}
+      {% if page_type %}<input type="hidden" name="next" value="{{ page_type }}">{% endif %}
       <input class="nm-input" type="text" name="community_code" placeholder="Enter community code (e.g., ABCD-EFGH-IJKL-MNOP)" required autocomplete="off">
       <button class="nm-submit" type="submit">Join Community</button>
     </form>

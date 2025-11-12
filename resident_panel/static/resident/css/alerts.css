@@ -64,7 +64,8 @@
 .metric-card--incidents .metric-icon { background: linear-gradient(135deg, var(--warning), #f97316); }
 .metric-card--events .metric-icon { background: linear-gradient(135deg, var(--success), #34d399); }
 .metric-content h3 { margin: 0; font-size: 0.9rem; color: var(--muted); }
-.metric-label-mobile { display: none; }
+.metric-label-mobile { display: none !important; }
+.metric-label-full { display: inline; }
 .metric-value { font-size: 1.6rem; font-weight: 700; color: var(--text); }
 
 /* Content grid */
@@ -233,11 +234,11 @@
   }
   
   .metric-label-full {
-    display: none;
+    display: none !important;
   }
   
   .metric-label-mobile {
-    display: inline;
+    display: inline !important;
   }
   
   .metric-value {
