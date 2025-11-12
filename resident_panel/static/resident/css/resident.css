@@ -18,7 +18,8 @@
 .resident-avatar img { border-radius: 999px; display: block; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
 
 .resident-table-card { background: #fff; border-radius: 16px; box-shadow: 0 6px 16px rgba(0,0,0,0.06); border: 1px solid #eef2f7; overflow: hidden; }
-.resident-table { width: 100%; border-collapse: collapse; }
+.resident-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
+.resident-table { width: 100%; border-collapse: collapse; min-width: 100%; }
 .resident-table thead th { text-align: left; font-weight: 700; color: #374151; font-size: 14px; padding: 14px 16px; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
 .resident-table tbody td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #111827; vertical-align: middle; }
 .resident-table tbody tr:hover { background: #f9fafb; }
@@ -187,8 +188,41 @@
   .resident-toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
   .resident-toolbar-actions { order: -1; justify-content: flex-start; flex-wrap: wrap; gap: 8px; }
   .resident-toolbar-actions .resident-avatar { margin-left: auto; }
-  .actions-col { width: 160px; }
-  .actions { gap: 6px; }
+  
+  /* Make table horizontally scrollable on mobile */
+  .resident-table-card {
+    overflow: visible;
+  }
+  
+  .resident-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+  
+  .resident-table {
+    min-width: 600px; /* Ensure all columns are visible */
+  }
+  
+  .resident-table th,
+  .resident-table td {
+    white-space: nowrap;
+  }
+  
+  .actions-col { 
+    width: 180px; 
+    min-width: 180px;
+  }
+  .actions { 
+    gap: 6px; 
+    flex-wrap: nowrap;
+  }
+  
+  .actions .btn {
+    white-space: nowrap;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
 }
 
 /* Pagination */
