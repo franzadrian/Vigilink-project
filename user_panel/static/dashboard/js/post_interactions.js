@@ -985,6 +985,31 @@ function setupPostActions() {
                     if (data.status === 'success') {
                         // Remove post card from DOM
                         postCard.remove();
+                        
+                        // Check if there are any remaining posts
+                        const postsContainer = document.querySelector('.posts-container');
+                        if (postsContainer) {
+                            const remainingPosts = postsContainer.querySelectorAll('.post-card');
+                            const existingEmptyState = postsContainer.querySelector('.no-posts');
+                            const existingNoResults = postsContainer.querySelector('.no-results-message');
+                            
+                            // If no posts remain, show the empty state message
+                            if (remainingPosts.length === 0) {
+                                // Remove any existing no-results message
+                                if (existingNoResults) {
+                                    existingNoResults.remove();
+                                }
+                                
+                                // Only add empty state if it doesn't already exist
+                                if (!existingEmptyState) {
+                                    const emptyState = document.createElement('div');
+                                    emptyState.className = 'no-posts';
+                                    emptyState.innerHTML = '<p>No posts yet. Be the first to create a post!</p>';
+                                    postsContainer.appendChild(emptyState);
+                                }
+                            }
+                        }
+                        
                         // Close the modal
                         modal.classList.remove('active');
                     } else {

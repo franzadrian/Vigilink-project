@@ -16,7 +16,7 @@
         </div>
 
         <div class="form-group">
-            <label for="images">Attach Images (up to 20)</label>
+            <div class="form-label">Attach Images (up to 20)</div>
             <input type="file" id="images" name="images" accept="image/*" multiple class="hidden-file-input" max="20">
             <label for="images" class="file-input-label">
                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -28,59 +28,227 @@
             <div id="image-preview-container" class="image-preview-container"></div>
         </div>
         <script>
+            document.addEventListener('DOMContentLoaded', function() {
+            // Store all selected files
+            var selectedFiles = [];
+            var fileInput = document.getElementById('images');
+            var countDisplay = document.getElementById('images-count-display');
+            var previewContainer = document.getElementById('image-preview-container');
 
-            document.getElementById('images').addEventListener('change', function(e) {
-                var fileCount = e.target.files.length;
-                var countDisplay = document.getElementById('images-count-display');
-                var previewContainer = document.getElementById('image-preview-container');
+            // Function to update the file input with all selected files
+            function updateFileInput() {
+                try {
+                    var dataTransfer = new DataTransfer();
+                    selectedFiles.forEach(function(file) {
+                        if (file && file instanceof File) {
+                            dataTransfer.items.add(file);
+                        }
+                    });
+                    fileInput.files = dataTransfer.files;
+                } catch (error) {
+                    console.error('Error updating file input:', error);
+                    // Fallback: create a new file input
+                    var form = fileInput.form;
+                    var newInput = document.createElement('input');
+                    newInput.type = 'file';
+                    newInput.name = 'images';
+                    newInput.multiple = true;
+                    newInput.accept = 'image/*';
+                    newInput.style.display = 'none';
+                    
+                    var dataTransfer = new DataTransfer();
+                    selectedFiles.forEach(function(file) {
+                        if (file && file instanceof File) {
+                            dataTransfer.items.add(file);
+                        }
+                    });
+                    newInput.files = dataTransfer.files;
+                    
+                    form.replaceChild(newInput, fileInput);
+                    fileInput = newInput;
+                }
+            }
+
+            // Function to create loading spinner
+            function createLoadingSpinner() {
+                var spinner = document.createElement('div');
+                spinner.className = 'image-loading-spinner';
+                spinner.innerHTML = '<div class="spinner"></div>';
+                return spinner;
+            }
+
+            // Function to update the display
+            function updateDisplay() {
+                var fileCount = selectedFiles.length;
+                
+                if (fileCount > 0) {
+                    countDisplay.textContent = fileCount + (fileCount === 1 ? ' image' : ' images') + ' selected';
+                } else {
+                    countDisplay.textContent = 'No images chosen';
+                }
                 
                 // Clear previous previews
                 previewContainer.innerHTML = '';
                 
-                if (fileCount > 0) {
-                    countDisplay.textContent = fileCount + (fileCount === 1 ? ' image' : ' images') + ' selected';
-                    
-                    // Create image previews (up to 4)
-                    var previewCount = Math.min(fileCount, 4);
-                    for (var i = 0; i < previewCount; i++) {
-                        var file = e.target.files[i];
-                        if (file.type.match('image.*')) {
-                            var preview = document.createElement('div');
-                            preview.className = 'image-preview';
-                            
-                            // If this is the 4th preview and there are more images
-                            if (i === 3 && fileCount > 4) {
-                                preview.className += ' stacked-preview';
-                                var overlay = document.createElement('div');
-                                overlay.className = 'stacked-overlay';
-                                overlay.textContent = '+' + (fileCount - 3);
-                                preview.appendChild(overlay);
-                            }
-                            
-                            var img = document.createElement('img');
-                            var reader = new FileReader();
-                            
-                            reader.onload = (function(aImg) { 
-                                return function(e) { 
-                                    aImg.src = e.target.result; 
-                                }; 
-                            })(img);
-                            
-                            reader.readAsDataURL(file);
-                            preview.appendChild(img);
-                            previewContainer.appendChild(preview);
-                        }
+                // Create image previews for all selected images
+                selectedFiles.forEach(function(file, index) {
+                    if (file && file.type && file.type.match('image.*')) {
+                        var preview = document.createElement('div');
+                        preview.className = 'image-preview';
+                        preview.dataset.index = index;
+                        
+                        // Add loading spinner
+                        var loadingSpinner = createLoadingSpinner();
+                        preview.appendChild(loadingSpinner);
+                        
+                        var img = document.createElement('img');
+                        img.style.display = 'none'; // Hide until loaded
+                        var reader = new FileReader();
+                        
+                        reader.onload = function(e) {
+                            img.src = e.target.result;
+                            img.onload = function() {
+                                // Hide spinner and show image
+                                loadingSpinner.style.display = 'none';
+                                img.style.display = 'block';
+                                
+                                // Create and show remove button
+                                var removeBtn = document.createElement('button');
+                                removeBtn.type = 'button';
+                                removeBtn.className = 'remove-image-btn';
+                                removeBtn.innerHTML = '&times;';
+                                removeBtn.title = 'Remove image';
+                                removeBtn.onclick = function() {
+                                    removeImage(index);
+                                };
+                                preview.appendChild(removeBtn);
+                            };
+                        };
+                        
+                        reader.onerror = function() {
+                            loadingSpinner.innerHTML = '<span style="color: red; font-size: 12px;">Error</span>';
+                        };
+                        
+                        reader.readAsDataURL(file);
+                        preview.appendChild(img);
+                        previewContainer.appendChild(preview);
                     }
-                } else {
-                    countDisplay.textContent = 'No images chosen';
+                });
+            }
+
+            // Function to remove an image
+            function removeImage(index) {
+                selectedFiles.splice(index, 1);
+                updateFileInput();
+                updateDisplay();
+            }
+
+            // Handle file selection
+            fileInput.addEventListener('change', function(e) {
+                var newFiles = Array.from(e.target.files);
+                var remainingSlots = 20 - selectedFiles.length;
+                
+                if (remainingSlots <= 0) {
+                    alert('You can only add up to 20 images total.');
+                    e.target.value = ''; // Clear the input
+                    return;
                 }
+                
+                // Filter only image files
+                var imageFiles = newFiles.filter(function(file) {
+                    return file.type && file.type.match('image.*');
+                });
+                
+                // Add new files to the array (up to the limit)
+                var filesToAdd = imageFiles.slice(0, remainingSlots);
+                selectedFiles = selectedFiles.concat(filesToAdd);
+                
+                if (imageFiles.length > remainingSlots) {
+                    alert('Only ' + remainingSlots + ' more image(s) can be added. Maximum 20 images allowed.');
+                }
+                
+                updateFileInput();
+                updateDisplay();
+                
+                // Clear the input so the same file can be selected again if needed
+                e.target.value = '';
             });
+
+            // Form submission handler
+            var form = document.querySelector('.create-post-form');
+            var submitBtn = document.getElementById('submit-btn');
+            var submitBtnText = submitBtn.querySelector('.submit-btn-text');
+            var submitBtnSpinner = submitBtn.querySelector('.submit-btn-spinner');
+            var cancelBtn = document.getElementById('cancel-btn');
+            var loadingOverlay = document.getElementById('loading-overlay');
+            var loadingSubtext = document.getElementById('loading-subtext');
+            var isSubmitting = false;
+
+            form.addEventListener('submit', function(e) {
+                // Prevent double submission
+                if (isSubmitting) {
+                    e.preventDefault();
+                    return false;
+                }
+
+                // Ensure files are properly set (do this first, before showing loading)
+                if (selectedFiles.length > 0) {
+                    updateFileInput();
+                    // Double check that files are set
+                    if (fileInput.files.length === 0) {
+                        e.preventDefault();
+                        alert('Error: Files could not be attached. Please try selecting the images again.');
+                        return false;
+                    }
+                }
+
+                // Set submitting flag immediately
+                isSubmitting = true;
+                
+                // Show loading state quickly
+                submitBtn.disabled = true;
+                submitBtnText.style.display = 'none';
+                submitBtnSpinner.style.display = 'inline-flex';
+                cancelBtn.style.pointerEvents = 'none';
+                cancelBtn.style.opacity = '0.5';
+                
+                // Show loading overlay
+                loadingOverlay.style.display = 'flex';
+                
+                // Update loading message based on images
+                if (selectedFiles.length > 0) {
+                    loadingSubtext.textContent = 'Uploading ' + selectedFiles.length + ' image' + (selectedFiles.length > 1 ? 's' : '') + '...';
+                } else {
+                    loadingSubtext.textContent = 'Creating post...';
+                }
+
+                // Allow form to submit normally - don't block
+                return true;
+            });
+
+            // Note: Removed beforeunload handler to prevent annoying prompts
+            }); // End DOMContentLoaded
         </script>
         <div class="form-actions">
-            <a href="{% url 'user_panel:dashboard' %}" class="cancel-btn">Cancel</a>
-            <button type="submit" class="submit-btn">Post</button>
+            <a href="{% url 'user_panel:dashboard' %}" class="cancel-btn" id="cancel-btn">Cancel</a>
+            <button type="submit" class="submit-btn" id="submit-btn">
+                <span class="submit-btn-text">Post</span>
+                <span class="submit-btn-spinner" style="display: none;">
+                    <svg class="spinner-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                    </svg>
+                </span>
+            </button>
         </div>
     </form>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
+            <div class="loading-spinner-large"></div>
+            <p class="loading-text">Creating your post...</p>
+            <p class="loading-subtext" id="loading-subtext">Please wait</p>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

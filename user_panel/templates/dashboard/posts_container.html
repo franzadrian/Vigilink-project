@@ -46,7 +46,11 @@
                                 {% if image_count > 3 %}
                                     <div class="post-image-container stacked" data-index="3">
                                         {% with fourth_image=images.3 %}
-                                            <img src="{{ fourth_image.image.url }}" alt="Post image" class="post-image" loading="lazy" decoding="async">
+                                            {% if fourth_image.image_url %}
+                                                <img src="{{ fourth_image.image_url }}" alt="Post image" class="post-image" loading="lazy" decoding="async">
+                                            {% else %}
+                                                <img src="{{ fourth_image.image.url }}" alt="Post image" class="post-image" loading="lazy" decoding="async">
+                                            {% endif %}
                                             <div class="post-image-overlay">+{{ image_count|add:"-3" }}</div>
                                         {% endwith %}
                                     </div>

@@ -41,13 +41,10 @@
         // Cache DOM elements to avoid repeated queries
         const searchInput = document.querySelector('.search-input');
         const postsContainer = document.querySelector('.posts-container');
-        const locationFilter = document.getElementById('location-filter');
-        const locationFilterHidden = document.getElementById('location-filter-hidden');
         
         // Function to update URL without page refresh
         const updateSearchParams = debounce(function() {
             const searchValue = searchInput.value;
-            const locationValue = locationFilterHidden.value;
             
             // Show loading indicator
             if (postsContainer) {
@@ -57,7 +54,8 @@
             // Create URL with parameters
             let url = new URL(window.location.href);
             url.searchParams.set('search', searchValue);
-            url.searchParams.set('location', locationValue);
+            // Remove location parameter if it exists
+            url.searchParams.delete('location');
             
             // Update browser history without refreshing
             window.history.pushState({}, '', url);
@@ -101,14 +99,6 @@
                 updateSearchParams();
             }
         });
-        
-        // Handle location filter changes
-        if (locationFilter) {
-            locationFilter.addEventListener('change', function() {
-                locationFilterHidden.value = this.value;
-                updateSearchParams();
-            });
-        }
     });
 </script>
 {% endblock %}
@@ -118,10 +108,10 @@
         <div class="dashboard-header">
             <div class="dashboard-title">
                 <h1>Neighborhood Safety Watch Dashboard</h1>
-                <p>Manage your property residents</p>
+                <p>Stay connected with your community</p>
             </div>
             <div class="header-actions">
-                <a href="{% url 'user_panel:create_post' %}" class="create-post-btn" style="margin-right: 5px; text-decoration: none;">
+                <a href="{% url 'user_panel:create_post' %}" class="create-post-btn">
                     <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
                     </svg>
@@ -133,7 +123,7 @@
             </div>
         </div>
 
-        <!-- Search and Filters -->
+        <!-- Search -->
         <div class="search-filters">
             <div class="search-container">
                 <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -141,33 +131,68 @@
                 </svg>
                 <form id="search-form" method="get" action="{% url 'user_panel:dashboard' %}">
                     <input type="text" name="search" class="search-input" placeholder="Search by username or name..." value="{{ request.GET.search|default:'' }}">
-                    <input type="hidden" name="location" id="location-filter-hidden" value="{{ request.GET.location|default:'everyone' }}">
                 </form>
-            </div>
-            <div class="filter-controls">
-                <div class="filter-group">
-                    <select class="select-dropdown" id="location-filter">
-                        <option value="everyone" {% if request.GET.location == 'everyone' or not request.GET.location %}selected{% endif %}>Everyone</option>
-                        <option value="local" {% if request.GET.location == 'local' %}selected{% endif %}>Local</option>
-                    </select>
-                    <div class="mobile-actions">
-                        <a href="{% url 'user_panel:create_post' %}" class="create-post-btn" style="margin-right: 5px; text-decoration: none;">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                            </svg>
-                            Create Post
-                        </a>
-                        <a href="{% url 'user_panel:view_profile' %}" class="user-avatar">
-                            <img src="{% if request.user.profile_picture_url %}{{ request.user.profile_picture_url }}{% elif request.user.profile_picture %}{{ request.user.profile_picture.url }}{% else %}/static/accounts/images/profile.png{% endif %}" alt="{{ request.user.full_name }}" class="avatar-img" loading="lazy" width="40" height="40" onerror="this.src='/static/accounts/images/profile.png'">
-                        </a>
-                    </div>
-                </div>
             </div>
         </div>
 
-        <!-- Posts -->
-        <div class="posts-container">
-            {% include 'dashboard/posts_container.html' %}
+        <!-- Main Content Area -->
+        <div class="dashboard-main-layout">
+            <!-- Posts Section -->
+            <div class="posts-section">
+                <div class="posts-container">
+                    {% include 'dashboard/posts_container.html' %}
+                </div>
+            </div>
+            
+            <!-- Sidebar Section -->
+            <div class="dashboard-sidebar">
+                <!-- Community Members Card -->
+                <div class="sidebar-card">
+                    <h3 class="sidebar-card-title">Community Members</h3>
+                    <div class="members-list">
+                        <div class="member-item owner-badge">
+                            <div class="member-avatar">
+                                <img src="{% if user_community.owner.profile_picture_url %}{{ user_community.owner.profile_picture_url }}{% elif user_community.owner.profile_picture %}{{ user_community.owner.profile_picture.url }}{% else %}/static/accounts/images/profile.png{% endif %}" alt="{{ user_community.owner.full_name }}" onerror="this.src='/static/accounts/images/profile.png'">
+                            </div>
+                            <div class="member-info">
+                                <a href="{% url 'user_panel:view_user_profile' user_community.owner.id %}" class="member-name-link">
+                                    <span class="member-name">{{ user_community.owner.full_name|default:user_community.owner.username }}</span>
+                                </a>
+                                <span class="member-role">Community President</span>
+                            </div>
+                            {% if user_community.owner.id != request.user.id %}
+                            <a href="{% url 'user_panel:communication' %}?user_id={{ user_community.owner.id }}" class="message-btn" title="Send message">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                                </svg>
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% for membership in community_members %}
+                        <div class="member-item">
+                            <div class="member-avatar">
+                                <img src="{% if membership.user.profile_picture_url %}{{ membership.user.profile_picture_url }}{% elif membership.user.profile_picture %}{{ membership.user.profile_picture.url }}{% else %}/static/accounts/images/profile.png{% endif %}" alt="{{ membership.user.full_name }}" onerror="this.src='/static/accounts/images/profile.png'">
+                            </div>
+                            <div class="member-info">
+                                <a href="{% url 'user_panel:view_user_profile' membership.user.id %}" class="member-name-link">
+                                    <span class="member-name">{{ membership.user.full_name|default:membership.user.username }}</span>
+                                </a>
+                                <span class="member-role">{{ membership.user.get_role_display }}</span>
+                            </div>
+                            {% if membership.user.id != request.user.id %}
+                            <a href="{% url 'user_panel:communication' %}?user_id={{ membership.user.id }}" class="message-btn" title="Send message">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                                </svg>
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% empty %}
+                        <p class="no-members">No other members yet</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
         </div>
         
         <!-- Lightbox for image gallery (legacy) -->

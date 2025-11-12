@@ -9,6 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from .models import Post, PostReaction, PostReply, PostImage, Message  # PostShare removed
 from accounts.models import User
+from communityowner_panel.models import CommunityMembership, CommunityProfile
 import logging
 import json
 import requests
@@ -21,6 +22,39 @@ from django.utils.safestring import mark_safe
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+# Helper function to check if user has community membership or owns a community and get their community
+def get_user_community(user):
+    """Get the community for a user, or None if they don't have membership or ownership.
+    Checks both CommunityMembership and CommunityProfile.owner"""
+    # First check if user is a member of a community
+    try:
+        membership = CommunityMembership.objects.get(user=user)
+        return membership.community
+    except CommunityMembership.DoesNotExist:
+        pass
+    
+    # If not a member, check if user owns a community
+    try:
+        profile = CommunityProfile.objects.get(owner=user)
+        return profile
+    except CommunityProfile.DoesNotExist:
+        pass
+    
+    return None
+
+# Helper function to check if two users are in the same community
+def are_users_in_same_community(user1, user2):
+    """Check if two users are in the same community.
+    This includes checking if one is the owner and the other is a member, or vice versa."""
+    community1 = get_user_community(user1)
+    community2 = get_user_community(user2)
+    
+    if community1 is None or community2 is None:
+        return False
+    
+    # Both should reference the same CommunityProfile
+    return community1 == community2
 
 # PayPal configuration helpers (read fresh from environment/.env when needed)
 def _get_env(name: str, default: str = "") -> str:
@@ -414,6 +448,39 @@ def send_image_message(request):
                 'sent_at': m.sent_at.isoformat(),
                 'is_own': True
             })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def get_user_by_id(request, user_id):
+    """Get user details by ID for communication page"""
+    try:
+        user = User.objects.get(id=user_id)
+        # Don't allow messaging yourself
+        if user.id == request.user.id:
+            return JsonResponse({'error': 'Cannot message yourself'}, status=400)
+        
+        # Get profile picture URL
+        profile_picture_url = None
+        try:
+            profile_picture_url = user.get_profile_picture_url() if hasattr(user, 'get_profile_picture_url') else None
+        except Exception:
+            pass
+        if not profile_picture_url:
+            try:
+                profile_picture_url = user.profile_picture.url if getattr(user, 'profile_picture', None) else None
+            except Exception:
+                pass
+        
+        return JsonResponse({
+            'id': user.id,
+            'username': user.username,
+            'full_name': user.full_name or user.username,
+            'email': user.email,
+            'profile_picture_url': profile_picture_url or '/static/accounts/images/profile.png'
+        })
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'User not found'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -1017,16 +1084,65 @@ def privacy(request):
 def dashboard(request):
     logger.info(f"Dashboard view accessed by user: {request.user.username}")
     try:
+        # Check if user has a community membership
+        user_community = get_user_community(request.user)
+        if not user_community:
+            # User is not part of any community - show not_member page
+            from accounts.models import LocationEmergencyContact
+            
+            # Get location-based emergency contacts if available
+            location_contacts = []
+            try:
+                # Get district-specific contacts first (more specific)
+                if hasattr(request.user, 'district') and request.user.district:
+                    district_contacts = LocationEmergencyContact.objects.filter(
+                        district=request.user.district,
+                        is_active=True
+                    ).order_by('order', 'id')
+                    for c in district_contacts:
+                        location_contacts.append({
+                            'label': c.label, 
+                            'phone': c.phone
+                        })
+                
+                # If no district contacts, get city-specific contacts
+                if not location_contacts and hasattr(request.user, 'city') and request.user.city:
+                    city_contacts = LocationEmergencyContact.objects.filter(
+                        city=request.user.city,
+                        is_active=True
+                    ).order_by('order', 'id')
+                    for c in city_contacts:
+                        location_contacts.append({
+                            'label': c.label, 
+                            'phone': c.phone
+                        })
+            except Exception:
+                location_contacts = []
+            
+            return render(request, 'resident/not_member.html', {
+                'page_type': 'dashboard',
+                'location_contacts': location_contacts
+            })
+        
         # Get search parameters
         search_query = request.GET.get('search', '')
-        location_filter = request.GET.get('location', 'everyone')
         
-        # Start with all posts and join user to avoid extra queries
+        # Get all users in the same community (members + owner)
+        community_member_ids = list(CommunityMembership.objects.filter(
+            community=user_community
+        ).values_list('user_id', flat=True))
+        
+        # Also include the community owner if they're not already in the members list
+        if user_community.owner_id not in community_member_ids:
+            community_member_ids.append(user_community.owner_id)
+        
+        # Start with posts from users in the same community only (members + owner)
         user_reacted_subq = models.Exists(
             PostReaction.objects.filter(post=models.OuterRef('pk'), user=request.user)
         )
         posts_query = (
             Post.objects
+            .filter(user_id__in=community_member_ids)  # Only posts from community members and owner
             .select_related('user')
             .annotate(
                 reaction_count=models.Count('reactions', distinct=True),
@@ -1037,18 +1153,10 @@ def dashboard(request):
         
         # Apply search filter if provided
         if search_query:
-            # Search by username or full_name (partial match)
+            # Search by username or full_name (partial match) within community members
             posts_query = posts_query.filter(
                 models.Q(user__username__icontains=search_query) |
                 models.Q(user__full_name__icontains=search_query)
-            )
-        
-        # Apply location filter if set to 'local'
-        if location_filter == 'local' and request.user.city and request.user.district:
-            # Filter posts by users from the same city and district
-            posts_query = posts_query.filter(
-                user__city=request.user.city,
-                user__district=request.user.district
             )
         
         # Order by most recent first and cap initial results for faster render
@@ -1060,14 +1168,29 @@ def dashboard(request):
         no_results = False
         if search_query and not posts.exists():
             no_results = True
-            no_results_message = f"No posts found from users matching '{search_query}'."
+            no_results_message = f"No posts found from users matching '{search_query}' in your community."
+        
+        # Get community information for sidebar
+        community_members = CommunityMembership.objects.filter(
+            community=user_community
+        ).select_related('user').order_by('-joined_at')[:10]  # Recent 10 members
+        
+        total_members = CommunityMembership.objects.filter(community=user_community).count()
+        total_posts = Post.objects.filter(user_id__in=community_member_ids).count()
+        
+        # Check if current user is the owner
+        is_owner = user_community.owner == request.user
         
         context = {
             'posts': posts,
             'search_query': search_query,
-            'location_filter': location_filter,
             'no_results': no_results,
-            'no_results_message': no_results_message if 'no_results_message' in locals() else ''
+            'no_results_message': no_results_message if 'no_results_message' in locals() else '',
+            'user_community': user_community,
+            'community_members': community_members,
+            'total_members': total_members,
+            'total_posts': total_posts,
+            'is_owner': is_owner,
         }
         
         # Check if this is an AJAX request
@@ -1086,6 +1209,12 @@ def dashboard(request):
 
 @login_required
 def create_post(request):
+    # Check if user has a community membership
+    user_community = get_user_community(request.user)
+    if not user_community:
+        messages.error(request, 'You must be a member of a community to create posts.')
+        return redirect('user_panel:view_profile')
+    
     if request.method == 'POST':
         try:
             message = request.POST.get('message', '')
@@ -1098,39 +1227,125 @@ def create_post(request):
             
             logger.info(f"Post created: {post.post_id}")
             
-            # Handle multiple image uploads
+            # Handle multiple image uploads - optimized with parallel uploads
             images = request.FILES.getlist('images')
-            image_count = 0
             
             if images:
-                from .dropbox_utils import upload_post_image
+                from .dropbox_utils import upload_post_image, get_dropbox_client
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+                from io import BytesIO
+                import uuid
+                import os
                 
+                # Limit to 20 images
+                images = images[:20]
+                
+                # Pre-verify Dropbox client once before threading
+                dbx = get_dropbox_client()
+                if not dbx:
+                    messages.error(request, 'Dropbox service unavailable. Please try again later.')
+                    return redirect('user_panel:dashboard')
+                
+                # Pre-create folder once (avoid doing this in each thread)
+                from .dropbox_utils import POST_IMAGES_PATH
+                try:
+                    folder_path = POST_IMAGES_PATH.rstrip('/')
+                    if folder_path:
+                        try:
+                            dbx.files_create_folder_v2(folder_path)
+                        except Exception:
+                            pass  # Folder likely exists
+                except Exception:
+                    pass
+                
+                # Read all file contents into memory for threading
+                image_data_list = []
                 for image in images:
-                    # Limit to 20 images per post
-                    if image_count >= 20:
-                        break
-                        
-                    try:
-                        # Upload to Dropbox and get the URL
-                        dropbox_url = upload_post_image(image)
-                        
-                        if dropbox_url:
-                            # Create PostImage with Dropbox URL
-                            post_image = PostImage.objects.create(
-                                post=post,
-                                image_url=dropbox_url
-                            )
-                        else:
-                            # Skip this image if Dropbox upload fails (no local fallback)
-                            logger.error(f"Dropbox upload failed for image {image.name} in post {post.post_id}")
-                            continue
-                            
-                        image_count += 1
-                        logger.info(f"Image uploaded for post {post.post_id}: {image.name}, ID: {post_image.image_id}")
-                    except Exception as img_error:
-                        logger.error(f"Error uploading image {image.name}: {str(img_error)}")
+                    image_data = image.read()
+                    image_name = image.name
+                    image_data_list.append((image_data, image_name))
                 
-                logger.info(f"Total {image_count} images uploaded for post {post.post_id}")
+                def upload_image(image_data_bytes, image_name, index):
+                    """Upload a single image in a thread"""
+                    try:
+                        from .dropbox_utils import get_dropbox_client_fast
+                        from dropbox.files import WriteMode
+                        from dropbox.exceptions import ApiError
+                        
+                        # Each thread gets its own client without account verification (faster)
+                        thread_dbx = get_dropbox_client_fast()
+                        if not thread_dbx:
+                            return (index, None, "Dropbox client unavailable")
+                        
+                        # Generate filename
+                        ext = os.path.splitext(image_name)[1] if image_name else '.jpg'
+                        filename = f"{uuid.uuid4()}{ext}"
+                        file_path = f"{POST_IMAGES_PATH}{filename}"
+                        
+                        # Upload directly using bytes and shared client
+                        mode = WriteMode.add
+                        result = thread_dbx.files_upload(image_data_bytes, file_path, mode=mode, autorename=True)
+                        
+                        # Create or retrieve shared link
+                        try:
+                            shared_link = thread_dbx.sharing_create_shared_link_with_settings(result.path_lower)
+                            link_url = shared_link.url
+                        except ApiError:
+                            try:
+                                links = thread_dbx.sharing_list_shared_links(path=result.path_lower, direct_only=True)
+                                link_url = links.links[0].url if links.links else None
+                            except Exception:
+                                link_url = None
+                        
+                        if link_url:
+                            # Convert to direct download link
+                            dl_url = link_url.replace('www.dropbox.com', 'dl.dropboxusercontent.com')
+                            dl_url = dl_url.replace('?dl=0', '')
+                            return (index, dl_url, None)
+                        else:
+                            # Fallback to temporary link
+                            try:
+                                temp = thread_dbx.files_get_temporary_link(result.path_lower)
+                                return (index, temp.link, None)
+                            except Exception:
+                                return (index, None, "Failed to get download link")
+                    except Exception as e:
+                        return (index, None, str(e))
+                
+                # Use ThreadPoolExecutor for better thread management
+                results = {}
+                with ThreadPoolExecutor(max_workers=min(6, len(image_data_list))) as executor:
+                    # Submit all upload tasks
+                    future_to_index = {
+                        executor.submit(upload_image, image_data_bytes, image_name, idx): idx
+                        for idx, (image_data_bytes, image_name) in enumerate(image_data_list)
+                    }
+                    
+                    # Collect results as they complete
+                    for future in as_completed(future_to_index):
+                        try:
+                            idx, url, error = future.result()
+                            results[idx] = (url, error)
+                        except Exception as e:
+                            idx = future_to_index[future]
+                            results[idx] = (None, str(e))
+                
+                # Create PostImage objects in order using bulk_create for better performance
+                post_images = []
+                for idx in sorted(results.keys()):
+                    url, error = results[idx]
+                    if url:
+                        post_images.append(PostImage(
+                            post=post,
+                            image_url=url
+                        ))
+                    else:
+                        logger.error(f"Dropbox upload failed for image {idx} in post {post.post_id}: {error}")
+                
+                # Bulk create all images at once
+                if post_images:
+                    PostImage.objects.bulk_create(post_images)
+                    logger.info(f"Total {len(post_images)} images uploaded for post {post.post_id}")
             
             messages.success(request, 'Post created successfully!')
             return redirect('user_panel:dashboard')
@@ -1144,6 +1359,10 @@ def create_post(request):
 @require_POST
 def react_to_post(request, post_id):
     post = get_object_or_404(Post, post_id=post_id)
+    
+    # Check if user and post author are in the same community
+    if not are_users_in_same_community(request.user, post.user):
+        return JsonResponse({'status': 'error', 'message': 'You can only react to posts from your community.'}, status=403)
     
     # Check if user already reacted to this post
     reaction, created = PostReaction.objects.get_or_create(user=request.user, post=post)
@@ -1159,6 +1378,10 @@ def react_to_post(request, post_id):
 @require_POST
 def reply_to_post(request, post_id):
     post = get_object_or_404(Post, post_id=post_id)
+    
+    # Check if user and post author are in the same community
+    if not are_users_in_same_community(request.user, post.user):
+        return JsonResponse({'status': 'error', 'message': 'You can only reply to posts from your community.'}, status=403)
     
     # Check if the request has JSON content
     if request.content_type == 'application/json':
@@ -1206,6 +1429,12 @@ def reply_to_post(request, post_id):
 @login_required
 def view_post(request, post_id):
     post = get_object_or_404(Post, post_id=post_id)
+    
+    # Check if user and post author are in the same community
+    if not are_users_in_same_community(request.user, post.user):
+        messages.error(request, 'You can only view posts from your community.')
+        return redirect('user_panel:dashboard')
+    
     replies = post.replies.all().order_by('created_at')
     
     # Check if user has reacted to this post
@@ -1226,6 +1455,11 @@ def get_post_replies(request, post_id):
     """API endpoint to get replies for a post"""
     try:
         post = get_object_or_404(Post, post_id=post_id)
+        
+        # Check if user and post author are in the same community
+        if not are_users_in_same_community(request.user, post.user):
+            return JsonResponse({'status': 'error', 'message': 'You can only view replies to posts from your community.'}, status=403)
+        
         replies = post.replies.all().order_by('created_at')
         
         # Format replies for JSON response
@@ -1449,6 +1683,10 @@ def edit_post(request, post_id):
     if post.user != request.user:
         return HttpResponseForbidden("You don't have permission to edit this post")
     
+    # Check if user and post author are in the same community
+    if not are_users_in_same_community(request.user, post.user):
+        return JsonResponse({'status': 'error', 'message': 'You can only edit posts from your community.'}, status=403)
+    
     try:
         data = json.loads(request.body)
         message = data.get('message', '').strip()
@@ -1480,6 +1718,10 @@ def delete_post(request, post_id):
     if post.user != request.user:
         return HttpResponseForbidden("You don't have permission to delete this post")
     
+    # Check if user and post author are in the same community
+    if not are_users_in_same_community(request.user, post.user):
+        return JsonResponse({'status': 'error', 'message': 'You can only delete posts from your community.'}, status=403)
+    
     try:
         # Delete the post
         post.delete()
@@ -1501,6 +1743,10 @@ def edit_reply(request, reply_id):
     # Check if the user is the author of the reply
     if reply.user != request.user:
         return HttpResponseForbidden("You don't have permission to edit this reply")
+    
+    # Check if user and post author are in the same community
+    if not are_users_in_same_community(request.user, reply.post.user):
+        return JsonResponse({'status': 'error', 'message': 'You can only edit replies to posts from your community.'}, status=403)
     
     try:
         data = json.loads(request.body)
@@ -1532,6 +1778,10 @@ def delete_reply(request, reply_id):
     # Check if the user is the author of the reply
     if reply.user != request.user:
         return HttpResponseForbidden("You don't have permission to delete this reply")
+    
+    # Check if user and post author are in the same community
+    if not are_users_in_same_community(request.user, reply.post.user):
+        return JsonResponse({'status': 'error', 'message': 'You can only delete replies to posts from your community.'}, status=403)
     
     try:
         # Get the post before deleting the reply to update reply count
@@ -1598,12 +1848,17 @@ def get_post_images(request, post_id):
     
     try:
         post = get_object_or_404(Post, post_id=post_id)
+        
+        # Check if user and post author are in the same community
+        if not are_users_in_same_community(request.user, post.user):
+            return JsonResponse({'status': 'error', 'message': 'You can only view images from posts in your community.'}, status=403)
+        
         images = post.get_images()
         
         # Format the response
         image_data = [{
             'id': image.image_id,
-            'url': image.image.url,
+            'url': image.get_image_url(),
             'created_at': image.uploaded_at.isoformat()
         } for image in images]
         

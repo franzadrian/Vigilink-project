@@ -18,13 +18,8 @@ PROFILE_PICTURES_PATH = '/vigilink/profile_pictures/'
 POST_IMAGES_PATH = '/vigilink/post_images/'
 CHAT_IMAGES_PATH = '/vigilink/chat_images/'
 
-def get_dropbox_client():
-    """Initialize and return a Dropbox client instance.
-    Prefers OAuth2 refresh token if provided; otherwise falls back to access token.
-    Lookup order:
-      1) Refresh token: env -> settings -> optional file (settings.DROPBOX_REFRESH_TOKEN_FILE)
-      2) Access token:  env -> settings -> optional file (settings.DROPBOX_TOKEN_FILE) -> ACCESS_TOKEN fallback
-    """
+def _get_dropbox_credentials():
+    """Helper to get Dropbox credentials without creating a client"""
     # 1) Try refresh token flow first
     refresh_token = (
         os.environ.get('DROPBOX_REFRESH_TOKEN') or
@@ -40,18 +35,7 @@ def get_dropbox_client():
                 refresh_token = None
 
     if refresh_token and APP_KEY and APP_SECRET:
-        try:
-            dbx = dropbox.Dropbox(
-                oauth2_refresh_token=refresh_token,
-                app_key=APP_KEY,
-                app_secret=APP_SECRET,
-            )
-            dbx.users_get_current_account()
-            return dbx
-        except AuthError:
-            print("ERROR: Invalid Dropbox refresh token or app credentials")
-        except Exception as e:
-            print(f"ERROR: Dropbox init with refresh token failed: {e}")
+        return ('refresh', refresh_token, APP_KEY, APP_SECRET)
 
     # 2) Fall back to long/short-lived access token
     token = (
@@ -68,56 +52,98 @@ def get_dropbox_client():
                 token = None
     if not token and ACCESS_TOKEN:
         token = ACCESS_TOKEN
+    
+    if token:
+        return ('token', token, None, None)
+    
+    return None
 
+def get_dropbox_client(verify_account=True):
+    """Initialize and return a Dropbox client instance.
+    Prefers OAuth2 refresh token if provided; otherwise falls back to access token.
+    Lookup order:
+      1) Refresh token: env -> settings -> optional file (settings.DROPBOX_REFRESH_TOKEN_FILE)
+      2) Access token:  env -> settings -> optional file (settings.DROPBOX_TOKEN_FILE) -> ACCESS_TOKEN fallback
+    
+    Args:
+        verify_account: If True, verify account by calling users_get_current_account (default: True)
+    """
+    creds = _get_dropbox_credentials()
+    if not creds:
+        print("ERROR: Dropbox access token not configured")
+        return None
+    
+    cred_type, token_or_refresh, app_key, app_secret = creds
+    
     try:
-        if not token:
-            print("ERROR: Dropbox access token not configured")
-            return None
-        dbx = dropbox.Dropbox(token)
-        dbx.users_get_current_account()
+        if cred_type == 'refresh':
+            dbx = dropbox.Dropbox(
+                oauth2_refresh_token=token_or_refresh,
+                app_key=app_key,
+                app_secret=app_secret,
+            )
+        else:
+            dbx = dropbox.Dropbox(token_or_refresh)
+        
+        if verify_account:
+            dbx.users_get_current_account()
         return dbx
     except AuthError:
-        print("ERROR: Invalid Dropbox access token")
+        print("ERROR: Invalid Dropbox credentials")
+        return None
+    except Exception as e:
+        print(f"ERROR: Dropbox init failed: {e}")
         return None
 
-def upload_file_to_dropbox(file_content, file_path, overwrite=False):
+def get_dropbox_client_fast():
+    """Get a Dropbox client without account verification (faster for threading)"""
+    return get_dropbox_client(verify_account=False)
+
+def upload_file_to_dropbox(file_content, file_path, overwrite=False, dbx_client=None):
     """
     Upload a file to Dropbox
     
     Args:
-        file_content: The file content to upload
+        file_content: The file content to upload (bytes or file-like object)
         file_path: The path where to store the file in Dropbox
         overwrite: Whether to overwrite an existing file
+        dbx_client: Optional pre-initialized Dropbox client (for threading optimization)
     
     Returns:
         Shared link URL if successful, None otherwise
     """
-    dbx = get_dropbox_client()
+    # Use provided client or get a new one
+    dbx = dbx_client if dbx_client else get_dropbox_client()
     if not dbx:
         return None
 
     mode = WriteMode.overwrite if overwrite else WriteMode.add
 
     try:
-        # Ensure parent folder exists (create if missing)
-        try:
-            folder_path = os.path.dirname(file_path) or '/'
-            if folder_path and folder_path != '/':
-                try:
-                    dbx.files_create_folder_v2(folder_path)
-                except ApiError:
-                    # Ignore if folder already exists or any conflict
-                    pass
-        except Exception:
-            pass
+        # Skip folder creation if client was provided (folder should be pre-created)
+        if not dbx_client:
+            # Ensure parent folder exists (create if missing)
+            try:
+                folder_path = os.path.dirname(file_path) or '/'
+                if folder_path and folder_path != '/':
+                    try:
+                        dbx.files_create_folder_v2(folder_path)
+                    except ApiError:
+                        # Ignore if folder already exists or any conflict
+                        pass
+            except Exception:
+                pass
 
         # Upload the file (enable autorename to avoid conflicts)
         if isinstance(file_content, bytes):
-            result = dbx.files_upload(file_content, file_path, mode=mode, autorename=True)
+            file_bytes = file_content
         else:
             # If it's a file-like object, read it first
-            file_content.seek(0)
-            result = dbx.files_upload(file_content.read(), file_path, mode=mode, autorename=True)
+            if hasattr(file_content, 'seek'):
+                file_content.seek(0)
+            file_bytes = file_content.read() if hasattr(file_content, 'read') else file_content
+        
+        result = dbx.files_upload(file_bytes, file_path, mode=mode, autorename=True)
 
         # Create or retrieve a shared link
         try:
@@ -125,8 +151,12 @@ def upload_file_to_dropbox(file_content, file_path, overwrite=False):
             link_url = shared_link.url
         except ApiError:
             # If link already exists or cannot be created, try listing
-            links = dbx.sharing_list_shared_links(path=result.path_lower, direct_only=True)
-            link_url = links.links[0].url if links.links else None
+            try:
+                links = dbx.sharing_list_shared_links(path=result.path_lower, direct_only=True)
+                link_url = links.links[0].url if links.links else None
+            except Exception:
+                link_url = None
+        
         dl_url = None
         if link_url:
             # Convert to direct download link

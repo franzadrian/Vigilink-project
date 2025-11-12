@@ -924,10 +924,96 @@ document.addEventListener('DOMContentLoaded', () => {
     const userIdParam = urlParams.get('user_id');
     if (userIdParam) {
         const userId = parseInt(userIdParam);
-        const userItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
-        if (userItem) {
-            selectUser(userId);
+        let selectionAttempted = false;
+        
+        // Function to attempt user selection
+        function attemptUserSelection() {
+            // Prevent multiple simultaneous attempts
+            if (selectionAttempted && selectedUser === userId) {
+                return;
+            }
+            
+            const userItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
+            
+            if (userItem) {
+                // User is already in the list, select them immediately
+                selectionAttempted = true;
+                selectUser(userId);
+            } else if (!selectionAttempted) {
+                // User is not in the list, fetch and add them
+                selectionAttempted = true;
+                fetch(`/user/communication/user/${userId}/`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('User not found');
+                        }
+                        return response.json();
+                    })
+                    .then(userData => {
+                        if (userData && userData.id) {
+                            // Create user item and add to list
+                            const searchResults = document.getElementById('search-results');
+                            if (searchResults) {
+                                const formattedUser = {
+                                    id: userData.id,
+                                    username: userData.username,
+                                    full_name: userData.full_name,
+                                    email: userData.email,
+                                    profile_picture_url: userData.profile_picture_url
+                                };
+                                
+                                // Check if item was already added (race condition)
+                                let existingItem = searchResults.querySelector(`.user-item[data-user-id="${userId}"]`);
+                                if (!existingItem) {
+                                    const newUserItem = createListUserItem(formattedUser);
+                                    // Insert at the beginning of the list
+                                    const firstItem = searchResults.querySelector('.user-item:not(.search-result-item)');
+                                    if (firstItem) {
+                                        searchResults.insertBefore(newUserItem, firstItem);
+                                    } else {
+                                        // If no existing items, check for no-users placeholder
+                                        const noUsers = searchResults.querySelector('.no-users');
+                                        if (noUsers) {
+                                            searchResults.insertBefore(newUserItem, noUsers);
+                                        } else {
+                                            searchResults.appendChild(newUserItem);
+                                        }
+                                    }
+                                    existingItem = newUserItem;
+                                }
+                                
+                                // Now select the user - this will show the chat container
+                                selectUser(userId);
+                            }
+                        } else {
+                            console.error('Invalid user data received');
+                            selectionAttempted = false; // Allow retry
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching user details:', error);
+                        selectionAttempted = false; // Allow retry
+                        // Try again after a delay
+                        setTimeout(() => {
+                            const retryItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
+                            if (retryItem) {
+                                selectUser(userId);
+                            } else {
+                                attemptUserSelection();
+                            }
+                        }, 1000);
+                    });
+            }
         }
+        
+        // Wait for page to fully load, then attempt selection
+        // Try multiple times to handle async loading of user list
+        // Use requestAnimationFrame to ensure DOM is ready
+        requestAnimationFrame(() => {
+            setTimeout(attemptUserSelection, 300);
+            setTimeout(attemptUserSelection, 800);
+            setTimeout(attemptUserSelection, 1500);
+        });
     }
 });
 // ---- Search helpers ----
@@ -1272,6 +1358,54 @@ function selectUser(userId) {
         selectedUserItem = document.querySelector(`#search-results .search-result-item[data-user-id="${userId}"]`);
         fromSearch = !!selectedUserItem;
     }
+    
+    // If user item doesn't exist, fetch user details and create it
+    if (!selectedUserItem) {
+        fetch(`/user/communication/user/${userId}/`)
+            .then(response => response.json())
+            .then(userData => {
+                if (userData && userData.id) {
+                    // Create user item and add to list
+                    const searchResults = document.getElementById('search-results');
+                    if (searchResults) {
+                        const formattedUser = {
+                            id: userData.id,
+                            username: userData.username,
+                            full_name: userData.full_name,
+                            email: userData.email,
+                            profile_picture_url: userData.profile_picture_url
+                        };
+                        const newUserItem = createListUserItem(formattedUser);
+                        newUserItem.classList.add('search-result-item');
+                        const firstItem = searchResults.querySelector('.user-item:not(.search-result-item)');
+                        if (firstItem) {
+                            searchResults.insertBefore(newUserItem, firstItem);
+                        } else {
+                            const usersContainer = searchResults.closest('.users-container') || searchResults;
+                            usersContainer.insertBefore(newUserItem, searchResults.querySelector('.no-users') || null);
+                        }
+                        // Update selectedUserItem reference
+                        selectedUserItem = newUserItem;
+                        // Continue with selection
+                        continueSelectUser(userId, selectedUserItem, false);
+                    }
+                } else {
+                    console.error('Invalid user data received');
+                    continueSelectUser(userId, null, false);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching user details:', error);
+                // Continue anyway - user can still send messages
+                continueSelectUser(userId, null, false);
+            });
+        return;
+    }
+    
+    continueSelectUser(userId, selectedUserItem, fromSearch);
+}
+
+function continueSelectUser(userId, selectedUserItem, fromSearch) {
     selectedUser = userId;
     // Preserve any pre-set meta (e.g., is_admin from contact panel) while resetting basics
     const prevMeta = selectedUserMeta || {};
@@ -1334,13 +1468,48 @@ function selectUser(userId) {
             }
         }
     } else {
-        // As a last resort, read the header info if present
-        const userNameHeader = document.querySelector('#selected-user-name');
-        if (userNameHeader) selectedUserMeta.full_name = (userNameHeader.textContent || '').trim();
-        const userAvatarHeaderImg = document.querySelector('#selected-user-avatar-img');
-        if (userAvatarHeaderImg && userAvatarHeaderImg.style.display !== 'none' && userAvatarHeaderImg.src) {
-            selectedUserMeta.profile_picture_url = userAvatarHeaderImg.src;
-        }
+        // User item doesn't exist, try to fetch user details to update header
+        fetch(`/user/communication/user/${userId}/`)
+            .then(response => response.json())
+            .then(userData => {
+                if (userData && userData.id) {
+                    const userNameHeader = document.querySelector('#selected-user-name');
+                    if (userNameHeader) {
+                        userNameHeader.textContent = userData.full_name || userData.username || 'User';
+                        selectedUserMeta.full_name = userData.full_name || userData.username || 'User';
+                    }
+                    selectedUserMeta.username = userData.username || '';
+                    selectedUserMeta.profile_picture_url = userData.profile_picture_url || '';
+                    
+                    // Update avatar
+                    const userAvatarHeader = document.querySelector('#selected-user-avatar');
+                    const userAvatarHeaderImg = document.querySelector('#selected-user-avatar-img');
+                    if (userData.profile_picture_url) {
+                        if (userAvatarHeaderImg) {
+                            userAvatarHeaderImg.src = userData.profile_picture_url;
+                            userAvatarHeaderImg.style.display = 'block';
+                        }
+                        if (userAvatarHeader) userAvatarHeader.style.display = 'none';
+                    } else {
+                        if (userAvatarHeaderImg) userAvatarHeaderImg.style.display = 'none';
+                        if (userAvatarHeader) {
+                            const initials = (userData.full_name || userData.username || 'U').toString().trim().split(/\s+/).map(s => s[0]).slice(0,2).join('').toUpperCase();
+                            userAvatarHeader.textContent = initials || 'U';
+                            userAvatarHeader.style.display = 'block';
+                        }
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching user details for header:', error);
+                // As a last resort, read the header info if present
+                const userNameHeader = document.querySelector('#selected-user-name');
+                if (userNameHeader) selectedUserMeta.full_name = (userNameHeader.textContent || '').trim();
+                const userAvatarHeaderImg = document.querySelector('#selected-user-avatar-img');
+                if (userAvatarHeaderImg && userAvatarHeaderImg.style.display !== 'none' && userAvatarHeaderImg.src) {
+                    selectedUserMeta.profile_picture_url = userAvatarHeaderImg.src;
+                }
+            });
     }
 
     // If this came from search, ensure a persistent list item exists before clearing search UI
@@ -1384,9 +1553,18 @@ function selectUser(userId) {
     } catch (e) {}
 
     // Show chat, hide welcome; on mobile hide user list
-    if (welcomeScreen) welcomeScreen.classList.add('hidden');
-    if (chatMessages) chatMessages.classList.remove('hidden');
-    if (isMobile && userList) userList.classList.add('hidden');
+    // Force show chat container and hide welcome screen - use global variables
+    if (welcomeScreen) {
+        welcomeScreen.classList.add('hidden');
+        welcomeScreen.style.display = 'none';
+    }
+    if (chatMessages) {
+        chatMessages.classList.remove('hidden');
+        chatMessages.style.display = '';
+    }
+    if (isMobile && userList) {
+        userList.classList.add('hidden');
+    }
 
   // Stop previous polling, fetch and start polling
   stopPollingMessages();
