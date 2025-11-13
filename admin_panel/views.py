@@ -6,8 +6,10 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from accounts.models import User
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Q, Count, Avg
 from django.urls import reverse
+from django.utils import timezone
+from datetime import timedelta
 import json
 import re
 from django.views.decorators.csrf import csrf_exempt
@@ -27,7 +29,170 @@ def admin_dashboard(request):
     if request.user.role != 'admin' and not request.user.is_superuser:
         return HttpResponseForbidden("You don't have permission to access this page.")
     
-    return render(request, 'admin_dashboard/admin_dashboard.html')
+    # Import models
+    from communityowner_panel.models import CommunityProfile, CommunityMembership, EmergencyContact
+    from security_panel.models import SecurityReport
+    from events_panel.models import Event
+    from settings_panel.models import Subscription
+    
+    # Calculate statistics
+    now = timezone.now()
+    thirty_days_ago = now - timedelta(days=30)
+    seven_days_ago = now - timedelta(days=7)
+    
+    # Basic counts
+    total_communities = CommunityProfile.objects.count()
+    total_users = User.objects.exclude(role='admin').count()
+    total_resources = Resource.objects.count()
+    total_security_reports = SecurityReport.objects.count()
+    total_events = Event.objects.count()
+    total_messages = ContactMessage.objects.count()
+    
+    # User breakdown by role
+    users_by_role = User.objects.exclude(role='admin').values('role').annotate(count=Count('id'))
+    role_counts = {item['role']: item['count'] for item in users_by_role}
+    
+    # Subscription statistics
+    total_subscriptions = Subscription.objects.count()
+    active_subscriptions = Subscription.objects.filter(status='active').count()
+    active_trials = Subscription.objects.filter(status='active', is_trial=True).count()
+    active_paid = Subscription.objects.filter(status='active', is_trial=False).count()
+    expired_subscriptions = Subscription.objects.filter(status='expired').count()
+    
+    # Security reports breakdown
+    security_reports_by_status = SecurityReport.objects.values('status').annotate(count=Count('id'))
+    status_counts = {item['status']: item['count'] for item in security_reports_by_status}
+    
+    # Communities without emergency contacts
+    communities_without_ec = CommunityProfile.objects.annotate(
+        ec_count=Count('emergency_contacts')
+    ).filter(ec_count=0).count()
+    
+    # Recent activity
+    recent_users = User.objects.exclude(role='admin').order_by('-date_joined')[:5]
+    recent_communities = CommunityProfile.objects.order_by('-created_at')[:5]
+    recent_security_reports = SecurityReport.objects.order_by('-created_at')[:5]
+    recent_resources = Resource.objects.order_by('-created_at')[:5]
+    recent_events = Event.objects.order_by('-created_at')[:5]
+    
+    # User growth (last 30 days)
+    new_users_30d = User.objects.exclude(role='admin').filter(date_joined__gte=thirty_days_ago).count()
+    new_users_7d = User.objects.exclude(role='admin').filter(date_joined__gte=seven_days_ago).count()
+    
+    # Community growth
+    new_communities_30d = CommunityProfile.objects.filter(created_at__gte=thirty_days_ago).count()
+    
+    # Average community size
+    avg_community_size = CommunityMembership.objects.values('community').annotate(
+        member_count=Count('user')
+    ).aggregate(avg=Avg('member_count'))['avg'] or 0
+    
+    # High priority security reports
+    high_priority_reports = SecurityReport.objects.filter(
+        Q(priority='level_1') | Q(status='pending')
+    ).order_by('-created_at')[:5]
+    
+    # Expired trials
+    expired_trials = Subscription.objects.filter(
+        status='expired',
+        is_trial=True
+    ).order_by('-trial_expired_at')[:5]
+    
+    # Most active communities (by member count)
+    most_active_communities = CommunityProfile.objects.annotate(
+        member_count=Count('members')
+    ).order_by('-member_count')[:5]
+    
+    # Events by type
+    events_by_type = Event.objects.values('event_type').annotate(count=Count('id'))
+    event_type_counts = {item['event_type']: item['count'] for item in events_by_type}
+    
+    # Most common reasons from security reports across all communities
+    from collections import Counter
+    all_reasons = []
+    security_reports_all = SecurityReport.objects.all()
+    for report in security_reports_all:
+        if isinstance(report.reasons, list):
+            all_reasons.extend(report.reasons)
+    
+    reason_counts = Counter(all_reasons)
+    # Get top 6 most common reasons
+    top_reasons = reason_counts.most_common(6)
+    if top_reasons:
+        common_reasons_data = {
+            'labels': [reason[0] for reason in top_reasons],
+            'counts': [reason[1] for reason in top_reasons]
+        }
+    else:
+        # If no reasons found, provide empty data
+        common_reasons_data = {
+            'labels': [],
+            'counts': []
+        }
+    
+    # Prepare context
+    context = {
+        # Key statistics
+        'total_communities': total_communities,
+        'total_users': total_users,
+        'total_resources': total_resources,
+        'total_security_reports': total_security_reports,
+        'total_events': total_events,
+        'total_messages': total_messages,
+        
+        # User breakdown
+        'role_counts': role_counts,
+        'community_owners': role_counts.get('communityowner', 0),
+        'residents': role_counts.get('resident', 0),
+        'security': role_counts.get('security', 0),
+        'guests': role_counts.get('guest', 0),
+        
+        # Subscription statistics
+        'total_subscriptions': total_subscriptions,
+        'active_subscriptions': active_subscriptions,
+        'active_trials': active_trials,
+        'active_paid': active_paid,
+        'expired_subscriptions': expired_subscriptions,
+        
+        # Security reports
+        'status_counts': status_counts,
+        'pending_reports': status_counts.get('pending', 0),
+        'resolved_reports': status_counts.get('resolved', 0),
+        'investigating_reports': status_counts.get('investigating', 0),
+        'false_alarm_reports': status_counts.get('false_alarm', 0),
+        
+        # System health
+        'communities_without_ec': communities_without_ec,
+        'high_priority_reports': high_priority_reports,
+        'expired_trials': expired_trials,
+        
+        # Recent activity
+        'recent_users': recent_users,
+        'recent_communities': recent_communities,
+        'recent_security_reports': recent_security_reports,
+        'recent_resources': recent_resources,
+        'recent_events': recent_events,
+        
+        # Growth metrics
+        'new_users_30d': new_users_30d,
+        'new_users_7d': new_users_7d,
+        'new_communities_30d': new_communities_30d,
+        'avg_community_size': round(avg_community_size, 1),
+        
+        # Additional metrics
+        'most_active_communities': most_active_communities,
+        'event_type_counts': event_type_counts,
+        
+        # For JavaScript charts
+        'subscription_data': {
+            'active_paid': active_paid,
+            'active_trials': active_trials,
+            'expired': expired_subscriptions,
+        },
+        'common_reasons_data': common_reasons_data,
+    }
+    
+    return render(request, 'admin_dashboard/admin_dashboard.html', context)
 
 @login_required
 def admin_resident(request):
