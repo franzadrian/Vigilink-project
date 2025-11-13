@@ -17,6 +17,7 @@ def resources(request):
     """User-facing resources page to view resources created by admins"""
     # Get user's community
     from communityowner_panel.models import CommunityProfile, CommunityMembership
+    from accounts.models import LocationEmergencyContact
     user_community = None
     mem = CommunityMembership.objects.select_related('community').filter(user=request.user).first()
     if mem and mem.community:
@@ -31,6 +32,24 @@ def resources(request):
         except Exception:
             pass
     
+    # Check if user is part of a community - show not_member.html if not
+    if not user_community:
+        # Get location emergency contacts for guest users
+        location_contacts = []
+        try:
+            if hasattr(request.user, 'city') and request.user.city:
+                location_contacts = LocationEmergencyContact.objects.filter(
+                    city=request.user.city
+                ).values('label', 'phone')
+        except Exception:
+            location_contacts = []
+        
+        return render(request, 'resident/not_member.html', {
+            'reason': 'no_membership',
+            'location_contacts': location_contacts,
+            'page_type': 'resources'
+        }, status=403)
+    
     # Get search query and filter type
     search_query = request.GET.get('search', '').strip()
     filter_type = request.GET.get('type', 'all')
@@ -39,13 +58,10 @@ def resources(request):
     # 1. Public (community is None) OR
     # 2. Assigned to the user's community
     # Use select_related for optimization
-    if user_community:
-        base_queryset = Resource.objects.filter(is_active=True).filter(
-            Q(community__isnull=True) | Q(community=user_community)
-        ).select_related('created_by', 'community').order_by('-created_at')
-    else:
-        # If user has no community, only show public resources
-        base_queryset = Resource.objects.filter(is_active=True, community__isnull=True).select_related('created_by', 'community').order_by('-created_at')
+    # Note: user_community is guaranteed to exist at this point due to check above
+    base_queryset = Resource.objects.filter(is_active=True).filter(
+        Q(community__isnull=True) | Q(community=user_community)
+    ).select_related('created_by', 'community').order_by('-created_at')
     
     # Apply search filter
     if search_query:
@@ -109,21 +125,14 @@ def resources(request):
                 group_id = resource.description.split('[GROUP_ID:')[1].split(']')[0]
                 if group_id not in group_counts:
                     # Count all images in this group
-                    if user_community:
-                        count = Resource.objects.filter(
-                            is_active=True,
-                            resource_type='image',
-                            description__contains=f'[GROUP_ID:{group_id}]'
-                        ).filter(
-                            Q(community__isnull=True) | Q(community=user_community)
-                        ).count()
-                    else:
-                        count = Resource.objects.filter(
-                            is_active=True,
-                            resource_type='image',
-                            description__contains=f'[GROUP_ID:{group_id}]',
-                            community__isnull=True
-                        ).count()
+                    # Note: user_community is guaranteed to exist at this point
+                    count = Resource.objects.filter(
+                        is_active=True,
+                        resource_type='image',
+                        description__contains=f'[GROUP_ID:{group_id}]'
+                    ).filter(
+                        Q(community__isnull=True) | Q(community=user_community)
+                    ).count()
                     group_counts[group_id] = count
             except Exception:
                 pass
@@ -250,22 +259,21 @@ def get_group_images(request, group_id):
         except Exception:
             pass
     
+    # Check if user is part of a community
+    if not user_community:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'You must be a member of a community to access resources.'
+        }, status=403)
+    
     # Get all images in this group that the user can access
-    if user_community:
-        group_resources = Resource.objects.filter(
-            is_active=True,
-            resource_type='image',
-            description__contains=f'[GROUP_ID:{group_id}]'
-        ).filter(
-            Q(community__isnull=True) | Q(community=user_community)
-        ).order_by('id')
-    else:
-        group_resources = Resource.objects.filter(
-            is_active=True,
-            resource_type='image',
-            description__contains=f'[GROUP_ID:{group_id}]',
-            community__isnull=True
-        ).order_by('id')
+    group_resources = Resource.objects.filter(
+        is_active=True,
+        resource_type='image',
+        description__contains=f'[GROUP_ID:{group_id}]'
+    ).filter(
+        Q(community__isnull=True) | Q(community=user_community)
+    ).order_by('id')
     
     images = []
     for resource in group_resources:
