@@ -1119,10 +1119,41 @@ def dashboard(request):
             except Exception:
                 location_contacts = []
             
+            # Check if user is a guest or community owner without a community profile
+            user_role = getattr(request.user, 'role', '')
+            is_guest = user_role == 'guest'
+            is_community_owner = user_role == 'communityowner'
+            has_community_profile = False
+            has_active_trial = False
+            has_ever_had_trial = False
+            
+            if is_community_owner:
+                try:
+                    has_community_profile = CommunityProfile.objects.filter(owner=request.user).exists()
+                except Exception:
+                    pass
+            
+            # Check if user has an active trial subscription or has ever had a trial
+            try:
+                if hasattr(request.user, 'subscription'):
+                    subscription = request.user.subscription
+                    subscription.check_and_update_status()
+                    has_active_trial = subscription.is_active() and subscription.is_trial
+                    # Check if they've ever had a trial (even if expired)
+                    has_ever_had_trial = subscription.is_trial
+            except Exception:
+                pass
+            
             return render(request, 'resident/not_member.html', {
+                'reason': 'no_membership',
                 'page_type': 'dashboard',
-                'location_contacts': location_contacts
-            })
+                'location_contacts': location_contacts,
+                'is_guest': is_guest,
+                'is_community_owner': is_community_owner,
+                'has_community_profile': has_community_profile,
+                'has_active_trial': has_active_trial,
+                'has_ever_had_trial': has_ever_had_trial,
+            }, status=403)
         
         # Get search parameters
         search_query = request.GET.get('search', '')

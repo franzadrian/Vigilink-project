@@ -43,7 +43,6 @@ def community_owner_dashboard(request):
     from settings_panel.utils import has_community_access
     has_access, reason = has_community_access(request.user)
     if not has_access:
-        from django.contrib import messages
         messages.error(request, reason)
         return redirect('settings_panel:settings')
 
@@ -327,9 +326,16 @@ def _ensure_owner_and_profile(request):
 @login_required
 @require_GET
 def members_list(request):
-    profile, err = _ensure_owner_and_profile(request)
-    if err:
-        return err
+    # Check if user is a community owner
+    if not getattr(request.user, 'role', None) == 'communityowner':
+        return JsonResponse({'ok': False, 'error': 'Unauthorized'}, status=403)
+    
+    # Get community profile - return empty list if it doesn't exist yet
+    profile = CommunityProfile.objects.filter(owner=request.user).first()
+    if not profile:
+        # Return empty members list instead of error when profile doesn't exist
+        return JsonResponse({'ok': True, 'members': []})
+    
     members_qs = (
         CommunityMembership.objects
         .select_related('user')
@@ -435,7 +441,16 @@ def user_search(request):
     User = get_user_model()
     # Exclude users already in any community
     in_any = CommunityMembership.objects.values_list('user_id', flat=True)
-    qs = User.objects.exclude(id__in=in_any).filter(
+    # Exclude users who own a community (community presidents)
+    community_owners = CommunityProfile.objects.values_list('owner_id', flat=True)
+    # Exclude the current community owner
+    qs = User.objects.exclude(
+        id__in=in_any
+    ).exclude(
+        id__in=community_owners
+    ).exclude(
+        id=request.user.id
+    ).filter(
         Q(email__iexact=q) | Q(full_name__icontains=q) | Q(username__icontains=q)
     ).order_by(Lower('full_name'), 'username')[:10]
     results = []

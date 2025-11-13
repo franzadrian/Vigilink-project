@@ -30,6 +30,10 @@ class Subscription(models.Model):
     cancelled_at = models.DateTimeField(null=True, blank=True)
     # Store original roles before expiry for restoration
     original_roles = models.JSONField(default=dict, blank=True, help_text="Stores original roles before expiry")
+    # Track trial expiry and data deletion date
+    is_trial = models.BooleanField(default=False, help_text="Whether this is a free trial subscription")
+    trial_expired_at = models.DateTimeField(null=True, blank=True, help_text="When the trial expired")
+    data_deletion_date = models.DateTimeField(null=True, blank=True, help_text="When data should be deleted (1 month after trial expiry)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -45,6 +49,10 @@ class Subscription(models.Model):
         """Check if subscription has expired and update status if needed"""
         if self.status == 'active' and self.expiry_date and self.expiry_date < timezone.now():
             self.status = 'expired'
+            # If this is a trial, mark when it expired and set data deletion date (1 month later)
+            if self.is_trial and not self.trial_expired_at:
+                self.trial_expired_at = timezone.now()
+                self.data_deletion_date = timezone.now() + timedelta(days=30)  # 1 month grace period
             self.save()
             # Disable community access by changing roles to guest
             self._disable_community_access()
@@ -170,3 +178,67 @@ class Subscription(models.Model):
         self.status = 'active'
         self.cancelled_at = None
         self.save()
+    
+    def delete_trial_data(self):
+        """Delete all data associated with this trial subscription"""
+        from communityowner_panel.models import CommunityProfile, CommunityMembership, EmergencyContact
+        from admin_panel.models import Resource, ContactMessage
+        from security_panel.models import SecurityReport, Incident
+        from user_panel.models import Post, PostReply, PostImage, PostReaction, Message
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Get the community profile if it exists
+            community = CommunityProfile.objects.filter(owner=self.user).first()
+            
+            if community:
+                # Get all community members before deleting memberships
+                memberships = CommunityMembership.objects.filter(community=community).select_related('user')
+                member_users = [m.user for m in memberships]
+                all_users = [self.user] + member_users
+                
+                # Delete all resources created by this user or for this community
+                Resource.objects.filter(
+                    Q(created_by=self.user) | Q(community=community)
+                ).delete()
+                
+                # Delete all security reports for this community
+                SecurityReport.objects.filter(community=community).delete()
+                
+                # Delete all incidents for this community
+                Incident.objects.filter(community=community).delete()
+                
+                # Delete all emergency contacts for this community
+                EmergencyContact.objects.filter(community=community).delete()
+                
+                # Delete all posts by community members (this will cascade delete PostImages, PostReactions, PostReplies)
+                Post.objects.filter(user__in=all_users).delete()
+                
+                # Delete all messages sent/received by community members
+                Message.objects.filter(
+                    Q(sender__in=all_users) | Q(receiver__in=all_users)
+                ).delete()
+                
+                # Delete contact messages related to this community
+                ContactMessage.objects.filter(
+                    Q(user__in=all_users)
+                ).delete()
+                
+                # Delete all community memberships
+                CommunityMembership.objects.filter(community=community).delete()
+                
+                # Delete the community profile itself
+                community.delete()
+                
+                logger.info(f"Deleted all trial data for user {self.user.username} (subscription {self.id})")
+            
+            # Mark subscription as deleted/cancelled
+            self.status = 'cancelled'
+            self.cancelled_at = timezone.now()
+            self.save()
+            
+        except Exception as e:
+            logger.error(f"Error deleting trial data for subscription {self.id}: {str(e)}", exc_info=True)
+            raise

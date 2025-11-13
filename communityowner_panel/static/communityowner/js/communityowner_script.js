@@ -123,9 +123,20 @@
             .then(response => {
                 console.log('Events API response status:', response.status);
                 console.log('Events API response headers:', response.headers);
+                if (!response.ok) {
+                    // If 404 or 403, it's likely because community profile doesn't exist yet - not an error
+                    if (response.status === 404 || response.status === 403) {
+                        console.log('Community profile not set up yet - no events to load');
+                        events = [];
+                        updateStats();
+                        return null; // Return null to skip next then block
+                    }
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 return response.json();
             })
             .then(data => {
+                if (!data) return; // Already handled in previous then
                 console.log('Events API response data:', data);
                 if (data.success && Array.isArray(data.events)) {
                     events = data.events;
@@ -987,8 +998,23 @@
             const { list } = endpoints();
             if (!list) return;
             fetch(list, { headers: { 'X-Requested-With':'XMLHttpRequest' }})
-                .then(r=>r.json())
+                .then(response => {
+                    if (!response.ok) {
+                        // If 404 or 403, it's likely because community profile doesn't exist yet - return empty list
+                        if (response.status === 404 || response.status === 403) {
+                            console.log('Community profile not set up yet - no members to load');
+                            users = [];
+                            renderUsersTable();
+                            coCurrentPage = 1;
+                            coPaginateRows();
+                            return null;
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
+                    if (!data) return; // Already handled in previous then
                     if (data && data.ok && Array.isArray(data.members)){
                         users = data.members;
                         renderUsersTable();
@@ -997,7 +1023,10 @@
                         // Don't call updateStats here to prevent animation restart
                     }
                 })
-                .catch(()=>{});
+                .catch(error => {
+                    console.error('Error refreshing members list:', error);
+                    // Silently fail - don't show error to user
+                });
             
             // Also refresh reports data
             loadReportsData();
@@ -1547,6 +1576,10 @@
                     addBtn.innerHTML = '<i class="fas fa-user-plus"></i> Add';
                     addBtn.addEventListener('click', function(){
                         if (!add) return;
+                        // Disable button to prevent double-clicks
+                        addBtn.disabled = true;
+                        addBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+                        
                         fetch(add, {
                             method: 'POST',
                             headers: {
@@ -1555,7 +1588,16 @@
                                 'X-CSRFToken': getCsrfToken(),
                             },
                             body: new URLSearchParams({ user_id: it.id }).toString(),
-                        }).then(r=>r.json()).then(data=>{
+                        }).then(r => {
+                            // Parse JSON even for error status codes
+                            return r.json().then(data => {
+                                if (!r.ok) {
+                                    // HTTP error status (like 409)
+                                    throw new Error((data && data.error) || 'Unable to add user');
+                                }
+                                return data;
+                            });
+                        }).then(data => {
                             if (data && data.ok && data.member){
                                 // Update local state and re-render row set
                                 users.push({
@@ -1575,6 +1617,9 @@
                             }
                         }).catch(err => {
                             CO_showToast && CO_showToast(err.message || 'Unable to add user', 'error');
+                            // Re-enable button on error
+                            addBtn.disabled = false;
+                            addBtn.innerHTML = '<i class="fas fa-user-plus"></i> Add';
                         });
                     });
                     li.appendChild(addBtn);
@@ -2867,130 +2912,159 @@
         function openAddUserModal(){
             const { search, add } = endpoints();
             if (!overlay || !modalShell) return;
-            if (modalTitle) modalTitle.textContent = 'Add User';
-            modalShell.innerHTML = `
-                <div class="co-add-user-modal">
-                    <div class="co-add-row" style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
-                        <input id=\"co-add-search-input\" type=\"text\" placeholder=\"Search by email or full name\" style=\"flex:1;min-width:280px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;\" />
-                        <button id=\"co-add-search-btn\" class=\"action-btn edit-btn\"><i class=\"fas fa-search\"></i> Search</button>
-                    </div>
-                    <div id=\"co-add-search-results\" style=\"max-height:300px;overflow:auto;border:1px solid #f1f5f9;border-radius:8px;\"></div>
-                    <div style=\"display:flex;justify-content:flex-end;margin-top:12px;gap:8px;\">
-                        <button id=\"co-add-cancel\" class=\"action-btn delete-btn\" type=\"button\">Cancel</button>
-                    </div>
-                </div>`;
-            overlay.style.display = 'flex';
-            try {
-                const sbw = window.innerWidth - document.documentElement.clientWidth;
-                document.documentElement.style.overflow = 'hidden';
-                document.body.style.overflow = 'hidden';
-                if (sbw > 0) document.body.style.paddingRight = sbw + 'px';
-            } catch (e) {}
-
-            const searchInput = document.getElementById('co-add-search-input');
-            const searchBtn = document.getElementById('co-add-search-btn');
-            const results = document.getElementById('co-add-search-results');
-            const cancelBtn = document.getElementById('co-add-cancel');
-
-            function renderResults(items, query){
-                results.innerHTML = '';
-                if (!Array.isArray(items) || !items.length){
-                    const q = (query||'').replace(/[<>&]/g, s => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]));
-                    results.innerHTML = `<div style="padding:10px;color:#6b7280;">No users found for "${q}"</div>`;
-                    return;
+            
+            // First, ensure all modals are properly closed and state is reset
+            closeAllModals();
+            
+            // Small delay to ensure cleanup is complete
+            setTimeout(() => {
+                if (modalTitle) modalTitle.textContent = 'Add User';
+                modalShell.innerHTML = `
+                    <div class="co-add-user-modal">
+                        <div class="co-add-row" style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+                            <input id=\"co-add-search-input\" type=\"text\" placeholder=\"Search by email or full name\" style=\"flex:1;min-width:280px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;\" />
+                            <button id=\"co-add-search-btn\" class=\"action-btn edit-btn\"><i class=\"fas fa-search\"></i> Search</button>
+                        </div>
+                        <div id=\"co-add-search-results\" style=\"max-height:300px;overflow:auto;border:1px solid #f1f5f9;border-radius:8px;\"></div>
+                        <div style=\"display:flex;justify-content:flex-end;margin-top:12px;gap:8px;\">
+                            <button id=\"co-add-cancel\" class=\"action-btn delete-btn\" type=\"button\">Cancel</button>
+                        </div>
+                    </div>`;
+                
+                // Properly set overlay state
+                overlay.style.display = 'flex';
+                overlay.style.visibility = 'visible';
+                overlay.style.opacity = '1';
+                overlay.classList.add('active');
+                
+                // Use the proper lockBodyScroll function
+                try {
+                    lockBodyScroll();
+                } catch (e) {
+                    console.error('Error locking body scroll in add user modal:', e);
                 }
-                const ul = document.createElement('ul');
-                ul.className = 'co-add-results';
-                ul.style.listStyle='none'; ul.style.padding='0'; ul.style.margin='0';
-                items.forEach(it => {
-                    const li = document.createElement('li');
-                    li.style.display='flex'; li.style.alignItems='center'; li.style.justifyContent='space-between'; li.style.padding='10px 12px'; li.style.borderBottom='1px solid #f1f5f9';
-                    const left = document.createElement('div');
-                    left.style.display = 'flex'; left.style.alignItems='center'; left.style.gap='10px';
-                    const avatarWrap = document.createElement('div');
-                    avatarWrap.className = 'co-search-avatar';
-                    if (it.avatar) {
-                        const img = document.createElement('img');
-                        img.src = it.avatar; img.alt = (it.name||'');
-                        avatarWrap.appendChild(img);
-                    } else {
-                        const span = document.createElement('span');
-                        const nm = (it.name||'').trim();
-                        const parts = nm.split(/\s+/).filter(Boolean);
-                        const initials = parts.length>1 ? (parts[0][0]+parts[parts.length-1][0]) : (nm.slice(0,2));
-                        span.textContent = (initials || 'U').toUpperCase();
-                        avatarWrap.appendChild(span);
+
+                const searchInput = document.getElementById('co-add-search-input');
+                const searchBtn = document.getElementById('co-add-search-btn');
+                const results = document.getElementById('co-add-search-results');
+                const cancelBtn = document.getElementById('co-add-cancel');
+
+                function renderResults(items, query){
+                    results.innerHTML = '';
+                    if (!Array.isArray(items) || !items.length){
+                        const q = (query||'').replace(/[<>&]/g, s => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]));
+                        results.innerHTML = `<div style="padding:10px;color:#6b7280;">No users found for "${q}"</div>`;
+                        return;
                     }
-                    const meta = document.createElement('div');
-                    meta.className = 'co-search-meta';
-                    const strong = document.createElement('strong'); strong.textContent = it.name || '';
-                    const small = document.createElement('div'); small.style.color='#6b7280'; small.style.fontSize='12px'; small.textContent = it.email || '';
-                    meta.appendChild(strong); meta.appendChild(small);
-                    left.appendChild(avatarWrap); left.appendChild(meta);
-                    li.appendChild(left);
-                    const addBtnEl = document.createElement('button');
-                    addBtnEl.className = 'action-btn co-btn-primary co-add-btn';
-                    addBtnEl.innerHTML = '<i class="fas fa-user-plus"></i> Add';
-                    addBtnEl.addEventListener('click', function(){
-                        if (!add) return;
-                        fetch(add, {
-                            method: 'POST',
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest',
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                                'X-CSRFToken': getCsrfToken(),
-                            },
-                            body: new URLSearchParams({ user_id: it.id }).toString(),
-                        }).then(r=>r.json()).then(data=>{
-                            if (data && data.ok && data.member){
-                                users.push({ 
-                                    id: data.member.id, 
-                                    name: data.member.name, 
-                                    email: data.member.email, 
-                                    role: data.member.role, 
-                                    block: data.member.block||'', 
-                                    lot: data.member.lot||'',
-                                    avatar: data.member.avatar || null
-                                });
-                                renderUsersTable(); coPaginateRows(); updateStats();
-                                CO_showToast && CO_showToast('User added to your community.', 'success');
-                                // Remove this result from the list
-                                try {
-                                    if (li && li.parentNode) { li.parentNode.removeChild(li); }
-                                    if (ul && ul.children.length === 0) {
-                                        results.innerHTML = '<div style="padding:10px;color:#6b7280;">No results</div>';
+                    const ul = document.createElement('ul');
+                    ul.className = 'co-add-results';
+                    ul.style.listStyle='none'; ul.style.padding='0'; ul.style.margin='0';
+                    items.forEach(it => {
+                        const li = document.createElement('li');
+                        li.style.display='flex'; li.style.alignItems='center'; li.style.justifyContent='space-between'; li.style.padding='10px 12px'; li.style.borderBottom='1px solid #f1f5f9';
+                        const left = document.createElement('div');
+                        left.style.display = 'flex'; left.style.alignItems='center'; left.style.gap='10px';
+                        const avatarWrap = document.createElement('div');
+                        avatarWrap.className = 'co-search-avatar';
+                        if (it.avatar) {
+                            const img = document.createElement('img');
+                            img.src = it.avatar; img.alt = (it.name||'');
+                            avatarWrap.appendChild(img);
+                        } else {
+                            const span = document.createElement('span');
+                            const nm = (it.name||'').trim();
+                            const parts = nm.split(/\s+/).filter(Boolean);
+                            const initials = parts.length>1 ? (parts[0][0]+parts[parts.length-1][0]) : (nm.slice(0,2));
+                            span.textContent = (initials || 'U').toUpperCase();
+                            avatarWrap.appendChild(span);
+                        }
+                        const meta = document.createElement('div');
+                        meta.className = 'co-search-meta';
+                        const strong = document.createElement('strong'); strong.textContent = it.name || '';
+                        const small = document.createElement('div'); small.style.color='#6b7280'; small.style.fontSize='12px'; small.textContent = it.email || '';
+                        meta.appendChild(strong); meta.appendChild(small);
+                        left.appendChild(avatarWrap); left.appendChild(meta);
+                        li.appendChild(left);
+                        const addBtnEl = document.createElement('button');
+                        addBtnEl.className = 'action-btn co-btn-primary co-add-btn';
+                        addBtnEl.innerHTML = '<i class="fas fa-user-plus"></i> Add';
+                        addBtnEl.addEventListener('click', function(){
+                            if (!add) return;
+                            // Disable button to prevent double-clicks
+                            addBtnEl.disabled = true;
+                            addBtnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+                            
+                            fetch(add, {
+                                method: 'POST',
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                    'X-CSRFToken': getCsrfToken(),
+                                },
+                                body: new URLSearchParams({ user_id: it.id }).toString(),
+                            }).then(r => {
+                                // Parse JSON even for error status codes
+                                return r.json().then(data => {
+                                    if (!r.ok) {
+                                        // HTTP error status (like 409)
+                                        throw new Error((data && data.error) || 'Unable to add user');
                                     }
-                                } catch (e) {}
-                            } else {
-                                throw new Error((data && data.error) || 'Unable to add user');
-                            }
-                        }).catch(err => {
-                            CO_showToast && CO_showToast(err.message || 'Unable to add user', 'error');
+                                    return data;
+                                });
+                            }).then(data => {
+                                if (data && data.ok && data.member){
+                                    users.push({ 
+                                        id: data.member.id, 
+                                        name: data.member.name, 
+                                        email: data.member.email, 
+                                        role: data.member.role, 
+                                        block: data.member.block||'', 
+                                        lot: data.member.lot||'',
+                                        avatar: data.member.avatar || null
+                                    });
+                                    renderUsersTable(); coPaginateRows(); updateStats();
+                                    CO_showToast && CO_showToast('User added to your community.', 'success');
+                                    // Remove this result from the list
+                                    try {
+                                        if (li && li.parentNode) { li.parentNode.removeChild(li); }
+                                        if (ul && ul.children.length === 0) {
+                                            results.innerHTML = '<div style="padding:10px;color:#6b7280;">No results</div>';
+                                        }
+                                    } catch (e) {}
+                                } else {
+                                    throw new Error((data && data.error) || 'Unable to add user');
+                                }
+                            }).catch(err => {
+                                CO_showToast && CO_showToast(err.message || 'Unable to add user', 'error');
+                                // Re-enable button on error
+                                addBtnEl.disabled = false;
+                                addBtnEl.innerHTML = '<i class="fas fa-user-plus"></i> Add';
+                            });
                         });
+                        li.appendChild(addBtnEl);
+                        ul.appendChild(li);
                     });
-                    li.appendChild(addBtnEl);
-                    ul.appendChild(li);
+                    results.appendChild(ul);
+                }
+
+                function doSearch(){
+                    const q = (searchInput.value || '').trim();
+                    if (!q){ CO_showToast && CO_showToast('Enter email or name to search.', 'warning'); return; }
+                    if (!search) return;
+                    fetch(`${search}?q=${encodeURIComponent(q)}`, { headers: { 'X-Requested-With':'XMLHttpRequest' }})
+                        .then(r=>r.json())
+                        .then(data => { renderResults((data && data.ok && data.results) ? data.results : [], q); })
+                        .catch(()=>{ renderResults([], q); });
+                }
+
+                searchBtn.addEventListener('click', doSearch);
+                searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); doSearch(); } });
+                cancelBtn.addEventListener('click', function(){
+                    // Reuse global closeModal to hide overlay
+                    if (typeof closeModal === 'function') closeModal();
+                    else { overlay.style.display='none'; }
                 });
-                results.appendChild(ul);
-            }
-
-            function doSearch(){
-                const q = (searchInput.value || '').trim();
-                if (!q){ CO_showToast && CO_showToast('Enter email or name to search.', 'warning'); return; }
-                if (!search) return;
-                fetch(`${search}?q=${encodeURIComponent(q)}`, { headers: { 'X-Requested-With':'XMLHttpRequest' }})
-                    .then(r=>r.json())
-                    .then(data => { renderResults((data && data.ok && data.results) ? data.results : [], q); })
-                    .catch(()=>{ renderResults([], q); });
-            }
-
-            searchBtn.addEventListener('click', doSearch);
-            searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); doSearch(); } });
-            cancelBtn.addEventListener('click', function(){
-                // Reuse global closeModal to hide overlay
-                if (typeof closeModal === 'function') closeModal();
-                else { overlay.style.display='none'; }
-            });
+            }, 50); // Small delay to ensure cleanup is complete
         }
 
         // Expose cleanup function globally

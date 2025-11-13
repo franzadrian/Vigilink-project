@@ -75,10 +75,40 @@ def residents(request):
             except Exception:
                 location_contacts = []
             
+            # Check if user is a guest or community owner without a community profile
+            user_role = getattr(request.user, 'role', '')
+            is_guest = user_role == 'guest'
+            is_community_owner = user_role == 'communityowner'
+            has_community_profile = False
+            has_active_trial = False
+            has_ever_had_trial = False
+            
+            if is_community_owner:
+                try:
+                    has_community_profile = CommunityProfile.objects.filter(owner=request.user).exists()
+                except Exception:
+                    pass
+            
+            # Check if user has an active trial subscription or has ever had a trial
+            try:
+                if hasattr(request.user, 'subscription'):
+                    subscription = request.user.subscription
+                    subscription.check_and_update_status()
+                    has_active_trial = subscription.is_active() and subscription.is_trial
+                    # Check if they've ever had a trial (even if expired)
+                    has_ever_had_trial = subscription.is_trial
+            except Exception:
+                pass
+            
             return render(request, 'resident/not_member.html', {
                 'reason': 'no_membership',
                 'location_contacts': location_contacts,
-                'page_type': 'residents'
+                'page_type': 'residents',
+                'is_guest': is_guest,
+                'is_community_owner': is_community_owner,
+                'has_community_profile': has_community_profile,
+                'has_active_trial': has_active_trial,
+                'has_ever_had_trial': has_ever_had_trial,
             }, status=403)
         community = mem.community
 
@@ -297,7 +327,71 @@ def alerts(request):
     
     # Check if user is part of a community - redirect guests without community access
     if not community:
-        return render(request, 'resident/not_member.html', {'reason': 'no_membership', 'page_type': 'alerts'}, status=403)
+        # Get location emergency contacts for guest users
+        location_contacts = []
+        try:
+            if request.user.city or request.user.district:
+                # Get district-specific contacts first (more specific)
+                if request.user.district:
+                    district_contacts = LocationEmergencyContact.objects.filter(
+                        district=request.user.district,
+                        is_active=True
+                    ).order_by('order', 'id')
+                    for c in district_contacts:
+                        location_contacts.append({
+                            'label': c.label, 
+                            'phone': c.phone
+                        })
+                
+                # If no district contacts, get city-specific contacts
+                if not location_contacts and request.user.city:
+                    city_contacts = LocationEmergencyContact.objects.filter(
+                        city=request.user.city,
+                        is_active=True
+                    ).order_by('order', 'id')
+                    for c in city_contacts:
+                        location_contacts.append({
+                            'label': c.label, 
+                            'phone': c.phone
+                        })
+        except Exception:
+            location_contacts = []
+        
+        # Check if user is a guest or community owner without a community profile
+        user_role = getattr(request.user, 'role', '')
+        is_guest = user_role == 'guest'
+        is_community_owner = user_role == 'communityowner'
+        has_community_profile = False
+        has_active_trial = False
+        has_ever_had_trial = False
+        
+        if is_community_owner:
+            try:
+                has_community_profile = CommunityProfile.objects.filter(owner=request.user).exists()
+            except Exception:
+                pass
+        
+        # Check if user has an active trial subscription or has ever had a trial
+        try:
+            if hasattr(request.user, 'subscription'):
+                subscription = request.user.subscription
+                subscription.check_and_update_status()
+                has_active_trial = subscription.is_active() and subscription.is_trial
+                # Check if they've ever had a trial (even if expired)
+                has_ever_had_trial = subscription.is_trial
+        except Exception:
+            pass
+        
+        return render(request, 'resident/not_member.html', {
+            'reason': 'no_membership', 
+            'page_type': 'alerts',
+            'location_contacts': location_contacts,
+            'is_guest': is_guest,
+            'is_community_owner': is_community_owner,
+            'has_community_profile': has_community_profile,
+            'has_active_trial': has_active_trial,
+            'has_ever_had_trial': has_ever_had_trial,
+        }, status=403)
     if community:
         try:
             members_count = CommunityMembership.objects.filter(community=community).count()

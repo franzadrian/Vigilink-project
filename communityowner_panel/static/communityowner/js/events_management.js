@@ -345,9 +345,27 @@ function loadEvents() {
     })
     .then(response => {
         console.log('Fetch response:', response);
+        if (!response.ok) {
+            // If 404 or 403, it's likely because community profile doesn't exist yet - not an error
+            if (response.status === 404 || response.status === 403) {
+                console.log('Community profile not set up yet - no events to load');
+                allEvents = [];
+                eventsCurrentPage = 1;
+                renderEvents([]);
+                updateEventsStats([]);
+                // Hide button when no profile
+                const createEventBtnTop = document.getElementById('co-create-event-btn-top');
+                if (createEventBtnTop) {
+                    createEventBtnTop.style.display = 'none';
+                }
+                return null; // Return null to skip next then block
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         return response.json();
     })
     .then(data => {
+        if (!data) return; // Already handled in previous then
         console.log('Fetch data:', data);
         if (data.success) {
             console.log('Events loaded successfully:', data.events);
@@ -361,7 +379,10 @@ function loadEvents() {
             updateEventsStats(allEvents);
         } else {
             console.log('API returned error:', data.error);
-            showNotification(data.error || 'Failed to load events.', 'error');
+            // Don't show error notification if it's just because profile doesn't exist
+            if (data.error && !data.error.includes('No community profile')) {
+                showNotification(data.error || 'Failed to load events.', 'error');
+            }
             eventsList.innerHTML = '<div class="no-events"><h3>Error Loading Events</h3><p>Please try again later.</p></div>';
             // Hide button on error
             const createEventBtnTop = document.getElementById('co-create-event-btn-top');

@@ -358,7 +358,13 @@
             <div class="billing-info">
                 <div class="billing-item billing-plan">
                     <div class="billing-label">Plan</div>
-                    <div class="billing-value">{{ subscription.get_plan_type_display }} - {{ subscription.get_billing_cycle_display }}</div>
+                    <div class="billing-value">
+                        {% if subscription.is_trial and subscription.is_active %}
+                            {{ subscription.get_plan_type_display }} - Free Trial
+                        {% else %}
+                            {{ subscription.get_plan_type_display }} - {{ subscription.get_billing_cycle_display }}
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="billing-item billing-status-item">
                     <div class="billing-label">Status</div>
@@ -441,12 +447,23 @@
                 <span class="slider"></span>
             </label>
         </div>
+        <!-- Notification Bubbles - For Security users -->
+        <div class="notification-toggle">
+            <div class="toggle-label">
+                <strong>Notification Bubbles</strong>
+                <span>Enable or disable notification bubbles for events and communications</span>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="receiveNotificationsToggle" {% if user.receive_notifications %}checked{% endif %}>
+                <span class="slider"></span>
+            </label>
+        </div>
         {% else %}
         <!-- Receive Notifications - For non-Security users -->
         <div class="notification-toggle">
             <div class="toggle-label">
                 <strong>Receive Notifications</strong>
-                <span>Enable or disable notification bubbles for messages and communications</span>
+                <span>Enable or disable notification bubbles for events and communications</span>
             </div>
             <label class="switch">
                 <input type="checkbox" id="receiveNotificationsToggle" {% if user.receive_notifications %}checked{% endif %}>
@@ -539,7 +556,7 @@
             }
         }
 
-        // Receive Notifications toggle (non-Security users)
+        // Receive Notifications toggle (all users including Security)
         const receiveToggle = document.getElementById('receiveNotificationsToggle');
         if (receiveToggle) {
             receiveToggle.addEventListener('change', function() {
@@ -557,8 +574,10 @@
                 .then(data => {
                     if (data.success) {
                         showSuccessMessage(data.message);
-                        // Update global variable
+                        // Update global variable (for non-Security users)
+                        {% if user.role != 'security' %}
                         window.receiveNotificationsEnabled = enabled;
+                        {% endif %}
                         
                         // Immediately update communication badge visibility
                         const commBadge = document.getElementById('comm-unread-badge');
@@ -587,6 +606,21 @@
                             } else {
                                 // Hide badge
                                 eventsBadge.style.display = 'none';
+                            }
+                        }
+                        
+                        // Update security pending badge if it exists (for Security users)
+                        const securityBadge = document.getElementById('security-pending-badge');
+                        if (securityBadge) {
+                            securityBadge.setAttribute('data-notifications-enabled', enabled ? 'true' : 'false');
+                            if (!enabled) {
+                                // Hide badge
+                                securityBadge.style.display = 'none';
+                            } else {
+                                // Refresh badge count if function exists
+                                if (typeof window.refreshSecurityPendingBadge === 'function') {
+                                    window.refreshSecurityPendingBadge();
+                                }
                             }
                         }
                     } else {

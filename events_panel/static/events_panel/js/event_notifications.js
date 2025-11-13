@@ -118,6 +118,16 @@
         fetch(`/events/api/check-new-events/?last_check_id=${currentLastCheckedId}`)
             .then(response => {
                 if (!response.ok) {
+                    // If 403, it's likely because community profile doesn't exist yet - return empty data silently
+                    if (response.status === 403) {
+                        console.log('No community access - returning empty events data');
+                        return {
+                            new_events: [],
+                            current_max_id: 0,
+                            has_new_events: false,
+                            unseen_events_count: 0
+                        };
+                    }
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 return response.json();

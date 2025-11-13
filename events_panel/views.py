@@ -36,7 +36,13 @@ def events_list(request):
         # Check if user is a community owner first
         if hasattr(request.user, 'role') and request.user.role == 'communityowner':
             # Community owner - get their community profile
-            community = CommunityProfile.objects.get(owner=request.user)
+            community = CommunityProfile.objects.filter(owner=request.user).first()
+            if not community:
+                # Community owner without a profile - redirect to dashboard to set it up
+                from django.contrib import messages
+                messages.info(request, 'Please set up your community profile first.')
+                from django.shortcuts import redirect
+                return redirect('communityowner_panel:dashboard')
         else:
             # Regular user - get their community membership
             membership = CommunityMembership.objects.get(user=request.user)
@@ -100,8 +106,73 @@ def events_list(request):
             messages.error(request, 'You need to set up your community profile first.')
             return redirect('communityowner_panel:community_owner')
         else:
+            # Get location emergency contacts for guest users
+            from accounts.models import LocationEmergencyContact
+            location_contacts = []
+            try:
+                if request.user.city or request.user.district:
+                    # Get district-specific contacts first (more specific)
+                    if request.user.district:
+                        district_contacts = LocationEmergencyContact.objects.filter(
+                            district=request.user.district,
+                            is_active=True
+                        ).order_by('order', 'id')
+                        for c in district_contacts:
+                            location_contacts.append({
+                                'label': c.label, 
+                                'phone': c.phone
+                            })
+                    
+                    # If no district contacts, get city-specific contacts
+                    if not location_contacts and request.user.city:
+                        city_contacts = LocationEmergencyContact.objects.filter(
+                            city=request.user.city,
+                            is_active=True
+                        ).order_by('order', 'id')
+                        for c in city_contacts:
+                            location_contacts.append({
+                                'label': c.label, 
+                                'phone': c.phone
+                            })
+            except Exception:
+                location_contacts = []
+            
+            # Check if user is a guest or community owner without a community profile
+            user_role = getattr(request.user, 'role', '')
+            is_guest = user_role == 'guest'
+            is_community_owner = user_role == 'communityowner'
+            has_community_profile = False
+            has_active_trial = False
+            has_ever_had_trial = False
+            
+            if is_community_owner:
+                try:
+                    has_community_profile = CommunityProfile.objects.filter(owner=request.user).exists()
+                except Exception:
+                    pass
+            
+            # Check if user has an active trial subscription or has ever had a trial
+            try:
+                if hasattr(request.user, 'subscription'):
+                    subscription = request.user.subscription
+                    subscription.check_and_update_status()
+                    has_active_trial = subscription.is_active() and subscription.is_trial
+                    # Check if they've ever had a trial (even if expired)
+                    has_ever_had_trial = subscription.is_trial
+            except Exception:
+                pass
+            
             # For regular users who are not members of any community, show not_member page
-            return render(request, 'resident/not_member.html', {'page_type': 'events'})
+            return render(request, 'resident/not_member.html', {
+                'reason': 'no_membership',
+                'page_type': 'events',
+                'location_contacts': location_contacts,
+                'is_guest': is_guest,
+                'is_community_owner': is_community_owner,
+                'has_community_profile': has_community_profile,
+                'has_active_trial': has_active_trial,
+                'has_ever_had_trial': has_ever_had_trial,
+            }, status=403)
 
 
 @login_required
@@ -125,7 +196,10 @@ def event_detail(request, event_id):
         # Check if user is a community owner first
         if hasattr(request.user, 'role') and request.user.role == 'communityowner':
             # Community owner - get their community profile
-            community = CommunityProfile.objects.get(owner=request.user)
+            community = CommunityProfile.objects.filter(owner=request.user).first()
+            if not community:
+                messages.info(request, 'Please set up your community profile first.')
+                return redirect('communityowner_panel:dashboard')
         else:
             # Regular user - get their community membership
             membership = CommunityMembership.objects.get(user=request.user)
@@ -146,8 +220,73 @@ def event_detail(request, event_id):
             messages.error(request, 'You need to set up your community profile first.')
             return redirect('communityowner_panel:community_owner')
         else:
+            # Get location emergency contacts for guest users
+            from accounts.models import LocationEmergencyContact
+            location_contacts = []
+            try:
+                if request.user.city or request.user.district:
+                    # Get district-specific contacts first (more specific)
+                    if request.user.district:
+                        district_contacts = LocationEmergencyContact.objects.filter(
+                            district=request.user.district,
+                            is_active=True
+                        ).order_by('order', 'id')
+                        for c in district_contacts:
+                            location_contacts.append({
+                                'label': c.label, 
+                                'phone': c.phone
+                            })
+                    
+                    # If no district contacts, get city-specific contacts
+                    if not location_contacts and request.user.city:
+                        city_contacts = LocationEmergencyContact.objects.filter(
+                            city=request.user.city,
+                            is_active=True
+                        ).order_by('order', 'id')
+                        for c in city_contacts:
+                            location_contacts.append({
+                                'label': c.label, 
+                                'phone': c.phone
+                            })
+            except Exception:
+                location_contacts = []
+            
+            # Check if user is a guest or community owner without a community profile
+            user_role = getattr(request.user, 'role', '')
+            is_guest = user_role == 'guest'
+            is_community_owner = user_role == 'communityowner'
+            has_community_profile = False
+            has_active_trial = False
+            has_ever_had_trial = False
+            
+            if is_community_owner:
+                try:
+                    has_community_profile = CommunityProfile.objects.filter(owner=request.user).exists()
+                except Exception:
+                    pass
+            
+            # Check if user has an active trial subscription or has ever had a trial
+            try:
+                if hasattr(request.user, 'subscription'):
+                    subscription = request.user.subscription
+                    subscription.check_and_update_status()
+                    has_active_trial = subscription.is_active() and subscription.is_trial
+                    # Check if they've ever had a trial (even if expired)
+                    has_ever_had_trial = subscription.is_trial
+            except Exception:
+                pass
+            
             # For regular users who are not members of any community, show not_member page
-            return render(request, 'resident/not_member.html', {'page_type': 'events'})
+            return render(request, 'resident/not_member.html', {
+                'reason': 'no_membership',
+                'page_type': 'events',
+                'location_contacts': location_contacts,
+                'is_guest': is_guest,
+                'is_community_owner': is_community_owner,
+                'has_community_profile': has_community_profile,
+                'has_active_trial': has_active_trial,
+                'has_ever_had_trial': has_ever_had_trial,
+            }, status=403)
 
 
 @login_required
@@ -167,7 +306,9 @@ def create_event(request):
             data = json.loads(request.body)
             
             # Get community profile
-            community = CommunityProfile.objects.get(owner=request.user)
+            community = CommunityProfile.objects.filter(owner=request.user).first()
+            if not community:
+                return JsonResponse({'success': False, 'error': 'No community profile found. Please set up your community first.'}, status=404)
             
             # Create event
             event = Event.objects.create(
@@ -210,7 +351,9 @@ def update_event(request, event_id):
             data = json.loads(request.body)
             
             # Get community profile
-            community = CommunityProfile.objects.get(owner=request.user)
+            community = CommunityProfile.objects.filter(owner=request.user).first()
+            if not community:
+                return JsonResponse({'success': False, 'error': 'No community profile found. Please set up your community first.'}, status=404)
             
             # Get event
             event = get_object_or_404(Event, id=event_id, community=community, created_by=request.user)
@@ -251,7 +394,9 @@ def delete_event(request, event_id):
     if request.method == 'POST':
         try:
             # Get community profile
-            community = CommunityProfile.objects.get(owner=request.user)
+            community = CommunityProfile.objects.filter(owner=request.user).first()
+            if not community:
+                return JsonResponse({'success': False, 'error': 'No community profile found. Please set up your community first.'}, status=404)
             
             # Get event
             event = get_object_or_404(Event, id=event_id, community=community, created_by=request.user)
@@ -280,10 +425,15 @@ def rsvp_event(request):
 
         # Ensure the user belongs to the event's community
         if hasattr(request.user, 'role') and request.user.role == 'communityowner':
-            community = CommunityProfile.objects.get(owner=request.user)
+            community = CommunityProfile.objects.filter(owner=request.user).first()
+            if not community:
+                return JsonResponse({'success': False, 'error': 'No community profile found. Please set up your community first.'}, status=403)
         else:
-            membership = CommunityMembership.objects.get(user=request.user)
-            community = membership.community
+            try:
+                membership = CommunityMembership.objects.get(user=request.user)
+                community = membership.community
+            except CommunityMembership.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Not part of this community'}, status=403)
 
         event = get_object_or_404(Event, id=event_id, community=community, is_active=True)
 
@@ -311,7 +461,14 @@ def get_events(request):
     
     try:
         # Get community profile
-        community = CommunityProfile.objects.get(owner=request.user)
+        community = CommunityProfile.objects.filter(owner=request.user).first()
+        
+        # If no community profile exists yet, return empty events list
+        if not community:
+            return JsonResponse({
+                'success': True,
+                'events': []
+            })
         
         # Get events - sort by start_date (closest to start first)
         events = Event.objects.filter(community=community, is_active=True).order_by('start_date')
@@ -351,7 +508,9 @@ def get_event_attendees(request, event_id):
     
     try:
         # Get community profile
-        community = CommunityProfile.objects.get(owner=request.user)
+        community = CommunityProfile.objects.filter(owner=request.user).first()
+        if not community:
+            return JsonResponse({'success': False, 'error': 'No community profile found. Please set up your community first.'}, status=404)
         
         # Get event and verify it belongs to the community
         event = get_object_or_404(Event, id=event_id, community=community, is_active=True)
@@ -404,6 +563,14 @@ def check_new_events(request):
     try:
         if request.user.role == 'communityowner':
             community = CommunityProfile.objects.filter(owner=request.user).first()
+            # If no community profile exists yet, return empty response (not an error)
+            if not community:
+                return JsonResponse({
+                    'new_events': [],
+                    'current_max_id': 0,
+                    'has_new_events': False,
+                    'unseen_events_count': 0
+                })
         else:
             membership = CommunityMembership.objects.select_related('community').filter(user=request.user).first()
             if not membership or not membership.community:
