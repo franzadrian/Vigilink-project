@@ -1,0 +1,208 @@
+{% load static %}
+{% load resource_tags %}
+<span id="resources-count-data" style="display:none;">{{ total_count }}</span>
+<div id="resources-container">
+{% if resources %}
+  <div class="resources-grid" id="resources-grid">
+    {% for resource in resources %}
+      {% with file_url=resource_urls|get_item:resource.id group_id=resource_group_ids|get_item:resource.id %}
+      <div class="resource-card" {% if group_id %}data-group-id="{{ group_id }}"{% endif %}>
+        <div class="resource-header">
+          <h3>{% if "(Image" in resource.title %}{{ resource.title|slice:":-11" }}{% else %}{{ resource.title }}{% endif %}</h3>
+          <span class="resource-type {{ resource.resource_type }}">{{ resource.get_resource_type_display }}</span>
+        </div>
+        
+        {% if resource.description %}
+          <p class="resource-description">
+            {% if "[GROUP_ID:" in resource.description %}
+              {{ resource.description|slice:":-36"|slice:":-11" }}
+            {% else %}
+              {{ resource.description }}
+            {% endif %}
+          </p>
+        {% endif %}
+        
+        <!-- Resource Preview -->
+        {% if resource.resource_type == 'image' and resource.file %}
+          <div class="resource-preview">
+            <div class="image-gallery-container">
+              {% if file_url and file_url != '' %}
+                <img src="{{ file_url }}" alt="{{ resource.title }}" class="resource-image clickable-image" data-image-url="{{ file_url }}" data-image-title="{{ resource.title }}" {% if group_id %}data-group-id="{{ group_id }}"{% endif %}>
+              {% else %}
+                <img src="{{ resource.file.url }}" alt="{{ resource.title }}" class="resource-image clickable-image" data-image-url="{{ resource.file.url }}" data-image-title="{{ resource.title }}" {% if group_id %}data-group-id="{{ group_id }}"{% endif %}>
+              {% endif %}
+              {% if group_id %}
+                {% with group_count=resource_group_counts|get_item:resource.id %}
+                  {% if group_count and group_count > 1 %}
+                    <div class="image-counter">+{{ group_count|add:"-1" }}</div>
+                  {% endif %}
+                {% endwith %}
+              {% endif %}
+            </div>
+          </div>
+        {% elif resource.resource_type == 'video' and resource.file %}
+          <div class="resource-preview">
+            {% if file_url and file_url != '' %}
+              {% with video_url=file_url %}
+                <div class="custom-video-player" data-video-url="{{ video_url }}">
+                  <video preload="auto" class="video-element">
+                    <source src="{{ video_url }}" type="video/mp4">
+                    <source src="{{ video_url }}" type="video/webm">
+                    <source src="{{ video_url }}" type="video/ogg">
+                    Your browser does not support the video tag.
+                  </video>
+                  <div class="video-controls">
+                    <button class="play-pause-btn" aria-label="Play/Pause">
+                      <i class="fas fa-play"></i>
+                    </button>
+                    <div class="video-timeline">
+                      <div class="timeline-track">
+                        <div class="timeline-progress"></div>
+                        <div class="timeline-thumb"></div>
+                      </div>
+                    </div>
+                    <div class="video-time">
+                      <span class="current-time">0:00</span>
+                      <span class="time-separator">/</span>
+                      <span class="total-time">0:00</span>
+                    </div>
+                    <div class="video-volume">
+                      <button class="mute-btn" aria-label="Mute/Unmute">
+                        <i class="fas fa-volume-up"></i>
+                      </button>
+                      <div class="volume-slider">
+                        <div class="volume-track">
+                          <div class="volume-progress"></div>
+                          <div class="volume-thumb"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <button class="fullscreen-btn" aria-label="Fullscreen">
+                      <i class="fas fa-expand"></i>
+                    </button>
+                  </div>
+                </div>
+              {% endwith %}
+            {% else %}
+              {% with video_url=resource.file.url %}
+                <div class="custom-video-player" data-video-url="{{ video_url }}">
+                  <video preload="auto" class="video-element">
+                    <source src="{{ video_url }}" type="video/mp4">
+                    <source src="{{ video_url }}" type="video/webm">
+                    <source src="{{ video_url }}" type="video/ogg">
+                    Your browser does not support the video tag.
+                  </video>
+                  <div class="video-controls">
+                    <button class="play-pause-btn" aria-label="Play/Pause">
+                      <i class="fas fa-play"></i>
+                    </button>
+                    <div class="video-timeline">
+                      <div class="timeline-track">
+                        <div class="timeline-progress"></div>
+                        <div class="timeline-thumb"></div>
+                      </div>
+                    </div>
+                    <div class="video-time">
+                      <span class="current-time">0:00</span>
+                      <span class="time-separator">/</span>
+                      <span class="total-time">0:00</span>
+                    </div>
+                    <div class="video-volume">
+                      <button class="mute-btn" aria-label="Mute/Unmute">
+                        <i class="fas fa-volume-up"></i>
+                      </button>
+                      <div class="volume-slider">
+                        <div class="volume-track">
+                          <div class="volume-progress"></div>
+                          <div class="volume-thumb"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <button class="fullscreen-btn" aria-label="Fullscreen">
+                      <i class="fas fa-expand"></i>
+                    </button>
+                  </div>
+                </div>
+              {% endwith %}
+            {% endif %}
+          </div>
+        {% elif resource.resource_type == 'link' and resource.external_url %}
+          <div class="url-preview" data-urls="{{ resource.external_url }}">
+            <div id="urls-container-{{ resource.id }}"></div>
+          </div>
+        {% elif resource.resource_type == 'document' and resource.file %}
+          <div class="resource-preview">
+            <div class="document-preview">
+              <div class="document-preview-container">
+                <div class="document-icon">
+                  {% if resource.file.name|lower|slice:"-4:" == ".pdf" %}📄
+                  {% elif resource.file.name|lower|slice:"-5:" == ".xlsx" %}📊
+                  {% elif resource.file.name|lower|slice:"-4:" == ".xls" %}📊
+                  {% elif resource.file.name|lower|slice:"-4:" == ".csv" %}📋
+                  {% elif resource.file.name|lower|slice:"-4:" == ".txt" %}📝
+                  {% else %}📄{% endif %}
+                </div>
+                <div class="document-info">
+                  <h4>Document File</h4>
+                  <p>
+                    {% if resource.file.name|lower|slice:"-4:" == ".pdf" %}PDF Document
+                    {% elif resource.file.name|lower|slice:"-5:" == ".xlsx" %}Excel Spreadsheet (.xlsx)
+                    {% elif resource.file.name|lower|slice:"-4:" == ".xls" %}Excel Spreadsheet (.xls)
+                    {% elif resource.file.name|lower|slice:"-4:" == ".csv" %}CSV File
+                    {% elif resource.file.name|lower|slice:"-4:" == ".txt" %}Text File
+                    {% else %}{{ resource.file.name|slice:"-4:"|upper }} file{% endif %}
+                  </p>
+                </div>
+                <div class="document-actions">
+                  <a href="{% url 'resources_panel:download_resource' resource.id %}" class="btn-view-document">Download</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+        
+        <div class="resource-footer">
+          <div class="meta-item">
+            <span class="meta-label">Uploaded at:</span>
+            <span class="meta-value">{{ resource.created_at|date:"F d, Y" }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Uploaded by:</span>
+            <span class="meta-value">VigiLink Admin</span>
+          </div>
+        </div>
+      </div>
+      {% endwith %}
+    {% endfor %}
+  </div>
+  
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+  <div class="resources-pagination" id="pagination-container">
+    {% if page_obj.has_previous %}
+      <button type="button" class="page-btn" data-page="{{ page_obj.previous_page_number }}">Previous</button>
+    {% endif %}
+    
+    <span class="page-btn active">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    
+    {% if page_obj.has_next %}
+      <button type="button" class="page-btn" data-page="{{ page_obj.next_page_number }}">Next</button>
+    {% endif %}
+  </div>
+  {% endif %}
+{% else %}
+  <div class="no-resources">
+    <div class="no-resources-icon">📚</div>
+    <h3>No Resources Found</h3>
+    <p>
+      {% if search_query or filter_type != 'all' %}
+        No resources match your search criteria. Try adjusting your filters or search terms.
+      {% else %}
+        There are no resources available at the moment. Check back later for updates!
+      {% endif %}
+    </p>
+  </div>
+{% endif %}
+</div>
+<span id="resources-count-data" style="display: none;">{{ total_count }}</span>
+

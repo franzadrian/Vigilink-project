@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from .storage import DropboxStorage
 
 # Create your models here.
 class ContactMessage(models.Model):
@@ -20,18 +21,25 @@ class ContactMessage(models.Model):
 
 class Resource(models.Model):
     RESOURCE_TYPE_CHOICES = [
-        ('pdf', 'PDF Document'),
         ('image', 'Image'),
         ('video', 'Video'),
         ('link', 'External Link'),
+        ('document', 'Document'),
     ]
     
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     resource_type = models.CharField(max_length=10, choices=RESOURCE_TYPE_CHOICES)
-    file = models.FileField(upload_to='resources/', blank=True, null=True, help_text="For PDFs, images, and videos")
+    file = models.FileField(
+        storage=DropboxStorage(),
+        upload_to='resources/',
+        blank=True,
+        null=True,
+        help_text="For PDFs, images, videos, and documents (stored in Dropbox)"
+    )
     external_url = models.URLField(blank=True, null=True, help_text="For external links (Google Drive, YouTube, etc.)")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    community = models.ForeignKey('communityowner_panel.CommunityProfile', on_delete=models.SET_NULL, null=True, blank=True, related_name='resources', help_text="If selected, only members of this community can see this resource. Leave empty for all communities.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)

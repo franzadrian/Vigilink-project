@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     'security_panel',
     'events_panel',
     'settings_panel',
+    'resources_panel',
 ]
 
 MIDDLEWARE = [

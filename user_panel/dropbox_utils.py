@@ -17,6 +17,7 @@ ACCESS_TOKEN = None
 PROFILE_PICTURES_PATH = '/vigilink/profile_pictures/'
 POST_IMAGES_PATH = '/vigilink/post_images/'
 CHAT_IMAGES_PATH = '/vigilink/chat_images/'
+RESOURCES_PATH = '/vigilink/resources/'
 
 def _get_dropbox_credentials():
     """Helper to get Dropbox credentials without creating a client"""

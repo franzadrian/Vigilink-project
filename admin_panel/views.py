@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import HttpResponseForbidden, JsonResponse, HttpResponse, FileResponse
+from django.template.loader import render_to_string
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from accounts.models import User
@@ -13,6 +14,11 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from admin_panel.models import ContactMessage, Resource
 from django.core.cache import cache
+import logging
+import os
+from urllib.parse import quote
+
+logger = logging.getLogger(__name__)
 
 # Create your views here.
 @login_required
@@ -451,6 +457,14 @@ def admin_resources(request):
         return HttpResponseForbidden("You don't have permission to access this page.")
     
     if request.method == 'POST':
+        # Check if request expects JSON response (check Accept header or if it's an AJAX request)
+        accept_header = request.headers.get('Accept', '').lower()
+        expects_json = (
+            'application/json' in accept_header or
+            request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
+            request.content_type == 'application/json'
+        )
+        
         try:
             title = request.POST.get('title', '').strip()
             description = request.POST.get('description', '').strip()
@@ -458,10 +472,14 @@ def admin_resources(request):
             content = request.POST.get('content', '').strip()
             
             if not title:
+                if expects_json:
+                    return JsonResponse({'status': 'error', 'message': 'Title is required.'}, status=400)
                 messages.error(request, 'Title is required.')
                 return redirect('admin_panel:admin_resources')
             
-            if resource_type not in ['pdf', 'image', 'video', 'link']:
+            if resource_type not in ['image', 'video', 'link', 'document']:
+                if expects_json:
+                    return JsonResponse({'status': 'error', 'message': 'Invalid resource type.'}, status=400)
                 messages.error(request, 'Invalid resource type.')
                 return redirect('admin_panel:admin_resources')
             
@@ -469,15 +487,29 @@ def admin_resources(request):
             external_urls = request.POST.getlist('external_urls[]')
             external_url = external_urls[0] if external_urls else ''
             
+            # Get community selection (optional)
+            community_id = request.POST.get('community', '').strip()
+            community = None
+            if community_id:
+                try:
+                    from communityowner_panel.models import CommunityProfile
+                    community = CommunityProfile.objects.get(id=int(community_id))
+                except (ValueError, CommunityProfile.DoesNotExist):
+                    community = None
+            
             # Validate external URLs for link type
             if resource_type == 'link':
                 if not external_urls or not external_urls[0]:
+                    if expects_json:
+                        return JsonResponse({'status': 'error', 'message': 'At least one external URL is required for links.'}, status=400)
                     messages.error(request, 'At least one external URL is required for links.')
                     return redirect('admin_panel:admin_resources')
                 
                 # Basic URL validation
                 for url in external_urls:
                     if url and not url.startswith(('http://', 'https://')):
+                        if expects_json:
+                            return JsonResponse({'status': 'error', 'message': f'Please enter a valid URL: {url}'}, status=400)
                         messages.error(request, f'Please enter a valid URL: {url}')
                         return redirect('admin_panel:admin_resources')
 
@@ -497,39 +529,53 @@ def admin_resources(request):
                 final_external_url = None
                 final_description = description
             
-            # Create resource
-            resource = Resource.objects.create(
-                title=title,
-                description=final_description,
-                resource_type=resource_type,
-                external_url=final_external_url,
-                created_by=request.user
-            )
-            
-            # Handle file upload for PDFs, images, and videos
-            if resource_type in ['pdf', 'image', 'video'] and 'file' in request.FILES:
+            # Handle file upload for images, videos, and documents (PDFs, TXT, CSV, Excel)
+            if resource_type in ['image', 'video', 'document'] and 'file' in request.FILES:
                 files = request.FILES.getlist('file')
                 
                 if resource_type == 'image' and len(files) > 1:
                     # For multiple images, create separate resources with group identifier
+                    # Don't create the initial empty resource - create resources directly with files
                     import uuid
                     group_id = str(uuid.uuid4())
                     for i, file in enumerate(files):
-                        # Create individual resource for each image
+                        # Create individual resource for each image directly with the file
                         image_resource = Resource.objects.create(
                             title=f"{title} (Image {i+1})" if len(files) > 1 else title,
                             description=description,
                             resource_type=resource_type,
                             file=file,
-                            created_by=request.user
+                            created_by=request.user,
+                            community=community  # Add community to grouped images
                         )
                         # Add group_id to the resource's description for grouping (hidden from display)
                         image_resource.description = f"{description}\n[GROUP_ID:{group_id}]" if description else f"[GROUP_ID:{group_id}]"
                         image_resource.save()
+                    # Don't create an empty resource - we've created all the image resources above
+                    resource = None
                 else:
-                    # For single files (PDF, video, or single image)
-                    resource.file = files[0]
-                    resource.save()
+                    # For single files (PDF, video, document, or single image)
+                    # Create resource with the file directly
+                    resource = Resource.objects.create(
+                        title=title,
+                        description=final_description,
+                        resource_type=resource_type,
+                        file=files[0],
+                        external_url=final_external_url,
+                        created_by=request.user,
+                        community=community
+                    )
+                    # Don't generate URL immediately - let it happen on page load for faster upload
+            else:
+                # For links or resources without files, create the resource normally
+                resource = Resource.objects.create(
+                    title=title,
+                    description=final_description,
+                    resource_type=resource_type,
+                    external_url=final_external_url,
+                    created_by=request.user,
+                    community=community
+                )
 
             # Determine success message based on file count
             if resource_type == 'image' and 'file' in request.FILES:
@@ -541,7 +587,7 @@ def admin_resources(request):
             else:
                 success_message = f'Resource "{title}" created successfully!'
             
-            if request.headers.get('Content-Type') == 'application/json' or request.headers.get('Accept') == 'application/json':
+            if expects_json:
                 return JsonResponse({
                     'status': 'success', 
                     'message': success_message,
@@ -552,17 +598,45 @@ def admin_resources(request):
                 return redirect('admin_panel:admin_resources')
 
         except Exception as e:
-            if request.headers.get('Content-Type') == 'application/json' or request.headers.get('Accept') == 'application/json':
+            logger.error(f"Error creating resource: {e}", exc_info=True)
+            if expects_json:
                 return JsonResponse({'status': 'error', 'message': f'Error creating resource: {str(e)}'}, status=400)
             else:
                 messages.error(request, f'Error creating resource: {str(e)}')
                 return redirect('admin_panel:admin_resources')
     
-    # Get all resources
-    all_resources = Resource.objects.filter(is_active=True).order_by('-created_at')
+    # Get filter parameters
+    search_query = request.GET.get('search', '').strip()
+    filter_type = request.GET.get('type', 'all')
+    filter_community = request.GET.get('community', '')
+    
+    # Optimized: Get resources with minimal processing
+    # Use select_related to avoid N+1 queries
+    base_queryset = Resource.objects.filter(is_active=True).select_related(
+        'created_by', 'community'
+    ).order_by('-created_at')
+    
+    # Apply search filter
+    if search_query:
+        base_queryset = base_queryset.filter(title__icontains=search_query)
+    
+    # Apply resource type filter
+    if filter_type != 'all' and filter_type in ['image', 'video', 'link', 'document']:
+        base_queryset = base_queryset.filter(resource_type=filter_type)
+    
+    # Apply community filter
+    if filter_community:
+        try:
+            from communityowner_panel.models import CommunityProfile
+            community_obj = CommunityProfile.objects.get(id=int(filter_community))
+            base_queryset = base_queryset.filter(community=community_obj)
+        except (ValueError, CommunityProfile.DoesNotExist):
+            pass  # Invalid community ID, ignore filter
     
     # Group multiple images - only show the first image of each group
-    resources = []
+    # This needs to be done before pagination to get accurate counts
+    all_resources = list(base_queryset)
+    resources_list = []
     processed_groups = set()
     
     for resource in all_resources:
@@ -572,33 +646,95 @@ def admin_resources(request):
             '[GROUP_ID:' in resource.description):
             
             # Extract group ID
-            group_id = resource.description.split('[GROUP_ID:')[1].split(']')[0]
-            
-            if group_id not in processed_groups:
-                # This is the first image in a group, add it to resources
-                processed_groups.add(group_id)
-                resources.append(resource)
-            # Skip other images in the same group
+            try:
+                group_id = resource.description.split('[GROUP_ID:')[1].split(']')[0]
+                
+                if group_id not in processed_groups:
+                    # This is the first image in a group, add it to resources
+                    processed_groups.add(group_id)
+                    resources_list.append(resource)
+                # Skip other images in the same group
+            except Exception:
+                # If we can't extract group ID, add it normally
+                resources_list.append(resource)
         else:
             # Not part of a group, add normally
-            resources.append(resource)
+            resources_list.append(resource)
     
-    # Pagination
+    # Get pagination first (only loads what we need from database)
     page_number = request.GET.get('page') or 1
     try:
         page_number = int(page_number)
     except Exception:
         page_number = 1
     
-    paginator = Paginator(resources, 4)
+    # Paginate the filtered resources list
+    paginator = Paginator(resources_list, 4)
     page_obj = paginator.get_page(page_number)
     
-    return render(request, 'admin_resources/admin_resources.html', {
-        'resources': page_obj,
+    # Pre-generate URLs for resources on this page only (before template rendering)
+    # This batches URL generation and uses caching to avoid repeated API calls
+    # CRITICAL: Generate URLs once here to populate cache, template will use cached values
+    resource_urls = {}
+    resource_group_ids = {}  # Store group IDs for grouped images
+    for resource in page_obj:
+        if resource.file and resource.file.name:
+            try:
+                # Generate URL once - this will cache it for 1 hour
+                # Template accesses will use cache, not make new API calls
+                logger.info(f"Generating URL for resource {resource.id}, file: {resource.file.name}")
+                url = resource.file.url
+                if url:
+                    resource_urls[resource.id] = url
+                    logger.info(f"Successfully generated URL for resource {resource.id}: {url[:80]}...")
+                else:
+                    logger.warning(f"Empty URL returned for resource {resource.id}, file: {resource.file.name}")
+                    resource_urls[resource.id] = ''
+            except Exception as e:
+                # If URL generation fails, log the error
+                logger.error(f"Error generating URL for resource {resource.id}, file: {resource.file.name}: {e}", exc_info=True)
+                resource_urls[resource.id] = ''
+        else:
+            logger.debug(f"Resource {resource.id} has no file")
+            resource_urls[resource.id] = ''
+        
+        # Extract group ID if this is a grouped image
+        if (resource.resource_type == 'image' and 
+            resource.description and 
+            '[GROUP_ID:' in resource.description):
+            try:
+                group_id = resource.description.split('[GROUP_ID:')[1].split(']')[0]
+                resource_group_ids[resource.id] = group_id
+            except Exception:
+                pass
+    
+    # Get total count
+    total_count = paginator.count
+    
+    # Get all communities for the dropdown
+    from communityowner_panel.models import CommunityProfile
+    communities = CommunityProfile.objects.all().order_by('community_name')
+    
+    context = {
+        'resources': page_obj,  # Use page_obj for template compatibility
         'page_obj': page_obj,
         'paginator': paginator,
-        'total_count': paginator.count,
-    })
+        'total_count': total_count,
+        'communities': communities,
+        'resource_urls': resource_urls,  # Pre-generated URLs to avoid multiple API calls
+        'resource_group_ids': resource_group_ids,  # Group IDs for grouped images
+        'search_query': search_query,
+        'filter_type': filter_type,
+        'filter_community': filter_community,
+    }
+    
+    # Check if this is an AJAX request
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        # Return only the resources container HTML for AJAX requests
+        resources_html = render_to_string('admin_resources/resources_partial.html', context, request=request)
+        return HttpResponse(resources_html)
+    
+    return render(request, 'admin_resources/admin_resources.html', context)
 
 @login_required
 @require_POST
@@ -664,8 +800,18 @@ def edit_resource(request, resource_id):
                 if not title:
                     return JsonResponse({'status': 'error', 'message': 'Title is required.'}, status=400)
 
-                if resource_type not in ['pdf', 'image', 'video', 'link']:
+                if resource_type not in ['image', 'video', 'link', 'document']:
                     return JsonResponse({'status': 'error', 'message': 'Invalid resource type.'}, status=400)
+                
+                # Get community selection (optional)
+                community_id = request.POST.get('community', '').strip()
+                community = None
+                if community_id:
+                    try:
+                        from communityowner_panel.models import CommunityProfile
+                        community = CommunityProfile.objects.get(id=int(community_id))
+                    except (ValueError, CommunityProfile.DoesNotExist):
+                        community = None
                 
                 # Validate external URLs for link type
                 if resource_type == 'link':
@@ -680,6 +826,7 @@ def edit_resource(request, resource_id):
                 # Update resource fields
                 resource.title = title
                 resource.resource_type = resource_type
+                resource.community = community
                 
                 # Handle multiple URLs for links
                 if resource_type == 'link':
@@ -697,8 +844,8 @@ def edit_resource(request, resource_id):
                     resource.external_url = None
                     resource.description = description
 
-                # Handle file upload for PDFs, images, and videos
-                if resource_type in ['pdf', 'image', 'video'] and 'file' in request.FILES:
+                # Handle file upload for images, videos, and documents (PDFs, TXT, CSV, Excel)
+                if resource_type in ['image', 'video', 'document'] and 'file' in request.FILES:
                     files = request.FILES.getlist('file')
 
                     # If editing an image resource, ensure new images are grouped with the existing one
@@ -737,15 +884,19 @@ def edit_resource(request, resource_id):
                             )
                             image_resource.save()
                     else:
-                        # For single files (PDF or video), create a new resource alongside existing
-                        for uploaded_file in files:
-                            Resource.objects.create(
-                                title=title,
-                                description=description,
-                                resource_type=resource_type,
-                                file=uploaded_file,
-                                created_by=request.user
-                            )
+                        # For single files (video or document), replace the existing file
+                        # Only take the first file if multiple are uploaded
+                        if files:
+                            # Delete old file from Dropbox if it exists
+                            if resource.file and resource.file.name:
+                                try:
+                                    resource.file.delete(save=False)
+                                except Exception:
+                                    pass  # Continue even if deletion fails
+                            
+                            # Replace with new file
+                            resource.file = files[0]
+                            resource.save()
 
                 resource.save()
 
@@ -833,3 +984,43 @@ def get_group_count(request, base_title):
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def download_resource(request, resource_id):
+    """Download a resource file with custom filename (title + date)"""
+    # Check if user has admin role or is a superuser
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return HttpResponseForbidden("You don't have permission to access this page.")
+    
+    resource = get_object_or_404(Resource, id=resource_id, is_active=True)
+    
+    if not resource.file:
+        return HttpResponse("File not found", status=404)
+    
+    try:
+        # Open the file from Dropbox storage
+        file_obj = resource.file.open('rb')
+        
+        # Get original file extension
+        original_filename = resource.file.name
+        file_ext = os.path.splitext(original_filename)[1] or ''
+        
+        # Clean title for filename (remove special characters, replace spaces with underscores)
+        clean_title = re.sub(r'[^\w\s-]', '', resource.title)
+        clean_title = re.sub(r'[-\s]+', '_', clean_title)
+        clean_title = clean_title.strip('_')
+        
+        # Format date as YYYY-MM-DD
+        date_str = resource.created_at.strftime('%Y-%m-%d')
+        
+        # Create custom filename: title_date.extension
+        custom_filename = f"{clean_title}_{date_str}{file_ext}"
+        
+        # Create response with file
+        response = FileResponse(file_obj, content_type='application/octet-stream')
+        response['Content-Disposition'] = f'attachment; filename="{custom_filename}"; filename*=UTF-8\'\'{quote(custom_filename)}'
+        
+        return response
+    except Exception as e:
+        logger.error(f"Error downloading resource {resource_id}: {e}", exc_info=True)
+        return HttpResponse(f"Error downloading file: {str(e)}", status=500)

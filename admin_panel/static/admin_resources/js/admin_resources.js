@@ -20,11 +20,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const fileUploadSubtext = document.getElementById('file-upload-subtext');
         
         switch(resourceType) {
-            case 'pdf':
-                fileInput.accept = '.pdf';
-                fileInput.multiple = false;
-                fileUploadSubtext.textContent = 'PDF file (max 30MB)';
-                break;
             case 'image':
                 fileInput.accept = 'image/*';
                 fileInput.multiple = true;
@@ -34,6 +29,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 fileInput.accept = 'video/*';
                 fileInput.multiple = false;
                 fileUploadSubtext.textContent = 'Video file (MP4, AVI, MOV - max 100MB)';
+                break;
+            case 'document':
+                fileInput.accept = '.pdf,.txt,.csv,.xlsx,.xls';
+                fileInput.multiple = false;
+                fileUploadSubtext.textContent = 'Document files (.pdf, .txt, .csv, .xlsx, .xls - max 30MB)';
                 break;
             default:
                 fileInput.accept = '*';
@@ -55,9 +55,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Show appropriate group based on resource type
         switch(resourceType) {
-            case 'pdf':
             case 'image':
             case 'video':
+            case 'document':
                 fileUploadGroup.style.display = 'block';
                 fileInput.required = true;
                 updateFileInput();
@@ -692,7 +692,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Validate based on resource type
-        if (resourceType === 'pdf' || resourceType === 'image' || resourceType === 'video') {
+        if (resourceType === 'image' || resourceType === 'video' || resourceType === 'document') {
             if (!file && !form.action.includes('/edit/')) {
                 showToast('Validation Error', 'File is required for this resource type', 'error');
                 return;
@@ -779,9 +779,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const resourceDescription = e.target.getAttribute('data-resource-description');
             const resourceUrl = e.target.getAttribute('data-resource-url');
             const fileUrl = e.target.getAttribute('data-file-url');
+            const resourceCommunity = e.target.getAttribute('data-resource-community');
             
             if (resourceId) {
-                openEditModal(resourceId, resourceType, resourceTitle, resourceDescription, resourceUrl, fileUrl);
+                openEditModal(resourceId, resourceType, resourceTitle, resourceDescription, resourceUrl, fileUrl, resourceCommunity);
             }
         }
     });
@@ -816,6 +817,20 @@ document.addEventListener('DOMContentLoaded', function() {
     function closeModal() {
         modal.style.display = 'none';
         document.body.style.overflow = 'auto';
+        // Reset form to create mode when closing modal
+        // This ensures that if edit modal was open, the form is reset for create mode
+        if (typeof resetFormForCreate === 'function') {
+            resetFormForCreate();
+        } else {
+            // Fallback: manually reset form if function not yet defined
+            resourceForm.action = '';
+            resourceForm.reset();
+            const submitBtn = resourceForm.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.textContent = 'Create Resource';
+            const modalHeader = modal.querySelector('.modal-header h2');
+            if (modalHeader) modalHeader.textContent = 'Create New Resource';
+            hideExistingFilePreview();
+        }
     }
     
     // Event listeners for modal
@@ -912,7 +927,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Edit modal functionality
-    function openEditModal(resourceId, resourceType, resourceTitle, resourceDescription, resourceUrl, fileUrl) {
+    function openEditModal(resourceId, resourceType, resourceTitle, resourceDescription, resourceUrl, fileUrl, resourceCommunity) {
         // Clean title and description (remove "(Image N)" and "[GROUP_ID:...]" markers)
         const cleanedTitle = (resourceTitle || '').replace(/\s*\(Image\s+\d+\)\s*$/i, '');
         const cleanedDescription = (resourceDescription || '').replace(/\s*\[GROUP_ID:[^\]]+\]\s*/gi, '').trim();
@@ -921,6 +936,14 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('title').value = cleanedTitle;
         document.getElementById('description').value = cleanedDescription;
         document.getElementById('resource_type').value = resourceType || '';
+        
+        // Set community value
+        const communitySelect = document.getElementById('community');
+        if (communitySelect && resourceCommunity) {
+            communitySelect.value = resourceCommunity;
+        } else if (communitySelect) {
+            communitySelect.value = '';
+        }
         
         // Handle multiple URLs for edit
         if (resourceType === 'link' && resourceUrl) {
@@ -974,7 +997,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Handle file preview for existing files
-        if (fileUrl && resourceType && ['pdf', 'image', 'video'].includes(resourceType)) {
+        if (fileUrl && resourceType && ['image', 'video', 'document'].includes(resourceType)) {
             showExistingFilePreview(fileUrl, resourceType);
         } else {
             hideExistingFilePreview();
@@ -1016,40 +1039,44 @@ document.addEventListener('DOMContentLoaded', function() {
     function showExistingFilePreview(fileUrl, resourceType) {
         // Create or update existing file preview container
         let previewContainer = document.getElementById('existing-file-preview');
+        
+        // Determine message based on resource type
+        const isImage = resourceType === 'image';
+        const headerText = isImage ? 'Current File (will be kept):' : 'Current File (will be replaced):';
+        const noteText = isImage 
+            ? '💡 Upload new files below to add them alongside the current file'
+            : '💡 Upload a new file below to replace the current file';
+        
         if (!previewContainer) {
             previewContainer = document.createElement('div');
             previewContainer.id = 'existing-file-preview';
             previewContainer.className = 'existing-file-preview';
             previewContainer.innerHTML = `
                 <div class="existing-file-header">
-                    <h4>Current File (will be kept):</h4>
+                    <h4>${headerText}</h4>
                     <button type="button" id="remove-existing-file" class="btn-remove-file">Remove</button>
                 </div>
                 <div class="existing-file-content" id="existing-file-content"></div>
                 <div class="add-file-note">
-                    <small>💡 Upload new files below to add them alongside the current file</small>
+                    <small>${noteText}</small>
                 </div>
             `;
             
             // Insert after the file upload group
             const fileUploadGroup = document.getElementById('file-upload-group');
             fileUploadGroup.parentNode.insertBefore(previewContainer, fileUploadGroup.nextSibling);
+        } else {
+            // Update existing container with correct messages
+            const header = previewContainer.querySelector('.existing-file-header h4');
+            const note = previewContainer.querySelector('.add-file-note small');
+            if (header) header.textContent = headerText;
+            if (note) note.textContent = noteText;
         }
         
         const fileContent = document.getElementById('existing-file-content');
         fileContent.innerHTML = '';
         
-        if (resourceType === 'pdf') {
-            fileContent.innerHTML = `
-                <div class="pdf-preview">
-                    <div class="pdf-icon">📄</div>
-                    <div class="pdf-info">
-                        <h5>PDF Document</h5>
-                        <p>Current file: <a href="${fileUrl}" target="_blank">View PDF</a></p>
-                    </div>
-                </div>
-            `;
-        } else if (resourceType === 'image') {
+        if (resourceType === 'image') {
             fileContent.innerHTML = `
                 <div class="image-preview">
                     <img src="${fileUrl}" alt="Current image" style="max-width: 200px; max-height: 150px; border-radius: 4px;">
@@ -1068,18 +1095,30 @@ document.addEventListener('DOMContentLoaded', function() {
                     <p><a href="${fileUrl}" target="_blank">View Full Video</a></p>
                 </div>
             `;
+        } else if (resourceType === 'document') {
+            fileContent.innerHTML = `
+                <div class="document-preview">
+                    <div class="document-icon">📄</div>
+                    <div class="document-info">
+                        <h5>Document File</h5>
+                        <p>Current file: <a href="${fileUrl}" target="_blank">View/Download</a></p>
+                    </div>
+                </div>
+            `;
         }
         
         // Add event listener for remove button
         const removeBtn = document.getElementById('remove-existing-file');
-        removeBtn.onclick = function() {
-            hideExistingFilePreview();
-            // Show file upload area when removing existing file
-            document.getElementById('file-upload-group').style.display = 'block';
-        };
+        if (removeBtn) {
+            removeBtn.onclick = function() {
+                hideExistingFilePreview();
+                // Show file upload area when removing existing file
+                document.getElementById('file-upload-group').style.display = 'block';
+            };
+        }
         
-        // Keep file upload group visible for adding new files
-        // (Don't hide it since we want to add files, not replace)
+        // Keep file upload group visible
+        document.getElementById('file-upload-group').style.display = 'block';
     }
     
     // Hide existing file preview
@@ -1135,6 +1174,231 @@ document.addEventListener('DOMContentLoaded', function() {
     // Make functions globally available
     window.showToast = showToast;
     window.openEditModal = openEditModal;
+    
+    // AJAX Search and Filter functionality
+    const searchInputEl = document.getElementById('search-input');
+    const filterButtonsEl = document.querySelectorAll('.filter-btn[data-filter-type]');
+    const communityFilterEl = document.getElementById('community-filter-select');
+    
+    let currentFilters = {
+        search: searchInputEl ? searchInputEl.value.trim() : '',
+        type: Array.from(filterButtonsEl).find(b => b.classList.contains('active'))?.getAttribute('data-filter-type') || 'all',
+        community: communityFilterEl ? communityFilterEl.value : '',
+        page: 1
+    };
+    
+    // Search input handler
+    const searchInput = document.getElementById('search-input');
+    const searchBtn = document.getElementById('search-btn');
+    const clearSearchBtn = document.getElementById('clear-search-btn');
+    const filterButtons = document.querySelectorAll('.filter-btn[data-filter-type]');
+    const communityFilter = document.getElementById('community-filter-select');
+    
+    function updateResources() {
+        const params = new URLSearchParams();
+        if (currentFilters.search) params.set('search', currentFilters.search);
+        if (currentFilters.type && currentFilters.type !== 'all') params.set('type', currentFilters.type);
+        if (currentFilters.community) params.set('community', currentFilters.community);
+        if (currentFilters.page > 1) params.set('page', currentFilters.page);
+        
+        // Show loading state
+        const resourcesContainer = document.getElementById('resources-container');
+        if (resourcesContainer) {
+            resourcesContainer.style.opacity = '0.5';
+            resourcesContainer.style.pointerEvents = 'none';
+        }
+        
+        // Fetch filtered resources
+        fetch(`/admin-panel/resources/?${params.toString()}`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+            }
+        })
+        .then(response => response.text())
+        .then(html => {
+            // Parse the HTML response
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Extract resources container
+            const newContainer = doc.querySelector('#resources-container');
+            const newCountData = doc.querySelector('#resources-count-data');
+            
+            // Update resources container
+            const container = document.getElementById('resources-container');
+            if (container && newContainer) {
+                container.innerHTML = newContainer.innerHTML;
+            }
+            
+            // Update count
+            if (newCountData) {
+                const countElement = document.getElementById('resources-count');
+                if (countElement) {
+                    countElement.textContent = newCountData.textContent;
+                }
+            }
+            
+            // Update clear search button visibility
+            const clearSearchBtn = document.getElementById('clear-search-btn');
+            if (currentFilters.search && !clearSearchBtn) {
+                // Add clear button if search has value
+                const searchForm = document.querySelector('.search-form');
+                if (searchForm) {
+                    const clearBtn = document.createElement('button');
+                    clearBtn.type = 'button';
+                    clearBtn.id = 'clear-search-btn';
+                    clearBtn.className = 'clear-search';
+                    clearBtn.title = 'Clear search';
+                    clearBtn.innerHTML = '<i class="fas fa-times"></i>';
+                    clearBtn.addEventListener('click', function() {
+                        searchInput.value = '';
+                        currentFilters.search = '';
+                        currentFilters.page = 1;
+                        updateResources();
+                    });
+                    searchForm.appendChild(clearBtn);
+                }
+            } else if (!currentFilters.search && clearSearchBtn) {
+                // Remove clear button if no search
+                clearSearchBtn.remove();
+            }
+            
+            // Update URL without page reload
+            const newUrl = `/admin-panel/resources/${params.toString() ? '?' + params.toString() : ''}`;
+            window.history.pushState({}, '', newUrl);
+            
+            // Reinitialize video controls and image modals for new content
+            if (typeof initializeVideoControls === 'function') {
+                initializeVideoControls();
+            }
+            if (typeof initializeImageModal === 'function') {
+                initializeImageModal();
+            }
+            if (typeof parseMultipleUrls === 'function') {
+                parseMultipleUrls();
+            }
+            
+            // Reattach edit/delete button listeners
+            attachResourceButtonListeners();
+            
+            // Restore opacity
+            if (resourcesContainer) {
+                resourcesContainer.style.opacity = '1';
+                resourcesContainer.style.pointerEvents = 'auto';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading resources:', error);
+            if (resourcesContainer) {
+                resourcesContainer.style.opacity = '1';
+                resourcesContainer.style.pointerEvents = 'auto';
+            }
+        });
+    }
+    
+    function attachPaginationListeners() {
+        const paginationLinks = document.querySelectorAll('#pagination-container .page-link');
+        paginationLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const page = this.getAttribute('data-page');
+                if (page) {
+                    currentFilters.page = parseInt(page);
+                    updateResources();
+                }
+            });
+        });
+    }
+    
+    // Search button click
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function() {
+            currentFilters.search = searchInput.value.trim();
+            currentFilters.page = 1; // Reset to first page on new search
+            updateResources();
+        });
+    }
+    
+    // Search on Enter key
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                currentFilters.search = searchInput.value.trim();
+                currentFilters.page = 1;
+                updateResources();
+            }
+        });
+    }
+    
+    // Clear search button
+    if (clearSearchBtn) {
+        clearSearchBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            currentFilters.search = '';
+            currentFilters.page = 1;
+            updateResources();
+        });
+    }
+    
+    // Filter buttons
+    filterButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Remove active class from all buttons
+            filterButtons.forEach(b => b.classList.remove('active'));
+            // Add active class to clicked button
+            this.classList.add('active');
+            // Update filter
+            currentFilters.type = this.getAttribute('data-filter-type');
+            currentFilters.page = 1; // Reset to first page on filter change
+            updateResources();
+        });
+    });
+    
+    // Community filter
+    if (communityFilter) {
+        communityFilter.addEventListener('change', function() {
+            currentFilters.community = this.value;
+            currentFilters.page = 1; // Reset to first page on filter change
+            updateResources();
+        });
+    }
+    
+    // Initialize pagination listeners
+    attachPaginationListeners();
+    
+    // Function to attach resource button listeners (edit/delete)
+    function attachResourceButtonListeners() {
+        // Edit buttons
+        document.querySelectorAll('.btn-edit').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const resourceId = this.getAttribute('data-resource-id');
+                const resourceType = this.getAttribute('data-resource-type');
+                const resourceTitle = this.getAttribute('data-resource-title');
+                const resourceDescription = this.getAttribute('data-resource-description');
+                const resourceUrl = this.getAttribute('data-resource-url');
+                const fileUrl = this.getAttribute('data-file-url');
+                const resourceCommunity = this.getAttribute('data-resource-community');
+                
+                if (typeof openEditModal === 'function') {
+                    openEditModal(resourceId, resourceType, resourceTitle, resourceDescription, resourceUrl, fileUrl, resourceCommunity);
+                }
+            });
+        });
+        
+        // Delete buttons
+        document.querySelectorAll('.btn-delete').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const resourceId = this.getAttribute('data-resource-id');
+                if (typeof deleteResource === 'function') {
+                    deleteResource(resourceId);
+                }
+            });
+        });
+    }
+    
+    // Initialize resource button listeners on page load
+    attachResourceButtonListeners();
 });
 
 
