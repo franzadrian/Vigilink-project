@@ -36,40 +36,56 @@ pip install django==5.2.* psycopg[binary] pillow
 
 ## Configuration (.env)
 
-Create a `.env` in the project root. Settings reads from environment, with safe defaults for local dev. Common variables:
+**Important**: The project uses environment variables for configuration. On a new machine, you MUST create a `.env` file to connect to the Neon database.
+
+1. Copy the example file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit `.env` and fill in your actual values (especially database credentials).
+
+The `.env` file is gitignored and won't be committed to the repository.
+
+### Environment Variables:
 
 ```env
-DJANGO_SECRET_KEY=change-me
+DJANGO_SECRET_KEY=your-secret-key-here
 DJANGO_DEBUG=true
 DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost
 
-# Database: by default, settings uses SQLite for local dev.
-# To use Postgres, set:
+# Database: Set USE_POSTGRES=true to use Neon PostgreSQL
+# If not set or false, defaults to SQLite (db.sqlite3)
 USE_POSTGRES=true
-POSTGRES_DB=vigilink
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_HOST=127.0.0.1
+
+# Neon PostgreSQL Database Connection
+POSTGRES_DB=neondb
+POSTGRES_USER=neondb_owner
+POSTGRES_PASSWORD=your-password-here
+POSTGRES_HOST=ep-shy-fire-a1ozash8-pooler.ap-southeast-1.aws.neon.tech
 POSTGRES_PORT=5432
+POSTGRES_SSLMODE=require
 
 # Email (optional for verification flows)
-EMAIL_HOST=smtp.example.com
-EMAIL_HOST_USER=user@example.com
+EMAIL_HOST=smtp.gmail.com
+EMAIL_HOST_USER=your-email@gmail.com
 EMAIL_HOST_PASSWORD=app-password
 EMAIL_PORT=587
 EMAIL_USE_TLS=true
 
-# Dropbox (optional; used by user_panel Dropbox utilities)
+# Dropbox (optional; used for file storage)
 DROPBOX_ACCESS_TOKEN=
 DROPBOX_REFRESH_TOKEN=
 DROPBOX_APP_KEY=
 DROPBOX_APP_SECRET=
 ```
 
-Notes:
+**Important Notes:**
 
-- If `USE_POSTGRES` is not set or false, the project will default to SQLite (`db.sqlite3`).
-- Static files are served via Django in dev; production uses WhiteNoise (see `Dockerfile`).
+- **Without `.env` file**: The project will default to SQLite (`db.sqlite3`) - you'll have a separate local database
+- **With `.env` file and `USE_POSTGRES=true`**: Connects to the shared Neon PostgreSQL database
+- **Database credentials**: Get these from your Neon console at https://console.neon.tech
+- The `.env` file is gitignored for security - each developer needs their own copy
 
 ## Database Migrations
 
