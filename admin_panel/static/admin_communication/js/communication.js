@@ -36,6 +36,176 @@ document.addEventListener('DOMContentLoaded', function () {
   } catch (e) {}
 });
 
+// Search and Filter functionality
+document.addEventListener('DOMContentLoaded', function() {
+  let searchInput = document.getElementById('search-input');
+  let searchBtn = document.getElementById('search-btn');
+  let filterButtons = document.querySelectorAll('.filter-btn');
+  
+  // Current filters state
+  let currentFilters = {
+    search: searchInput ? searchInput.value : '',
+    type: 'all',
+    page: 1
+  };
+  
+  // Get current filter type from active button
+  const activeFilter = document.querySelector('.filter-btn.active');
+  if (activeFilter) {
+    currentFilters.type = activeFilter.getAttribute('data-filter-type') || 'all';
+  }
+  
+  
+  // Function to update communication table via AJAX
+  function updateCommunication() {
+    const params = new URLSearchParams();
+    if (currentFilters.search) params.set('search', currentFilters.search);
+    if (currentFilters.type && currentFilters.type !== 'all') params.set('type', currentFilters.type);
+    if (currentFilters.page > 1) params.set('page', currentFilters.page);
+    
+    // Show loading state
+    const communicationContainer = document.getElementById('communication-container');
+    if (communicationContainer) {
+      communicationContainer.style.opacity = '0.5';
+      communicationContainer.style.pointerEvents = 'none';
+    }
+    
+    // Fetch filtered communications
+    const url = `/admin-panel/communication/${params.toString() ? '?' + params.toString() : ''}`;
+    
+    fetch(url, {
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      }
+    })
+    .then(response => response.text())
+    .then(html => {
+      // Parse the HTML response
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      
+      // Extract communication container - the partial template returns the container itself
+      const newContainer = doc.querySelector('#communication-container');
+      
+      // Update communication container
+      if (communicationContainer && newContainer) {
+        // Extract the inner content (table-wrapper and pagination)
+        communicationContainer.innerHTML = newContainer.innerHTML;
+      } else if (communicationContainer) {
+        // Fallback: if container not found, try to get the body content
+        const bodyContent = doc.body || doc.documentElement;
+        if (bodyContent) {
+          communicationContainer.innerHTML = bodyContent.innerHTML;
+        }
+      }
+      
+      // Update filter button active states - re-query buttons after AJAX
+      filterButtons = document.querySelectorAll('.filter-btn');
+      filterButtons.forEach(function(btn) {
+        const filterType = btn.getAttribute('data-filter-type');
+        if (filterType === currentFilters.type) {
+          btn.classList.add('active');
+          btn.style.background = '#2563EB';
+          btn.style.color = '#fff';
+        } else {
+          btn.classList.remove('active');
+          btn.style.background = '#fff';
+          btn.style.color = '#4b5563';
+        }
+      });
+      
+      // Update URL without page reload
+      const baseUrl = '/admin-panel/communication/';
+      const newUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+      window.history.pushState({}, '', newUrl);
+      
+      // Reattach event listeners for new content
+      attachCommunicationEventListeners();
+      
+      // Restore opacity
+      if (communicationContainer) {
+        communicationContainer.style.opacity = '1';
+        communicationContainer.style.pointerEvents = 'auto';
+      }
+    })
+    .catch(error => {
+      console.error('Error loading communications:', error);
+      const communicationContainer = document.getElementById('communication-container');
+      if (communicationContainer) {
+        communicationContainer.style.opacity = '1';
+        communicationContainer.style.pointerEvents = 'auto';
+      }
+    });
+  }
+  
+  // Function to reattach event listeners after AJAX update
+  function attachCommunicationEventListeners() {
+    // Reattach pagination listeners
+    const newPaginationLinks = document.querySelectorAll('.pagination .page-link');
+    newPaginationLinks.forEach(function(link) {
+      // Remove old listeners by cloning
+      const newLink = link.cloneNode(true);
+      link.parentNode.replaceChild(newLink, link);
+      
+      newLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        const page = parseInt(this.getAttribute('data-page'), 10);
+        if (page) {
+          currentFilters.page = page;
+          updateCommunication();
+        }
+      });
+    });
+    
+    // Reattach view and mark button listeners (these are handled by the main communication.js)
+    // The main script uses event delegation, so they should still work
+  }
+  
+  // Setup filter button listeners (only once, buttons are static)
+  function setupFilterButtons() {
+    filterButtons = document.querySelectorAll('.filter-btn');
+    filterButtons.forEach(function(btn) {
+      // Remove any existing listeners by cloning
+      const newBtn = btn.cloneNode(true);
+      btn.parentNode.replaceChild(newBtn, btn);
+      
+      newBtn.addEventListener('click', function() {
+        const filterType = this.getAttribute('data-filter-type');
+        currentFilters.type = filterType || 'all';
+        currentFilters.page = 1;
+        updateCommunication();
+      });
+    });
+  }
+  
+  // Search button click
+  if (searchBtn) {
+    searchBtn.addEventListener('click', function() {
+      currentFilters.search = searchInput ? searchInput.value.trim() : '';
+      currentFilters.page = 1;
+      updateCommunication();
+    });
+  }
+  
+  // Search input Enter key
+  if (searchInput) {
+    searchInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        currentFilters.search = searchInput.value.trim();
+        currentFilters.page = 1;
+        updateCommunication();
+      }
+    });
+  }
+  
+  // Setup filter buttons (only once)
+  setupFilterButtons();
+  
+  // Initial attachment
+  attachCommunicationEventListeners();
+});
+
 // Admin Communication Table + Modal Chat
   (function () {
     var csrf = (document.querySelector('[name=csrfmiddlewaretoken]') || {}).value;
@@ -196,11 +366,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function applyCompose(uid, doneFlagNow) {
     if (!uid) {
+      // For guest users, disable input but still load the contact message
       if (modalInput) modalInput.disabled = true;
       if (modalSend) modalSend.disabled = true;
-      if (modalThread) {
-        modalThread.innerHTML = '<div style="color:#6b7280;">No chat available for guest request.</div>';
-      }
+      // Load the guest contact message
+      loadThread();
     } else if (doneFlagNow) {
       if (modalInput) modalInput.disabled = true;
       if (modalSend) modalSend.disabled = true;

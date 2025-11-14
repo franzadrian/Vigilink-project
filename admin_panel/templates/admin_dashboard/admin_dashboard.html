@@ -299,7 +299,8 @@
             <div class="activity-item">
               <div>
                 <div class="activity-name">{{ user.full_name|default:user.username }}</div>
-                <div class="activity-meta">{{ user.email }} • {{ user.role|title }}</div>
+                <div class="activity-meta">{{ user.email }}</div>
+                <div class="activity-meta" style="margin-top: 4px; color: #6b7280;">{% if user.role == 'communityowner' %}Community President{% else %}{{ user.role|title }}{% endif %}</div>
               </div>
               <div class="activity-date">{{ user.date_joined|date:"M d" }}</div>
             </div>

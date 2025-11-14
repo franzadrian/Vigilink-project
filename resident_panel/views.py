@@ -524,23 +524,23 @@ def alerts(request):
     else:
         # Fallback to default tips if no admin-managed tips exist
         default_tips = [
-            'Remember to lock doors and windows before leaving.',
-            'Do not share your gate codes with unknown persons.',
-            'Report suspicious behavior immediately via Report Incident.',
-            'Keep porch lights on at night for visibility.',
-            'Secure packages or request deliveries when you are home.',
-            'Do not let strangers tailgate into the subdivision.',
-            'Store valuables out of sight in vehicles.',
-            'Know your neighbors and exchange contact info.',
-            'Test your smoke alarms monthly.',
-            'Keep emergency numbers saved in your phone.',
-            'Always verify identity of service personnel.',
-            'Trim hedges to improve line of sight near entrances.',
-            'Use strong, unique passwords for home Wi-Fi.',
-            'Teach family members how to dial emergency services.',
-            'Keep a small first-aid kit handy at home and in car.',
-            'Mark your house number clearly for responders.',
-        ]
+        'Remember to lock doors and windows before leaving.',
+        'Do not share your gate codes with unknown persons.',
+        'Report suspicious behavior immediately via Report Incident.',
+        'Keep porch lights on at night for visibility.',
+        'Secure packages or request deliveries when you are home.',
+        'Do not let strangers tailgate into the subdivision.',
+        'Store valuables out of sight in vehicles.',
+        'Know your neighbors and exchange contact info.',
+        'Test your smoke alarms monthly.',
+        'Keep emergency numbers saved in your phone.',
+        'Always verify identity of service personnel.',
+        'Trim hedges to improve line of sight near entrances.',
+        'Use strong, unique passwords for home Wi-Fi.',
+        'Teach family members how to dial emergency services.',
+        'Keep a small first-aid kit handy at home and in car.',
+        'Mark your house number clearly for responders.',
+    ]
         day_index = datetime.utcnow().timetuple().tm_yday % len(default_tips)
         second_index = (day_index + 7) % len(default_tips)
         safety_tip = f"{default_tips[day_index]} {default_tips[second_index]}"

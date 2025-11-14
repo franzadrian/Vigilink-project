@@ -226,53 +226,42 @@
         </div>
       </header>
 
+      <!-- Search and Filter Section -->
+      <div class="search-filter-section" style="background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px; margin-bottom:16px;">
+        <div class="search-box" style="margin-bottom:16px;">
+          <div class="search-form" style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="search-input" placeholder="Search by full name..." value="{{ search_query }}" class="search-input" style="flex:1; padding:10px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:14px;">
+            <button type="button" id="search-btn" class="search-btn" style="padding:10px 16px; background:#2563EB; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:500;">
+              <i class="fas fa-search"></i>
+            </button>
+          </div>
+        </div>
+        
+        <div class="filter-buttons-wrapper" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+          <div class="filter-buttons" style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="filter-btn {% if filter_type == 'all' %}active{% endif %}" data-filter-type="all" style="padding:8px 16px; border:1px solid #d1d5db; border-radius:6px; background:{% if filter_type == 'all' %}#2563EB; color:#fff;{% else %}#fff; color:#4b5563;{% endif %}; cursor:pointer; font-weight:500; transition:all 0.2s;">
+              All
+            </button>
+            <button type="button" class="filter-btn {% if filter_type == 'report' %}active{% endif %}" data-filter-type="report" style="padding:8px 16px; border:1px solid #d1d5db; border-radius:6px; background:{% if filter_type == 'report' %}#2563EB; color:#fff;{% else %}#fff; color:#4b5563;{% endif %}; cursor:pointer; font-weight:500; transition:all 0.2s;">
+              Report
+            </button>
+            <button type="button" class="filter-btn {% if filter_type == 'feedback' %}active{% endif %}" data-filter-type="feedback" style="padding:8px 16px; border:1px solid #d1d5db; border-radius:6px; background:{% if filter_type == 'feedback' %}#2563EB; color:#fff;{% else %}#fff; color:#4b5563;{% endif %}; cursor:pointer; font-weight:500; transition:all 0.2s;">
+              Feedback
+            </button>
+            <button type="button" class="filter-btn {% if filter_type == 'inquiry' %}active{% endif %}" data-filter-type="inquiry" style="padding:8px 16px; border:1px solid #d1d5db; border-radius:6px; background:{% if filter_type == 'inquiry' %}#2563EB; color:#fff;{% else %}#fff; color:#4b5563;{% endif %}; cursor:pointer; font-weight:500; transition:all 0.2s;">
+              General Inquiry
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Contact Requests Table -->
       <section class="comm-table-section" style="background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
           <h2 style="margin:0; font-size:1rem;">Contact Requests</h2>
         </div>
-        <div class="table-wrapper" style="overflow-x:auto;">
-          <table id="comm-table" class="comm-table" style="width:100%; border-collapse:separate; border-spacing:0; font-size:14px;">
-            <thead>
-              <tr style="background:#f8fafc;">
-                <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e5e7eb;">Full Name</th>
-                <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e5e7eb;">Type</th>
-                <th style="text-align:left; padding:10px 12px; border-bottom:1px solid #e5e7eb;">Status</th>
-                  <th style="text-align:right; padding:10px 12px; border-bottom:1px solid #e5e7eb;">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for message in contact_messages %}
-              {% with subj=message.subject|lower %}
-                <tr class="comm-row {% if not message.is_read %}unread{% endif %}" data-user-id="{{ message.user.id|default:'' }}" data-message-id="{{ message.contact_id }}" data-name="{{ message.name|escape }}"
-                    data-type="{% if 'feedback' in subj %}Feedback{% elif 'report' in subj %}Report{% elif 'inquiry' in subj or 'enquiry' in subj %}General Inquiry{% else %}General Inquiry{% endif %}"
-                    data-is-read="{% if message.is_read %}1{% else %}0{% endif %}" data-created-at="{{ message.created_at|date:'c' }}">
-                <td style="padding:10px 12px;" data-label="Full Name">{{ message.name }}</td>
-                <td style="padding:10px 12px;" data-label="Type">
-                  <span class="badge" style="display:inline-block; padding:4px 8px; border-radius:999px; background:#eef2ff; color:#1e3a8a; font-weight:600; font-size:12px;">
-                    {% if 'feedback' in subj %}Feedback{% elif 'report' in subj %}Report{% elif 'inquiry' in subj or 'enquiry' in subj %}General Inquiry{% else %}General Inquiry{% endif %}
-                  </span>
-                </td>
-                <td class="status-cell" style="padding:10px 12px;" data-label="Status">
-                  {% if message.is_read %}
-                    <span class="status done" style="color:#065f46; background:#d1fae5; padding:3px 8px; border-radius:6px; font-weight:600; font-size:12px;">Done</span>
-                  {% else %}
-                    <span class="status active" style="color:#1e3a8a; background:#e0e7ff; padding:3px 8px; border-radius:6px; font-weight:600; font-size:12px;">Active</span>
-                  {% endif %}
-                </td>
-                  <td class="actions-cell" style="padding:10px 12px; text-align:right; display:flex; align-items:center; gap:10px; justify-content:flex-end;" data-label="Actions">
-                    <div class="actions-group" style="display:flex; gap:10px;">
-                      <button class="btn view-btn action-btn" aria-label="View conversation" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer;"><i class="fas fa-eye" aria-hidden="true"></i><span class="btn-text">View</span></button>
-                      {% if not message.is_read %}
-                      <button class="btn mark-btn action-btn" aria-label="Mark as done" style="padding:6px 10px; border:1px solid #10b981; border-radius:6px; background:#d1fae5; color:#065f46; cursor:pointer; "><i class="fas fa-check" aria-hidden="true"></i><span class="btn-text">Mark as Done</span></button>
-                      {% endif %}
-                    </div>
-                  </td>
-              </tr>
-              {% endwith %}
-              {% endfor %}
-            </tbody>
-          </table>
+        <div id="communication-container">
+          {% include 'admin_communication/communication_partial.html' %}
         </div>
       </section>
 

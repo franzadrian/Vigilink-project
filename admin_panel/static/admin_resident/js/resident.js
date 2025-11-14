@@ -2,8 +2,70 @@
 let currentUser = null;
 let currentRow = null;
 
+// Helper function to format role display
+function formatRoleDisplay(roleValue) {
+    const roleMap = {
+        'guest': 'Guest',
+        'resident': 'Resident',
+        'communityowner': 'Community President',
+        'community_owner': 'Community President',
+        'community owner': 'Community President',
+        'security': 'Security',
+        'admin': 'Admin'
+    };
+    return roleMap[roleValue.toLowerCase()] || roleValue;
+}
+
+// Helper function to normalize role value for dropdown
+function normalizeRoleValue(roleDisplay) {
+    const roleValueMap = {
+        'guest': 'guest',
+        'resident': 'resident',
+        'community president': 'community_owner',
+        'communityowner': 'community_owner',
+        'community_owner': 'community_owner',
+        'security': 'security',
+        'admin': 'admin'
+    };
+    return roleValueMap[roleDisplay.toLowerCase()] || roleDisplay.toLowerCase();
+}
+
 // Detect server-side pagination mode
 const serverPaginate = !!document.querySelector('[data-server-pagination="1"]');
+
+// Function to setup server-side pagination buttons
+function setupServerPaginationButtons() {
+    const prevPageBtn = document.getElementById('prevPage');
+    const nextPageBtn = document.getElementById('nextPage');
+    
+    if (prevPageBtn) {
+        // Remove any existing listeners by cloning
+        const newPrevBtn = prevPageBtn.cloneNode(true);
+        prevPageBtn.parentNode.replaceChild(newPrevBtn, prevPageBtn);
+        
+        newPrevBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const href = this.getAttribute('data-href');
+            if (href) {
+                window.location.href = href;
+            }
+        });
+    }
+    
+    if (nextPageBtn) {
+        // Remove any existing listeners by cloning
+        const newNextBtn = nextPageBtn.cloneNode(true);
+        nextPageBtn.parentNode.replaceChild(newNextBtn, nextPageBtn);
+        
+        newNextBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const href = this.getAttribute('data-href');
+            if (href) {
+                window.location.href = href;
+            }
+        });
+    }
+}
 
 // Performance optimization: Cache DOM elements and add debouncing
 let cachedRows = null;
@@ -51,6 +113,10 @@ function setupDialogCloseButtons() {
         
 // Add event listeners for view resident buttons
 document.addEventListener('DOMContentLoaded', function() {
+    // Setup server-side pagination buttons if in server pagination mode
+    if (serverPaginate) {
+        setupServerPaginationButtons();
+    }
     // Setup dialog close buttons
     setupDialogCloseButtons();
     
@@ -165,7 +231,7 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
     // Populate the modal with user details
     document.getElementById('userName').textContent = currentUser.name;
     document.getElementById('userEmail').textContent = currentUser.email;
-    document.getElementById('userRole').textContent = currentUser.role;
+    document.getElementById('userRole').textContent = formatRoleDisplay(currentUser.role);
     document.getElementById('userUsername').textContent = currentUser.username;
     document.getElementById('userContact').textContent = currentUser.contact;
     document.getElementById('userDateJoined').textContent = currentUser.dateJoined;
@@ -179,7 +245,7 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
     document.getElementById('editUsername').value = currentUser.username;
     document.getElementById('editEmail').value = currentUser.email;
     document.getElementById('editContact').value = currentUser.contact;
-    document.getElementById('editRole').value = currentUser.role.toLowerCase();
+    document.getElementById('editRole').value = normalizeRoleValue(currentUser.role);
     document.getElementById('editDateJoined').value = currentUser.dateJoined;
     
     // Set city dropdown value
@@ -427,12 +493,8 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                 
                 // Set the correct role in the dropdown
                 const roleSelect = document.getElementById('editRole');
-                for (let i = 0; i < roleSelect.options.length; i++) {
-                    if (roleSelect.options[i].text.toLowerCase() === currentUser.role.toLowerCase()) {
-                        roleSelect.selectedIndex = i;
-                        break;
-                    }
-                }
+                const normalizedRole = normalizeRoleValue(currentUser.role);
+                roleSelect.value = normalizedRole;
             });
             
             // Cancel edit button
@@ -455,8 +517,8 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                     const updatedDistrict = document.getElementById('editDistrict').value;
                     const updatedBlock = document.getElementById('editBlock').value;
                     const updatedLot = document.getElementById('editLot').value;
-                    const updatedRole = document.getElementById('editRole').options[document.getElementById('editRole').selectedIndex].text;
                     const updatedRoleValue = document.getElementById('editRole').value;
+                    const updatedRole = formatRoleDisplay(updatedRoleValue);
                     
                     // Format location and blockLot strings
                     const formattedLocation = (updatedCity && updatedDistrict) ?
@@ -507,14 +569,14 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
                     document.getElementById('userCity').textContent = currentUser.city || 'Not provided';
                     document.getElementById('userDistrict').textContent = currentUser.district || 'Not provided';
                     document.getElementById('userBlockLot').textContent = currentUser.blockLot;
-                    document.getElementById('userRole').textContent = currentUser.role;
+                    document.getElementById('userRole').textContent = formatRoleDisplay(currentUser.role);
                     
                     // Update the table row directly using the stored reference
                     if (currentRow) {
                         currentRow.cells[0].textContent = currentUser.name;
                         currentRow.cells[1].textContent = currentUser.email;
                         currentRow.cells[2].textContent = currentUser.location;
-                        currentRow.cells[3].textContent = currentUser.role;
+                        currentRow.cells[3].textContent = formatRoleDisplay(currentUser.role);
                         
                         // Update the data attributes on the view button to ensure persistence
                         const viewButton = currentRow.querySelector('.view-resident-btn');
@@ -897,14 +959,7 @@ function viewResident(name, username, dateJoined, address, block, lot, contact) 
     function updatePaginationControls(totalPages, startIndex, endIndex, totalRows) {
         if (serverPaginate) {
             // In server mode, wire prev/next buttons to navigate via data-href
-            const prevPageBtn = document.getElementById('prevPage');
-            const nextPageBtn = document.getElementById('nextPage');
-            if (prevPageBtn && prevPageBtn.dataset && prevPageBtn.dataset.href) {
-                prevPageBtn.onclick = (e) => { e.preventDefault(); window.location.href = prevPageBtn.dataset.href; };
-            }
-            if (nextPageBtn && nextPageBtn.dataset && nextPageBtn.dataset.href) {
-                nextPageBtn.onclick = (e) => { e.preventDefault(); window.location.href = nextPageBtn.dataset.href; };
-            }
+            setupServerPaginationButtons();
             return;
         }
         // Update page info if elements exist

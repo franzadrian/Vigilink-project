@@ -212,6 +212,14 @@ def admin_resident(request):
     q = (request.GET.get('q') or '').strip()
     role = (request.GET.get('role') or '').strip().lower()
     
+    # Map URL parameter to database role value
+    role_mapping = {
+        'guest': 'guest',
+        'resident': 'resident',
+        'community_owner': 'communityowner',  # Map URL param to DB value
+        'security': 'security'
+    }
+    
     if q:
         qs = qs.filter(
             Q(full_name__icontains=q) |
@@ -223,7 +231,9 @@ def admin_resident(request):
         )
     
     if role and role in ('guest', 'resident', 'community_owner', 'security'):
-        qs = qs.filter(role=role)
+        # Use mapped role value for database query
+        db_role = role_mapping.get(role, role)
+        qs = qs.filter(role=db_role)
 
     # Optimized ordering and pagination
     qs = qs.order_by('id')
@@ -395,14 +405,62 @@ def admin_communication(request):
     
     # Get all contact messages, ordering unread messages first, then by creation date
     from .models import ContactMessage
-    from django.db.models import Case, When, BooleanField
+    from django.db.models import Case, When, BooleanField, Q
+    
+    # Get search and filter parameters
+    search_query = request.GET.get('search', '').strip()
+    filter_type = request.GET.get('type', 'all').strip().lower()
+    
+    # Base queryset
+    contact_messages_qs = ContactMessage.objects.all()
+    
+    # Apply search filter (search by Full Name only)
+    if search_query:
+        contact_messages_qs = contact_messages_qs.filter(name__icontains=search_query)
+    
+    # Apply type filter
+    if filter_type == 'feedback':
+        contact_messages_qs = contact_messages_qs.filter(subject__icontains='feedback')
+    elif filter_type == 'report':
+        contact_messages_qs = contact_messages_qs.filter(subject__icontains='report')
+    elif filter_type == 'inquiry':
+        contact_messages_qs = contact_messages_qs.filter(
+            Q(subject__icontains='inquiry') | Q(subject__icontains='enquiry')
+        )
+    # 'all' shows everything, no additional filter needed
     
     # Order by is_read (False first), then by created_at (newest first)
-    contact_messages = ContactMessage.objects.all().order_by('is_read', '-created_at')
+    contact_messages_qs = contact_messages_qs.order_by('is_read', '-created_at')
+    
+    # Check if this is an AJAX request
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    
+    # Pagination
+    page_number = request.GET.get('page') or 1
+    try:
+        page_number = int(page_number)
+    except Exception:
+        page_number = 1
+    
+    paginator = Paginator(contact_messages_qs, 10)  # 10 messages per page
+    page_obj = paginator.get_page(page_number)
+    contact_messages = page_obj.object_list
     
     context = {
-        'contact_messages': contact_messages
+        'contact_messages': contact_messages,
+        'page_obj': page_obj,
+        'paginator': paginator,
+        'total_count': paginator.count,
+        'search_query': search_query,
+        'filter_type': filter_type,
     }
+    
+    # If AJAX request, return partial template
+    if is_ajax:
+        from django.template.loader import render_to_string
+        from django.http import HttpResponse
+        html = render_to_string('admin_communication/communication_partial.html', context, request=request)
+        return HttpResponse(html)
     
     return render(request, 'admin_communication/admin_communication.html', context)
 

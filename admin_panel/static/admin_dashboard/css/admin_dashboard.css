@@ -667,8 +667,8 @@
       .app{
         grid-template-columns:1fr;
         grid-template-areas:
-          "topbar"
-          "main";
+        "topbar"
+        "main";
         height: 100vh;
         overflow-x: hidden;
         width: 100%;
