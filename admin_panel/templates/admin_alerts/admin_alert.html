@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+{% load static %}
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Alerts - VigiLink</title>
+  <meta name="description" content="VigiLink admin alerts management page." />
+  <link rel="icon" href="{% static 'favicon/shield.svg' %}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{% static 'favicon/shield.svg' %}">
+  <link rel="manifest" href="{% static 'favicon/site.webmanifest' %}">
+  <link rel="canonical" href="{% url 'admin_panel:admin_alert' %}" />
+
+  {% load static %}
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+  <link rel="stylesheet" href="{% static 'admin_dashboard/css/admin_dashboard.css' %}">
+  <link rel="stylesheet" href="{% static 'admin_dashboard/css/unread_badge.css' %}">
+  <link rel="stylesheet" href="{% static 'admin_alerts/css/admin_alert.css' %}">
+  
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+        <div class="header-left">
+            <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle sidebar" style="margin-right: 20px;">
+                <svg class="sidebar-toggle-icon" width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+            <div class="logo" style="margin-left: 40px; border-bottom: none;">
+                <a href="{% url 'admin_panel:admin_dashboard' %}" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                    <img src="{% static 'accounts/images/vigilink_logo.png' %}" alt="VigiLink Logo" class="logo-img" style="height:40px;">
+                    <span class="logo-text" style="vertical-align:middle; margin-left: 10px; color: #2563EB;">VigiLink Admin</span>
+                </a>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="nav-links">
+                <!-- Navigation links removed as requested -->
+            </div>
+        </div>
+    </header>
+
+    <div class="sidebar" id="sidebar">
+      <ul class="sidebar-nav">
+        <li>
+          <a href="{% url 'admin_panel:admin_dashboard' %}" class="sidebar-link">
+            <svg class="sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+            </svg>
+            Dashboard
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'admin_panel:admin_resident' %}" class="sidebar-link">
+            <svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            Residents
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'admin_panel:admin_alert' %}" class="sidebar-link active">
+            <svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            Alerts
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'admin_panel:admin_communication' %}" class="sidebar-link">
+            <svg class="sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+            </svg>
+            Communication
+            <span id="unread-badge" class="unread-badge" style="display: none;">0</span>
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'admin_panel:admin_resources' %}" class="sidebar-link">
+            <svg class="sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+            </svg>
+            Resources
+          </a>
+        </li>
+        <li>
+          <form method="post" action="{% url 'admin_panel:admin_logout' %}" style="margin: 0; padding: 0;">
+            {% csrf_token %}
+            <button type="submit" class="sidebar-link" id="logout-btn" style="width: 100%; text-align: left; background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem;">
+              <svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              Logout
+            </button>
+          </form>
+        </li>
+      </ul>
+    </div>
+    
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+
+    <main role="main">
+      <header class="page">
+        <h1>Admin Alerts</h1>
+        <p>Manage platform-wide safety tips, emergency contacts, and announcements</p>
+      </header>
+
+      <!-- Tabs Section -->
+      <section class="tabs-section">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="safety-tips">
+            <i class="fas fa-shield-halved"></i> Safety Tips
+          </button>
+          <button class="tab-btn" data-tab="emergency-contacts">
+            <i class="fas fa-phone"></i> Emergency Contacts
+          </button>
+          <button class="tab-btn" data-tab="announcements">
+            <i class="fas fa-bullhorn"></i> Announcements
+          </button>
+        </div>
+      </section>
+
+      <!-- Safety Tips Tab -->
+      <section id="safety-tips-tab" class="tab-content active">
+        <div class="section-header">
+          <h2>Safety Tips</h2>
+          <button class="btn btn-primary" id="add-safety-tip-btn">
+            <i class="fas fa-plus"></i> Add Safety Tip
+          </button>
+        </div>
+        <div id="safety-tips-list" class="safety-tips-grid">
+          {% for tip in safety_tips %}
+          <div class="safety-tip-card" data-id="{{ tip.id }}">
+            <div class="safety-tip-card-header">
+              <div class="safety-tip-card-actions">
+                <button class="btn-icon edit-safety-tip-btn" data-id="{{ tip.id }}" title="Edit">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn-icon btn-danger delete-safety-tip-btn" data-id="{{ tip.id }}" title="Delete">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+            <div class="safety-tip-card-content">
+              <p>{{ tip.content }}</p>
+            </div>
+            <div class="safety-tip-card-footer">
+              <span><i class="fas fa-calendar"></i> {{ tip.created_at|date:"M d, Y" }}</span>
+            </div>
+          </div>
+          {% empty %}
+          <div class="empty-state">
+            <i class="fas fa-info-circle"></i>
+            <p>No safety tips yet. Click "Add Safety Tip" to create one.</p>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- Emergency Contacts Tab -->
+      <section id="emergency-contacts-tab" class="tab-content">
+        <div class="section-header">
+          <h2>Location Emergency Contacts</h2>
+          <button class="btn btn-primary" id="add-emergency-contact-btn">
+            <i class="fas fa-plus"></i> Add Emergency Contact
+          </button>
+        </div>
+        <div class="filter-section">
+          <div class="search-box">
+            <input type="text" id="emergency-contact-search" placeholder="Search districts..." class="form-control">
+            <button type="button" id="emergency-contact-search-btn" class="btn btn-icon">
+              <i class="fas fa-search"></i>
+            </button>
+            <button type="button" id="emergency-contact-clear-search" class="btn btn-icon" style="display: none;">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="filter-buttons-wrapper">
+            <button type="button" class="filter-btn active" data-filter-city="all">
+              All Cities
+            </button>
+            {% for city in cities %}
+            <button type="button" class="filter-btn" data-filter-city="{{ city.id }}" data-city-name="{{ city.name }}">
+              {{ city.name }}
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+        <div id="emergency-contacts-list" class="emergency-contacts-grid">
+          {% for group in location_contacts_grouped %}
+          <div class="emergency-contact-card" data-location-type="{{ group.location_type }}" data-location-name="{{ group.location_name }}" data-city-id="{{ group.city_id|default:'' }}" data-city-name="{{ group.city_name|default:'' }}">
+            <div class="emergency-contact-card-header">
+              <div class="emergency-contact-location">
+                <i class="fas fa-map-marker-alt"></i>
+                <h3>{{ group.location_name }}</h3>
+              </div>
+              <button class="btn-icon emergency-contact-add-btn" data-location-type="{{ group.location_type }}" data-location-name="{{ group.location_name }}" data-district-id="{{ group.district_id }}" title="Add Contact">
+                <i class="fas fa-plus"></i>
+              </button>
+            </div>
+            <div class="emergency-contact-card-body">
+              <ul class="emergency-contact-list">
+                {% for contact in group.contacts %}
+                <li class="emergency-contact-item" data-id="{{ contact.id }}">
+                  <div class="emergency-contact-info">
+                    <span class="emergency-contact-label">{{ contact.label }}</span>
+                    <a href="tel:{{ contact.phone }}" class="emergency-contact-phone">
+                      <i class="fas fa-phone"></i> {{ contact.phone }}
+                    </a>
+                  </div>
+                  <div class="emergency-contact-actions">
+                    <button class="btn-icon-sm edit-emergency-contact-btn" data-id="{{ contact.id }}" title="Edit">
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn-icon-sm btn-danger delete-emergency-contact-btn" data-id="{{ contact.id }}" title="Delete">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+          {% empty %}
+          <div class="empty-state">
+            <i class="fas fa-info-circle"></i>
+            <p>No emergency contacts yet. Click "Add Emergency Contact" to create one.</p>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- Announcements Tab -->
+      <section id="announcements-tab" class="tab-content">
+        <div class="section-header">
+          <h2>Platform Announcements</h2>
+          <button class="btn btn-primary" id="add-announcement-btn">
+            <i class="fas fa-plus"></i> Add Announcement
+          </button>
+        </div>
+        <div id="announcements-container">
+          {% include 'admin_alerts/announcements_partial.html' %}
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modals -->
+  {% include 'admin_alerts/modals.html' %}
+
+  <!-- Sidebar JavaScript -->  
+  {% load static %}
+  <script src="{% static 'admin_dashboard/js/unread_messages.js' %}"></script>
+  <script src="{% static 'admin_alerts/js/admin_alert.js' %}"></script>
+</body>
+</html>

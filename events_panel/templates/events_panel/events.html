@@ -19,7 +19,80 @@
             <header class="events-hero">
                 <h1>Community Events</h1>
                 <p class="subtitle">Stay updated with the latest events and announcements from {{ community.community_name }}</p>
+                
+                <!-- Filter Buttons -->
+                {% if platform_announcements %}
+                    {% if upcoming_ongoing_events or completed_events %}
+                    <div class="events-filter-buttons">
+                        <button type="button" class="filter-btn active" data-filter="all" id="filter-all">
+                            <i class="fas fa-list"></i> All
+                        </button>
+                        <button type="button" class="filter-btn" data-filter="community" id="filter-community">
+                            <i class="fas fa-calendar"></i> Community Events
+                        </button>
+                        <button type="button" class="filter-btn" data-filter="platform" id="filter-platform">
+                            <i class="fas fa-bullhorn"></i> Platform Announcements
+                        </button>
+                    </div>
+                    {% endif %}
+                {% endif %}
             </header>
+            
+            {% if platform_announcements %}
+            <div id="platform-announcements-section" class="filterable-section" data-filter-type="platform">
+            <div class="events-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-bullhorn"></i>
+                        Platform Announcements
+                    </h2>
+                    <p class="section-subtitle">Important updates and notices from VigiLink</p>
+                </div>
+                <div class="events-grid" id="announcements-grid">
+                    {% for announcement in platform_announcements %}
+                    <div class="event-row event-row-collapsible theme-announcement" data-announcement-id="{{ announcement.id }}">
+                        <div class="event-row-header event-row-toggle">
+                            <div class="event-row-title">
+                                <i class="fas fa-bullhorn" style="margin-right:6px;"></i>
+                                {{ announcement.title }}
+                                <i class="fas fa-chevron-down event-toggle-icon" style="margin-left:8px; font-size:0.85rem; transition: transform 0.3s ease;"></i>
+                            </div>
+                            <div class="event-row-sub">
+                                <div class="event-row-meta">
+                                    <span class="meta-chip meta-datetime">
+                                        <i class="fas fa-calendar-day"></i>
+                                        <strong style="margin-left:4px;">Posted:</strong>
+                                        <span style="margin-left:6px;">{{ announcement.start_date|date:"M d, Y" }} • {{ announcement.start_date|time:"g:i A" }}</span>
+                                    </span>
+                                    {% if announcement.end_date %}
+                                    <span class="meta-chip meta-datetime">
+                                        <i class="fas fa-calendar-times"></i>
+                                        <strong style="margin-left:4px;">Expires:</strong>
+                                        <span style="margin-left:6px;">{{ announcement.end_date|date:"M d, Y" }} • {{ announcement.end_date|time:"g:i A" }}</span>
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="event-row-body event-row-collapsible-content">
+                            {% if announcement.image %}
+                            <div style="margin-bottom: 16px;">
+                                <img src="{{ announcement.image.url }}" alt="{{ announcement.title }}" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            </div>
+                            {% endif %}
+                            <div class="event-row-content">
+                                <p class="event-description">{{ announcement.content|linebreaksbr }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            </div>
+            {% endif %}
+            
+            {% if upcoming_ongoing_events or completed_events %}
+            <div id="community-events-section" class="filterable-section" data-filter-type="community">
             {% if upcoming_ongoing_events %}
             <div class="events-section">
                 <div class="section-header">
@@ -32,7 +105,7 @@
                 <div class="events-grid" id="events-grid">
                     {% for event in upcoming_ongoing_events %}
                     {% with lower_title=event.title|lower lower_type=event.event_type|lower %}
-                    <div class="event-row 
+                    <div class="event-row event-row-collapsible 
                         {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or 'halloween' == lower_type or 'haloween' == lower_type or 'hallowen' == lower_type or 'halowen' == lower_type %}theme-halloween
                         {% elif 'christmas' in lower_title or 'chrismas' in lower_title or 'xmas' in lower_title or 'christmas' == lower_type or 'chrismas' == lower_type or 'xmas' == lower_type %}theme-christmas
                         {% elif 'emergency' in lower_title or 'urgent' in lower_title or 'alert' in lower_title or 'warning' in lower_title or lower_type == 'emergency' %}theme-emergency
@@ -85,7 +158,7 @@
                             <span>Happening Now!</span>
                         </div>
                         {% endif %}
-                        <div class="event-row-header">
+                        <div class="event-row-header event-row-toggle">
                             <div class="event-row-title">
                                 {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type == 'halloween' or lower_type == 'haloween' or lower_type == 'hallowen' or lower_type == 'halowen' %}
                                     <i class="fas fa-ghost" style="margin-right:6px;"></i>
@@ -105,6 +178,7 @@
                                     <i class="fas fa-cloud" style="margin-right:6px;"></i>
                                 {% endif %}
                                 {{ event.title }}
+                                <i class="fas fa-chevron-down event-toggle-icon" style="margin-left:8px; font-size:0.85rem; transition: transform 0.3s ease;"></i>
                             </div>
                             <div class="event-row-status event-status-badge {% if event.is_upcoming %}upcoming{% else %}ongoing{% endif %}">
                                 {% if event.is_upcoming %}
@@ -195,7 +269,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="event-row-body">
+                        <div class="event-row-body event-row-collapsible-content">
                             <div class="event-row-content">
                                 <p class="event-description">{{ event.description|linebreaksbr }}</p>
                             </div>
@@ -249,7 +323,7 @@
             </div>
             {% endif %}
 
-            {% if completed_events %}
+            {% if completed_events or expired_announcements %}
             <div class="events-section">
                 <div class="section-header">
                     <h2 class="section-title">
@@ -370,6 +444,48 @@
                     </div>
                     {% endwith %}
                     {% endfor %}
+                    
+                    {% for announcement in expired_announcements %}
+                    <div class="event-row event-row-collapsible theme-announcement" data-announcement-id="{{ announcement.id }}">
+                        <div class="event-row-header event-row-toggle">
+                            <div class="event-row-title">
+                                <i class="fas fa-bullhorn" style="margin-right:6px;"></i>
+                                {{ announcement.title }}
+                                <i class="fas fa-chevron-down event-toggle-icon" style="margin-left:8px; font-size:0.85rem; transition: transform 0.3s ease;"></i>
+                            </div>
+                            <div class="event-row-status event-status-badge completed">
+                                <i class="fas fa-flag-checkered"></i>
+                                Completed
+                            </div>
+                            <div class="event-row-sub">
+                                <div class="event-row-meta">
+                                    <span class="meta-chip meta-datetime">
+                                        <i class="fas fa-calendar-day"></i>
+                                        <strong style="margin-left:4px;">Posted:</strong>
+                                        <span style="margin-left:6px;">{{ announcement.start_date|date:"M d, Y" }} • {{ announcement.start_date|time:"g:i A" }}</span>
+                                    </span>
+                                    {% if announcement.end_date %}
+                                    <span class="meta-chip meta-datetime">
+                                        <i class="fas fa-calendar-times"></i>
+                                        <strong style="margin-left:4px;">Expired:</strong>
+                                        <span style="margin-left:6px;">{{ announcement.end_date|date:"M d, Y" }} • {{ announcement.end_date|time:"g:i A" }}</span>
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="event-row-body event-row-collapsible-content">
+                            {% if announcement.image %}
+                            <div style="margin-bottom: 16px;">
+                                <img src="{{ announcement.image.url }}" alt="{{ announcement.title }}" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            </div>
+                            {% endif %}
+                            <div class="event-row-content">
+                                <p class="event-description">{{ announcement.content|linebreaksbr }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
                 {% if completed_events.has_other_pages %}
                 <div class="events-pagination resident-pagination">
@@ -384,8 +500,10 @@
                 {% endif %}
             </div>
             {% endif %}
+            </div>
+            {% endif %}
 
-            {% if not upcoming_ongoing_events and not completed_events %}
+            {% if not upcoming_ongoing_events and not completed_events and not platform_announcements and not expired_announcements %}
             <div class="no-events">
                 <p>No events available at the moment.</p>
             </div>

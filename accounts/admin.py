@@ -32,19 +32,14 @@ class DistrictAdmin(admin.ModelAdmin):
     search_fields = ('name',)
 
 class LocationEmergencyContactAdmin(admin.ModelAdmin):
-    list_display = ('label', 'phone', 'city', 'district', 'order', 'is_active')
-    list_filter = ('is_active', 'city', 'district')
+    list_display = ('label', 'phone', 'district')
+    list_filter = ('district',)
     search_fields = ('label', 'phone')
-    ordering = ('order', 'id')
-    list_editable = ('order', 'is_active')
+    ordering = ('id',)
     
     fieldsets = (
         (None, {
-            'fields': ('label', 'phone', 'is_active', 'order')
-        }),
-        ('Location', {
-            'fields': ('city', 'district'),
-            'description': 'Select either a city OR a district, not both.'
+            'fields': ('label', 'phone', 'district')
         }),
     )
 

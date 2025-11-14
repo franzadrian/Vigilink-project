@@ -6,7 +6,43 @@ document.addEventListener('DOMContentLoaded', function() {
     applyEventThemes();
     initRsvpButtons();
     initCollapsibleEvents();
+    initEventFilters();
 });
+
+// Initialize event filter buttons
+function initEventFilters() {
+    const filterButtons = document.querySelectorAll('.events-filter-buttons .filter-btn');
+    const platformSection = document.getElementById('platform-announcements-section');
+    const communitySection = document.getElementById('community-events-section');
+    
+    if (!filterButtons.length) return; // No filter buttons, exit early
+    
+    filterButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const filter = this.getAttribute('data-filter');
+            
+            // Remove active class from all buttons
+            filterButtons.forEach(b => b.classList.remove('active'));
+            // Add active class to clicked button
+            this.classList.add('active');
+            
+            // Show/hide sections based on filter
+            if (filter === 'all') {
+                // Show all sections
+                if (platformSection) platformSection.classList.remove('hidden');
+                if (communitySection) communitySection.classList.remove('hidden');
+            } else if (filter === 'platform') {
+                // Show only platform announcements
+                if (platformSection) platformSection.classList.remove('hidden');
+                if (communitySection) communitySection.classList.add('hidden');
+            } else if (filter === 'community') {
+                // Show only community events
+                if (platformSection) platformSection.classList.add('hidden');
+                if (communitySection) communitySection.classList.remove('hidden');
+            }
+        });
+    });
+}
 
 // Initialize event cards with hover effects and interactions
 function initEventCards() {

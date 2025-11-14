@@ -91,12 +91,32 @@ def events_list(request):
         attendance_qs = EventAttendance.objects.filter(user=request.user, event_id__in=all_event_ids)
         attendance_map = {a.event_id: a.status for a in attendance_qs}
 
+        # Get active platform announcements (for this community or all communities)
+        from admin_panel.models import PlatformAnnouncement
+        now = timezone.now()
+        active_announcements = PlatformAnnouncement.objects.filter(
+            start_date__lte=now
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gte=now)
+        ).filter(
+            Q(community__isnull=True) | Q(community=community)
+        ).order_by('-created_at')[:10]  # Limit to top 10
+        
+        # Get expired platform announcements (for this community or all communities)
+        expired_announcements = PlatformAnnouncement.objects.filter(
+            end_date__lt=now
+        ).filter(
+            Q(community__isnull=True) | Q(community=community)
+        ).order_by('-end_date')  # Most recently expired first
+
         context = {
             'upcoming_ongoing_events': upcoming_ongoing_events,
             'completed_events': completed_events_page,
             'community': community,
             'event_types': Event.EVENT_TYPE_CHOICES,
             'attendance_map': attendance_map,
+            'platform_announcements': active_announcements,
+            'expired_announcements': expired_announcements,
         }
         
         return render(request, 'events_panel/events.html', context)

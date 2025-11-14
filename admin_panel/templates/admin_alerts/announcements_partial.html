@@ -1,0 +1,64 @@
+{% load static %}
+<div id="announcements-list" class="announcements-grid">
+  {% for announcement in announcements %}
+  <div class="announcement-card" data-id="{{ announcement.id }}">
+    {% if announcement.image %}
+    <div class="announcement-card-image" data-image-url="{{ announcement.image.url }}" data-image-title="{{ announcement.title }}">
+      <img src="{{ announcement.image.url }}" alt="{{ announcement.title }}" class="announcement-image-clickable">
+      <div class="image-overlay">
+        <i class="fas fa-expand"></i>
+      </div>
+    </div>
+    {% endif %}
+    <div class="announcement-card-content">
+      <div class="announcement-card-header">
+        <h3 class="announcement-card-title announcement-card-toggle">{{ announcement.title }}</h3>
+        <div class="announcement-card-actions">
+          <button class="btn-icon edit-announcement-btn" data-id="{{ announcement.id }}" title="Edit">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button class="btn-icon btn-danger delete-announcement-btn" data-id="{{ announcement.id }}" title="Delete">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+      <div class="announcement-card-body announcement-card-collapsible">
+        <p class="announcement-card-text">{{ announcement.content|linebreaksbr }}</p>
+      </div>
+      <div class="announcement-card-footer">
+        <span class="announcement-badge {% if announcement.community %}community-specific{% else %}all-communities{% endif %}">
+          <i class="fas fa-{% if announcement.community %}building{% else %}globe{% endif %}"></i>
+          {% if announcement.community %}{{ announcement.community.community_name }}{% else %}All Communities{% endif %}
+        </span>
+        <div class="announcement-dates">
+          <span><i class="fas fa-calendar"></i> {{ announcement.start_date|date:"M d, Y" }}</span>
+          {% if announcement.end_date %}
+          <span><i class="fas fa-calendar-times"></i> {{ announcement.end_date|date:"M d, Y" }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="empty-state">
+    <i class="fas fa-info-circle"></i>
+    <p>No announcements yet. Click "Add Announcement" to create one.</p>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if announcements.has_other_pages %}
+<div class="pagination" id="announcements-pagination-container">
+  {% if announcements.has_previous %}
+    <button type="button" class="page-link" data-page="{{ announcements.previous_page_number }}">Previous</button>
+  {% endif %}
+  
+  <span class="current">Page {{ announcements.number }} of {{ announcements.paginator.num_pages }}</span>
+  
+  {% if announcements.has_next %}
+    <button type="button" class="page-link" data-page="{{ announcements.next_page_number }}">Next</button>
+  {% endif %}
+</div>
+{% endif %}
+

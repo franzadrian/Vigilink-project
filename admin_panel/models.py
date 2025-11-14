@@ -19,6 +19,74 @@ class ContactMessage(models.Model):
     class Meta:
         ordering = ['-created_at']
 
+class SafetyTip(models.Model):
+    """Platform-wide safety tips managed by admins"""
+    content = models.TextField(help_text="Safety tip content")
+    community = models.ForeignKey(
+        'communityowner_panel.CommunityProfile',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='safety_tips',
+        help_text="If selected, only members of this community can see this tip. Leave empty for all communities."
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_safety_tips'
+    )
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Safety Tip'
+        verbose_name_plural = 'Safety Tips'
+    
+    def __str__(self):
+        return self.content[:50] + ('...' if len(self.content) > 50 else '')
+
+class PlatformAnnouncement(models.Model):
+    """Platform-wide safety announcements"""
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    image = models.ImageField(
+        storage=DropboxStorage(),
+        upload_to='announcements/',
+        blank=True,
+        null=True,
+        help_text="Optional image for the announcement (stored in Dropbox)"
+    )
+    community = models.ForeignKey(
+        'communityowner_panel.CommunityProfile',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='announcements',
+        help_text="If selected, only members of this community can see this announcement. Leave empty for all communities."
+    )
+    start_date = models.DateTimeField(help_text="When to start showing this announcement")
+    end_date = models.DateTimeField(null=True, blank=True, help_text="When to stop showing (leave blank for no end date)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_announcements'
+    )
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Platform Announcement'
+        verbose_name_plural = 'Platform Announcements'
+    
+    def __str__(self):
+        return self.title
+
 class Resource(models.Model):
     RESOURCE_TYPE_CHOICES = [
         ('image', 'Image'),

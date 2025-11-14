@@ -289,9 +289,7 @@
     opacity: .20; 
 }
 .event-row.theme-announcement .event-row-body::before { 
-    background-image: url('../svg/announcement.svg'); 
-    background-size: 65% auto;
-    opacity: .40; 
+    display: none;
 }
 .event-row.theme-generic .event-row-body::before { 
     background-image: url('../svg/clouds.svg'); 
@@ -504,6 +502,72 @@
     font-size: 1rem;
     font-weight: 400;
     line-height: 1.5;
+    margin-bottom: 20px;
+}
+
+/* Filter Buttons */
+.events-filter-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.events-filter-buttons .filter-btn {
+    padding: 10px 20px;
+    border: 2px solid #e5e7eb;
+    background: #fff;
+    color: #6b7280;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.events-filter-buttons .filter-btn:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+    color: #374151;
+}
+
+.events-filter-buttons .filter-btn.active {
+    background: #2563eb;
+    color: #fff;
+    border-color: #2563eb;
+}
+
+.events-filter-buttons .filter-btn.active:hover {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+}
+
+.events-filter-buttons .filter-btn i {
+    font-size: 0.9rem;
+}
+
+/* Filterable Sections */
+.filterable-section {
+    display: block;
+}
+
+.filterable-section.hidden {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .events-filter-buttons {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .events-filter-buttons .filter-btn {
+        width: 100%;
+        justify-content: center;
+    }
 }
 
 /* Events Grid */
@@ -801,6 +865,59 @@
 .event-status-badge.ongoing i { font-size: 0.75rem !important; display: inline-block !important; margin-right: 4px; opacity: 1 !important; visibility: visible !important; }
 .event-status-badge .badge-emoji { display: inline-block; font-size: 0.9rem; line-height: 1; }
 
+/* Platform Announcement Priority Badges */
+.event-status-badge.priority-urgent {
+    background: #dc2626;
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+    animation: pulse-urgent 2s ease-in-out infinite;
+}
+@keyframes pulse-urgent {
+    0%, 100% { box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3); }
+    50% { box-shadow: 0 2px 12px rgba(220, 38, 38, 0.6); }
+}
+.event-status-badge.priority-high {
+    background: #f59e0b;
+    color: #ffffff;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+}
+.event-status-badge.priority-medium {
+    background: #3b82f6;
+    color: #ffffff;
+    font-weight: 500;
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+}
+.event-status-badge.priority-low {
+    background: #6b7280;
+    color: #ffffff;
+    font-weight: 500;
+    box-shadow: 0 2px 6px rgba(107, 114, 128, 0.3);
+}
+
+/* Announcement priority-specific row styling */
+.announcement-priority-urgent {
+    border-left-color: #dc2626 !important;
+    --accent: #dc2626;
+    --bg-tint: #fef2f2;
+}
+.announcement-priority-high {
+    border-left-color: #f59e0b !important;
+    --accent: #f59e0b;
+    --bg-tint: #fffbeb;
+}
+.announcement-priority-medium {
+    border-left-color: #3b82f6 !important;
+    --accent: #3b82f6;
+    --bg-tint: #eff6ff;
+}
+.announcement-priority-low {
+    border-left-color: #6b7280 !important;
+    --accent: #6b7280;
+    --bg-tint: #f9fafb;
+}
+
 /* Motivational micro-animations */
 .event-status-badge.upcoming { position: relative; }
 .event-status-badge.upcoming::after {
@@ -850,9 +967,16 @@
 .event-row-collapsible .event-toggle-icon {
     display: inline-block;
     transition: transform 0.3s ease;
+    color: var(--accent, #3b82f6);
+    -webkit-text-fill-color: var(--accent, #3b82f6);
+    opacity: 0.7;
 }
 .event-row-collapsible.expanded .event-toggle-icon {
     transform: rotate(180deg);
+    opacity: 1;
+}
+.event-row-collapsible .event-toggle-icon:hover {
+    opacity: 1;
 }
 .event-row-collapsible .event-row-collapsible-content {
     display: none;

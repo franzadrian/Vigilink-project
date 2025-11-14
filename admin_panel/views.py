@@ -615,6 +615,528 @@ def delete_user(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 @login_required
+def admin_alert(request):
+    # Check if user has admin role or is a superuser
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return HttpResponseForbidden("You don't have permission to access this page.")
+    
+    from admin_panel.models import SafetyTip, PlatformAnnouncement
+    from accounts.models import LocationEmergencyContact, City, District
+    
+    # Get all safety tips
+    safety_tips = SafetyTip.objects.all().order_by('-created_at')
+    
+    # Get all communities for the dropdown
+    from communityowner_panel.models import CommunityProfile
+    communities = CommunityProfile.objects.all().order_by('community_name')
+    
+    # Get all platform announcements with pagination (admin sees all, not filtered by dates)
+    from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+    announcements_queryset = PlatformAnnouncement.objects.all().order_by('-created_at')
+    
+    # Paginate announcements (4 per page)
+    paginator = Paginator(announcements_queryset, 4)
+    page = request.GET.get('announcement_page', 1)
+    try:
+        announcements_page = paginator.page(page)
+    except PageNotAnInteger:
+        announcements_page = paginator.page(1)
+    except EmptyPage:
+        announcements_page = paginator.page(paginator.num_pages)
+    
+    announcements = announcements_page
+    
+    # Get all location emergency contacts and group them by district
+    all_contacts = LocationEmergencyContact.objects.select_related('district', 'district__city').all().order_by('id')
+    
+    # Group contacts by district
+    grouped_contacts = {}
+    for contact in all_contacts:
+        location_key = f"district_{contact.district.id}"
+        location_name = contact.district.name
+        city_name = contact.district.city.name if contact.district.city else None
+        city_id = contact.district.city.id if contact.district.city else None
+        
+        if location_key not in grouped_contacts:
+            grouped_contacts[location_key] = {
+                'location_name': location_name,
+                'location_type': 'district',
+                'district_id': contact.district.id,
+                'city_name': city_name,
+                'city_id': city_id,
+                'contacts': []
+            }
+        
+        grouped_contacts[location_key]['contacts'].append({
+            'id': contact.id,
+            'label': contact.label,
+            'phone': contact.phone,
+        })
+    
+    # Convert to list for template
+    location_contacts_grouped = list(grouped_contacts.values())
+    
+    # Get districts and cities for dropdowns
+    districts = District.objects.select_related('city').all().order_by('city__name', 'name')
+    cities = City.objects.all().order_by('name')
+    
+    # Communities already fetched above
+    
+    context = {
+        'safety_tips': safety_tips,
+        'announcements': announcements,
+        'location_contacts_grouped': location_contacts_grouped,
+        'districts': districts,
+        'cities': cities,
+        'communities': communities,
+    }
+    
+    # Check if this is an AJAX request for announcements pagination
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' and request.GET.get('announcement_page'):
+        # Return only the announcements container HTML for AJAX requests
+        announcements_html = render_to_string('admin_alerts/announcements_partial.html', context, request=request)
+        return HttpResponse(announcements_html)
+    
+    return render(request, 'admin_alerts/admin_alert.html', context)
+
+@login_required
+def manage_safety_tip(request):
+    """Create, update, or delete safety tips"""
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+    
+    from admin_panel.models import SafetyTip
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            action = data.get('action')
+            
+            if action == 'create':
+                tip = SafetyTip.objects.create(
+                    content=data.get('content', ''),
+                    created_by=request.user
+                )
+                tip.refresh_from_db()
+                return JsonResponse({
+                    'success': True,
+                    'tip': {
+                        'id': tip.id,
+                        'content': tip.content,
+                        'created_at': tip.created_at.isoformat(),
+                    }
+                })
+            
+            elif action == 'update':
+                tip = get_object_or_404(SafetyTip, id=data.get('id'))
+                tip.content = data.get('content', tip.content)
+                tip.save()
+                tip.refresh_from_db()
+                return JsonResponse({
+                    'success': True,
+                    'tip': {
+                        'id': tip.id,
+                        'content': tip.content,
+                        'created_at': tip.created_at.isoformat(),
+                    }
+                })
+            
+            elif action == 'delete':
+                tip = get_object_or_404(SafetyTip, id=data.get('id'))
+                tip.delete()
+                return JsonResponse({'success': True})
+            
+            else:
+                return JsonResponse({'success': False, 'error': 'Invalid action'}, status=400)
+        
+        except Exception as e:
+            logger.error(f"Error managing safety tip: {str(e)}", exc_info=True)
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    
+    elif request.method == 'GET':
+        # Get single safety tip for editing
+        tip_id = request.GET.get('id')
+        if tip_id:
+            tip = get_object_or_404(SafetyTip, id=tip_id)
+            return JsonResponse({
+                'success': True,
+                'tip': {
+                    'id': tip.id,
+                    'content': tip.content,
+                }
+            })
+    
+    return JsonResponse({'success': False, 'error': 'Invalid method'}, status=405)
+
+@login_required
+def manage_location_contact(request):
+    """Create, update, or delete location emergency contacts"""
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+    
+    from accounts.models import LocationEmergencyContact
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            action = data.get('action')
+            
+            if action == 'create':
+                district_id = data.get('district_id')
+                
+                if not district_id:
+                    return JsonResponse({'success': False, 'error': 'District must be selected'}, status=400)
+                
+                contact = LocationEmergencyContact.objects.create(
+                    district_id=district_id,
+                    label=data.get('label', ''),
+                    phone=data.get('phone', '')
+                )
+                return JsonResponse({
+                    'success': True,
+                    'contact': {
+                        'id': contact.id,
+                        'label': contact.label,
+                        'phone': contact.phone,
+                        'district': contact.district.name,
+                        'district_id': contact.district.id,
+                    }
+                })
+            
+            elif action == 'update':
+                contact = get_object_or_404(LocationEmergencyContact, id=data.get('id'))
+                district_id = data.get('district_id')
+                
+                if district_id:
+                    contact.district_id = district_id
+                
+                contact.label = data.get('label', contact.label)
+                contact.phone = data.get('phone', contact.phone)
+                contact.save()
+                return JsonResponse({
+                    'success': True,
+                    'contact': {
+                        'id': contact.id,
+                        'label': contact.label,
+                        'phone': contact.phone,
+                        'district': contact.district.name,
+                        'district_id': contact.district.id,
+                    }
+                })
+            
+            elif action == 'delete':
+                contact = get_object_or_404(LocationEmergencyContact, id=data.get('id'))
+                contact.delete()
+                return JsonResponse({'success': True})
+            
+            else:
+                return JsonResponse({'success': False, 'error': 'Invalid action'}, status=400)
+        
+        except Exception as e:
+            logger.error(f"Error managing location contact: {str(e)}", exc_info=True)
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    
+    elif request.method == 'GET':
+        # Get contact data for editing
+        contact_id = request.GET.get('id')
+        if contact_id:
+            try:
+                contact = get_object_or_404(LocationEmergencyContact, id=contact_id)
+                return JsonResponse({
+                    'success': True,
+                    'contact': {
+                        'id': contact.id,
+                        'label': contact.label,
+                        'phone': contact.phone,
+                        'district_id': contact.district.id,
+                        'city_id': contact.district.city.id if contact.district.city else None,
+                    }
+                })
+            except Exception as e:
+                return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        return JsonResponse({'success': False, 'error': 'Missing id parameter'}, status=400)
+    
+    return JsonResponse({'success': False, 'error': 'Invalid method'}, status=405)
+
+@login_required
+def get_districts_by_city(request, city_id):
+    """Get all districts for a specific city"""
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+    
+    from accounts.models import District
+    districts = District.objects.filter(city_id=city_id).order_by('name')
+    
+    return JsonResponse({
+        'success': True,
+        'districts': [{'id': d.id, 'name': d.name} for d in districts]
+    })
+
+@login_required
+def manage_announcement(request):
+    """Create, update, or delete platform announcements"""
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+    
+    from admin_panel.models import PlatformAnnouncement
+    
+    if request.method == 'POST':
+        try:
+            # Handle file uploads (FormData) vs JSON
+            if request.content_type and 'multipart/form-data' in request.content_type:
+                action = request.POST.get('action')
+                announcement_id = request.POST.get('id')
+                
+                if action == 'create':
+                    from django.utils.dateparse import parse_datetime
+                    start_date = parse_datetime(request.POST.get('start_date'))
+                    end_date = parse_datetime(request.POST.get('end_date')) if request.POST.get('end_date') else None
+                    community_id = request.POST.get('community_id') if request.POST.get('community_id') else None
+                    
+                    announcement = PlatformAnnouncement.objects.create(
+                        title=request.POST.get('title', ''),
+                        content=request.POST.get('content', ''),
+                        start_date=start_date or timezone.now(),
+                        end_date=end_date,
+                        community_id=community_id,
+                        created_by=request.user
+                    )
+                    
+                    # Handle image upload
+                    if 'image' in request.FILES:
+                        announcement.image = request.FILES['image']
+                        announcement.save()
+                    
+                    # Refresh from database to get updated image URL
+                    announcement.refresh_from_db()
+                    
+                    return JsonResponse({
+                        'success': True,
+                        'announcement': {
+                            'id': announcement.id,
+                            'title': announcement.title,
+                            'content': announcement.content,
+                            'image_url': announcement.image.url if announcement.image else None,
+                            'community_id': announcement.community.id if announcement.community else None,
+                            'community_name': announcement.community.community_name if announcement.community else None,
+                            'start_date': announcement.start_date.isoformat(),
+                            'end_date': announcement.end_date.isoformat() if announcement.end_date else None,
+                        }
+                    })
+                
+                elif action == 'update':
+                    announcement = get_object_or_404(PlatformAnnouncement, id=announcement_id)
+                    from django.utils.dateparse import parse_datetime
+                    
+                    announcement.title = request.POST.get('title', announcement.title)
+                    announcement.content = request.POST.get('content', announcement.content)
+                    community_id = request.POST.get('community_id')
+                    if community_id:
+                        announcement.community_id = community_id if community_id != '' else None
+                    else:
+                        announcement.community_id = None
+                    
+                    if request.POST.get('start_date'):
+                        announcement.start_date = parse_datetime(request.POST.get('start_date'))
+                    if request.POST.get('end_date'):
+                        announcement.end_date = parse_datetime(request.POST.get('end_date'))
+                    
+                    # Handle image upload
+                    if 'image' in request.FILES:
+                        announcement.image = request.FILES['image']
+                    
+                    announcement.save()
+                    # Refresh from database to get updated image URL
+                    announcement.refresh_from_db()
+                    
+                    return JsonResponse({
+                        'success': True,
+                        'announcement': {
+                            'id': announcement.id,
+                            'title': announcement.title,
+                            'content': announcement.content,
+                            'image_url': announcement.image.url if announcement.image else None,
+                            'community_id': announcement.community.id if announcement.community else None,
+                            'community_name': announcement.community.community_name if announcement.community else None,
+                            'start_date': announcement.start_date.isoformat(),
+                            'end_date': announcement.end_date.isoformat() if announcement.end_date else None,
+                        }
+                    })
+                
+                elif action == 'delete':
+                    announcement = get_object_or_404(PlatformAnnouncement, id=announcement_id)
+                    announcement.delete()
+                    return JsonResponse({'success': True})
+                
+                else:
+                    return JsonResponse({'success': False, 'error': 'Invalid action'}, status=400)
+            else:
+                # JSON request (for delete without file)
+                data = json.loads(request.body)
+                action = data.get('action')
+                
+                if action == 'delete':
+                    announcement = get_object_or_404(PlatformAnnouncement, id=data.get('id'))
+                    announcement.delete()
+                    return JsonResponse({'success': True})
+                else:
+                    return JsonResponse({'success': False, 'error': 'Use FormData for create/update with images'}, status=400)
+        
+        except Exception as e:
+            logger.error(f"Error managing announcement: {str(e)}", exc_info=True)
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    
+    elif request.method == 'GET':
+        # Get announcement data for editing
+        announcement_id = request.GET.get('id')
+        if announcement_id:
+            try:
+                announcement = get_object_or_404(PlatformAnnouncement, id=announcement_id)
+                return JsonResponse({
+                    'success': True,
+                    'announcement': {
+                        'id': announcement.id,
+                        'title': announcement.title,
+                        'content': announcement.content,
+                        'image_url': announcement.image.url if announcement.image else None,
+                        'community_id': announcement.community.id if announcement.community else None,
+                        'start_date': announcement.start_date.isoformat(),
+                        'end_date': announcement.end_date.isoformat() if announcement.end_date else None,
+                    }
+                })
+            except Exception as e:
+                return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        return JsonResponse({'success': False, 'error': 'Missing id parameter'}, status=400)
+    
+    return JsonResponse({'success': False, 'error': 'Invalid method'}, status=405)
+
+@login_required
+def get_alerts_data(request):
+    """AJAX endpoint to fetch alerts data with filters and pagination"""
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+    
+    from security_panel.models import SecurityReport, Incident
+    from django.core.paginator import Paginator
+    
+    # Get filter parameters
+    filter_type = request.GET.get('filter', 'all')  # all, security_reports, incidents
+    status_filter = request.GET.get('status', 'all')
+    priority_filter = request.GET.get('priority', 'all')
+    page = int(request.GET.get('page', 1))
+    
+    # Build queryset
+    alerts_list = []
+    
+    # Get security reports
+    if filter_type == 'all' or filter_type == 'security_reports':
+        security_reports = SecurityReport.objects.select_related(
+            'reporter', 'community', 'target_user'
+        ).all()
+        
+        if status_filter != 'all':
+            security_reports = security_reports.filter(status=status_filter)
+        if priority_filter != 'all':
+            security_reports = security_reports.filter(priority=priority_filter)
+        
+        for report in security_reports:
+            alerts_list.append({
+                'id': report.id,
+                'type': 'security_report',
+                'title': report.subject,
+                'description': report.message,
+                'status': report.status,
+                'priority': report.priority,
+                'community_name': report.community.community_name if report.community else 'Unknown',
+                'reporter_name': report.get_reporter_display(),
+                'target_type': report.get_target_display(),
+                'location': report.location,
+                'reasons': report.reasons if isinstance(report.reasons, list) else [],
+                'created_at': report.created_at.isoformat(),
+            })
+    
+    # Get incidents
+    if filter_type == 'all' or filter_type == 'incidents':
+        incidents = Incident.objects.select_related(
+            'reporter', 'community', 'handled_by'
+        ).all()
+        
+        if status_filter != 'all':
+            incidents = incidents.filter(status=status_filter)
+        
+        for incident in incidents:
+            alerts_list.append({
+                'id': incident.id,
+                'type': 'incident',
+                'title': incident.title,
+                'description': incident.description,
+                'status': incident.status,
+                'priority': None,  # Incidents don't have priority
+                'community_name': incident.community.community_name if incident.community else 'Unknown',
+                'reporter_name': incident.get_reporter_display(),
+                'incident_type': incident.get_incident_type_display_short(),
+                'location': incident.location,
+                'created_at': incident.created_at.isoformat(),
+            })
+    
+    # Sort by created_at (newest first)
+    alerts_list.sort(key=lambda x: x['created_at'], reverse=True)
+    
+    # Paginate
+    paginator = Paginator(alerts_list, 10)  # 10 alerts per page
+    page_obj = paginator.get_page(page)
+    
+    return JsonResponse({
+        'success': True,
+        'alerts': list(page_obj.object_list),
+        'pagination': {
+            'current_page': page_obj.number,
+            'total_pages': paginator.num_pages,
+            'has_previous': page_obj.has_previous(),
+            'has_next': page_obj.has_next(),
+            'previous_page': page_obj.previous_page_number() if page_obj.has_previous() else None,
+            'next_page': page_obj.next_page_number() if page_obj.has_next() else None,
+            'has_pages': paginator.num_pages > 1,
+        }
+    })
+
+@login_required
+@require_POST
+@csrf_exempt
+def update_alert_status(request):
+    """Update the status of an alert (security report or incident)"""
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+    
+    from security_panel.models import SecurityReport, Incident
+    
+    try:
+        data = json.loads(request.body)
+        alert_id = data.get('alert_id')
+        alert_type = data.get('alert_type')
+        new_status = data.get('status')
+        
+        if not all([alert_id, alert_type, new_status]):
+            return JsonResponse({'success': False, 'error': 'Missing required parameters'}, status=400)
+        
+        if alert_type == 'security_report':
+            alert_obj = get_object_or_404(SecurityReport, id=alert_id)
+        elif alert_type == 'incident':
+            alert_obj = get_object_or_404(Incident, id=alert_id)
+        else:
+            return JsonResponse({'success': False, 'error': 'Invalid alert type'}, status=400)
+        
+        alert_obj.status = new_status
+        if new_status == 'resolved':
+            alert_obj.resolved_at = timezone.now()
+        alert_obj.save()
+        
+        return JsonResponse({'success': True})
+    except Exception as e:
+        logger.error(f"Error updating alert status: {str(e)}", exc_info=True)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@login_required
 def admin_resources(request):
     """Admin resources page for uploading PDFs and creating text guides"""
     # Check if user has admin role or is a superuser

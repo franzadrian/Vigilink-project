@@ -11,6 +11,7 @@ from django.middleware.csrf import get_token
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from admin_panel.models import ContactMessage
+from django.db.models import Q
 import json
 from django.db.models.functions import Lower
 
@@ -64,9 +65,8 @@ def residents(request):
                     # If no district contacts, get city-specific contacts
                     if not location_contacts and request.user.city:
                         city_contacts = LocationEmergencyContact.objects.filter(
-                            city=request.user.city,
-                            is_active=True
-                        ).order_by('order', 'id')
+                            district__city=request.user.city
+                        ).order_by('id')
                         for c in city_contacts:
                             location_contacts.append({
                                 'label': c.label, 
@@ -334,9 +334,8 @@ def alerts(request):
                 # Get district-specific contacts first (more specific)
                 if request.user.district:
                     district_contacts = LocationEmergencyContact.objects.filter(
-                        district=request.user.district,
-                        is_active=True
-                    ).order_by('order', 'id')
+                        district=request.user.district
+                    ).order_by('id')
                     for c in district_contacts:
                         location_contacts.append({
                             'label': c.label, 
@@ -346,9 +345,8 @@ def alerts(request):
                 # If no district contacts, get city-specific contacts
                 if not location_contacts and request.user.city:
                     city_contacts = LocationEmergencyContact.objects.filter(
-                        city=request.user.city,
-                        is_active=True
-                    ).order_by('order', 'id')
+                        district__city=request.user.city
+                    ).order_by('id')
                     for c in city_contacts:
                         location_contacts.append({
                             'label': c.label, 
@@ -508,29 +506,52 @@ def alerts(request):
         upcoming_event = None
         events_count = 0
 
+    # Get safety tips from admin-managed SafetyTip model
+    from admin_panel.models import SafetyTip, PlatformAnnouncement
     from datetime import datetime
-    tips = [
-        'Remember to lock doors and windows before leaving.',
-        'Do not share your gate codes with unknown persons.',
-        'Report suspicious behavior immediately via Report Incident.',
-        'Keep porch lights on at night for visibility.',
-        'Secure packages or request deliveries when you are home.',
-        'Do not let strangers tailgate into the subdivision.',
-        'Store valuables out of sight in vehicles.',
-        'Know your neighbors and exchange contact info.',
-        'Test your smoke alarms monthly.',
-        'Keep emergency numbers saved in your phone.',
-        'Always verify identity of service personnel.',
-        'Trim hedges to improve line of sight near entrances.',
-        'Use strong, unique passwords for home Wi-Fi.',
-        'Teach family members how to dial emergency services.',
-        'Keep a small first-aid kit handy at home and in car.',
-        'Mark your house number clearly for responders.',
-    ]
-    # Ensure the displayed tip is at least two sentences by combining two entries.
-    day_index = datetime.utcnow().timetuple().tm_yday % len(tips)
-    second_index = (day_index + 7) % len(tips)
-    safety_tip = f"{tips[day_index]} {tips[second_index]}"
+    
+    # Safety tips are shown to all communities (community is always NULL)
+    active_safety_tips = SafetyTip.objects.filter(community__isnull=True).order_by('-created_at')
+    
+    if active_safety_tips.exists():
+        # Rotate through active safety tips based on day of year
+        tips_list = list(active_safety_tips)
+        day_index = datetime.utcnow().timetuple().tm_yday % len(tips_list)
+        selected_tip = tips_list[day_index]
+        
+        # Show content only (no title field anymore)
+        safety_tip = selected_tip.content
+    else:
+        # Fallback to default tips if no admin-managed tips exist
+        default_tips = [
+            'Remember to lock doors and windows before leaving.',
+            'Do not share your gate codes with unknown persons.',
+            'Report suspicious behavior immediately via Report Incident.',
+            'Keep porch lights on at night for visibility.',
+            'Secure packages or request deliveries when you are home.',
+            'Do not let strangers tailgate into the subdivision.',
+            'Store valuables out of sight in vehicles.',
+            'Know your neighbors and exchange contact info.',
+            'Test your smoke alarms monthly.',
+            'Keep emergency numbers saved in your phone.',
+            'Always verify identity of service personnel.',
+            'Trim hedges to improve line of sight near entrances.',
+            'Use strong, unique passwords for home Wi-Fi.',
+            'Teach family members how to dial emergency services.',
+            'Keep a small first-aid kit handy at home and in car.',
+            'Mark your house number clearly for responders.',
+        ]
+        day_index = datetime.utcnow().timetuple().tm_yday % len(default_tips)
+        second_index = (day_index + 7) % len(default_tips)
+        safety_tip = f"{default_tips[day_index]} {default_tips[second_index]}"
+    
+    # Get active platform announcements (for future use - can be displayed on alerts page)
+    now = timezone.now()
+    active_announcements = PlatformAnnouncement.objects.filter(
+        start_date__lte=now
+    ).filter(
+        Q(end_date__isnull=True) | Q(end_date__gte=now)
+    ).order_by('-created_at')[:5]  # Limit to top 5
 
     # Emergency contacts (from owner-managed list and location-based)
     emergency_contacts = []
@@ -553,9 +574,8 @@ def alerts(request):
             # Get district-specific contacts first (more specific)
             if request.user.district:
                 district_contacts = LocationEmergencyContact.objects.filter(
-                    district=request.user.district,
-                    is_active=True
-                ).order_by('order', 'id')
+                    district=request.user.district
+                ).order_by('id')
                 for c in district_contacts:
                     location_contacts.append({
                         'label': c.label, 
@@ -568,9 +588,8 @@ def alerts(request):
             # If no district contacts, get city-specific contacts
             if not location_contacts and request.user.city:
                 city_contacts = LocationEmergencyContact.objects.filter(
-                    city=request.user.city,
-                    is_active=True
-                ).order_by('order', 'id')
+                    district__city=request.user.city
+                ).order_by('id')
                 for c in city_contacts:
                     location_contacts.append({
                         'label': c.label, 
@@ -604,6 +623,7 @@ def alerts(request):
         'location_contacts': location_contacts,
         'has_community_contacts': len(community_contacts) > 0,
         'has_location_contacts': len(location_contacts) > 0,
+        'platform_announcements': active_announcements,
     }
     return render(request, 'alerts/alerts.html', context)
 def submit_report(request):

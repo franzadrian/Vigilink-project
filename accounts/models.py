@@ -51,34 +51,20 @@ class District(models.Model):
         return f"{self.name}, {self.city.name}"
 
 class LocationEmergencyContact(models.Model):
-    """Emergency contacts specific to cities and districts"""
-    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='emergency_contacts', null=True, blank=True)
-    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name='emergency_contacts', null=True, blank=True)
+    """Emergency contacts specific to districts"""
+    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name='emergency_contacts')
     label = models.CharField(max_length=100)
     phone = models.CharField(max_length=50)
-    order = models.PositiveIntegerField(default=0)
-    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['order', 'id']
+        ordering = ['id']
         verbose_name = 'location emergency contact'
         verbose_name_plural = 'location emergency contacts'
-        # Ensure either city or district is set, but not both
-        constraints = [
-            models.CheckConstraint(
-                check=(
-                    (models.Q(city__isnull=False) & models.Q(district__isnull=True)) |
-                    (models.Q(city__isnull=True) & models.Q(district__isnull=False))
-                ),
-                name='location_emergency_contact_city_or_district'
-            )
-        ]
     
     def __str__(self):
-        location = self.district if self.district else self.city
-        return f"{self.label}: {self.phone} ({location})"
+        return f"{self.label}: {self.phone} ({self.district})"
 
 class IPLoginAttempt(models.Model):
     ip_address = models.GenericIPAddressField()
