@@ -102,6 +102,14 @@ urlpatterns = [
     path('consults/inquiry/', views.consult_inquiry, name='consult_inquiry')
 ]
 
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', include('clinic.urls')),
+]
+
 from django.shortcuts import render, redirect, get_object_or_404
 from .models import PetOwner, Veterinarian, Pet, Consultation
 from .forms import PetOwnerForm, VeterinarianForm, PetForm, ConsultationForm
