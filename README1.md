@@ -72,44 +72,6 @@ class ConsultationForm(forms.ModelForm):
         model = Consultation
         fields = ['petID', 'vetID', 'consultDate', 'diagnoses', 'prescription']
 
-
-from django.urls import path
-from . import views
-
-urlpatterns = [
-    path('', views.home, name='home'),
-
-    path('petowners/', views.petowner_list, name='petowner_list'),
-    path('petowners/create/', views.petowner_create, name='petowner_create'),
-    path('petowners/update/<int:id>/', views.petowner_update, name='petowner_update'),
-    path('petowners/delete/<int:id>/', views.petowner_delete, name='petowner_delete'),
-
-    path('vets/', views.vet_list, name='vet_list'),
-    path('vets/create/', views.vet_create, name='vet_create'),
-    path('vets/update/<int:id>/', views.vet_update, name='vet_update'),
-    path('vets/delete/<int:id>/', views.vet_delete, name='vet_delete'),
-
-    path('pets/', views.pet_list, name='pet_list'),
-    path('pets/create/', views.pet_create, name='pet_create'),
-    path('pets/update/<int:id>/', views.pet_update, name='pet_update'),
-    path('pets/delete/<int:id>/', views.pet_delete, name='pet_delete'),
-
-    path('consults/', views.consult_list, name='consult_list'),
-    path('consults/create/', views.consult_create, name='consult_create'),
-    path('consults/update/<int:id>/', views.consult_update, name='consult_update'),
-    path('consults/delete/<int:id>/', views.consult_delete, name='consult_delete'),
-
-    path('consults/inquiry/', views.consult_inquiry, name='consult_inquiry')
-]
-
-from django.contrib import admin
-from django.urls import path, include
-
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', include('clinic.urls')),
-]
-
 from django.shortcuts import render, redirect, get_object_or_404
 from .models import PetOwner, Veterinarian, Pet, Consultation
 from .forms import PetOwnerForm, VeterinarianForm, PetForm, ConsultationForm
@@ -289,7 +251,62 @@ def consult_inquiry(request):
         'total_count': total_count
     })
 
-    <h2>Welcome to Clinic!</h2>
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('', views.home, name='home'),
+
+    path('petowners/', views.petowner_list, name='petowner_list'),
+    path('petowners/create/', views.petowner_create, name='petowner_create'),
+    path('petowners/update/<int:id>/', views.petowner_update, name='petowner_update'),
+    path('petowners/delete/<int:id>/', views.petowner_delete, name='petowner_delete'),
+
+    path('vets/', views.vet_list, name='vet_list'),
+    path('vets/create/', views.vet_create, name='vet_create'),
+    path('vets/update/<int:id>/', views.vet_update, name='vet_update'),
+    path('vets/delete/<int:id>/', views.vet_delete, name='vet_delete'),
+
+    path('pets/', views.pet_list, name='pet_list'),
+    path('pets/create/', views.pet_create, name='pet_create'),
+    path('pets/update/<int:id>/', views.pet_update, name='pet_update'),
+    path('pets/delete/<int:id>/', views.pet_delete, name='pet_delete'),
+
+    path('consults/', views.consult_list, name='consult_list'),
+    path('consults/create/', views.consult_create, name='consult_create'),
+    path('consults/update/<int:id>/', views.consult_update, name='consult_update'),
+    path('consults/delete/<int:id>/', views.consult_delete, name='consult_delete'),
+
+    path('consults/inquiry/', views.consult_inquiry, name='consult_inquiry')
+]
+
+"""
+URL configuration for practice project.
+
+The `urlpatterns` list routes URLs to views. For more information please see:
+    https://docs.djangoproject.com/en/5.2/topics/http/urls/
+Examples:
+Function views
+    1. Add an import:  from my_app import views
+    2. Add a URL to urlpatterns:  path('', views.home, name='home')
+Class-based views
+    1. Add an import:  from other_app.views import Home
+    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
+Including another URLconf
+    1. Import the include() function: from django.urls import include, path
+    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+"""
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', include('clinic.urls')),
+]
+
+# HOME.HTML
+
+<h2>Welcome to Clinic!</h2>
 
 <ul>
     <li><a href="{% url 'petowner_list' %}">Pet Owners</a></li>
@@ -300,57 +317,64 @@ def consult_inquiry(request):
     
 </ul>
 
-<h1>Delete Pet Owner</h1>
-<p>Are you sure you want to delete {{ petowner.petOwnerFName }} {{ petowner.petOwnerLName }}?</p>
+# DELETE.HTML
+
+<h1>Delete Veterinarian</h1>
+<p>Are you sure you want to delete {{ vet.vetFName }} {{ vet.vetLName }}?</p>
 <form method="post">
     {% csrf_token %}
     <button type="submit">Yes, Delete</button>
-    <a href="/petowners/">Cancel</a>
+    <a href="/vets/">Cancel</a>
 </form>
 
-<h1>{% if form.instance.pk %}Edit{% else %}Add{% endif %} Pet Owner</h1>
+
+# FORM.HTML
+
+<h1>{% if form.instance.pk %}Edit{% else %}Add{% endif %} Veterinarian</h1>
 <form method="post">
     {% csrf_token %}
     {{ form.as_p }}
     <button type="submit">Save</button>
 </form>
-<a href="/petowners/">Back</a>
+<a href="/vets/">Back</a>
 
-<h1>Pet Owners</h1>
+# LIST.HTML
+
+<h1>Veterinarian</h1>
 
 <form method="get">
     <input type="text" name="q" value="{{ query|default:'' }}">
     <button type="submit">Search</button>
 </form>
 
-<a href="/petowners/create/">Add New</a>
+<a href="/vets/create/">Add New</a>
 <table border="1">
     <tr>
         <th>ID</th>
         <th>First Name</th>
         <th>Last Name</th>
-        <th>Birth Date</th>
-        <th>Tel No</th>
+        <th>Address</th>
+        <th>Specialty</th>
         <th>Actions</th>
     </tr>
-{% for p in petowners %}
+{% for v in vets %}
 <tr>
-    <td>{{ p.id }}</td>
-    <td>{{ p.petOwnerFName }}</td>
-    <td>{{ p.petOwnerLName }}</td>
-    <td>{{ p.petOwnerBDate }}</td>
-    <td>{{ p.petOwnerTelNo }}</td>
+    <td>{{ v.id }}</td>
+    <td>{{ v.vetFName }}</td>
+    <td>{{ v.vetLName }}</td>
+    <td>{{ v.vetAddress }}</td>
+    <td>{{ v.vetSpecial }}</td>
+
     <td>
-        <a href="{% url 'petowner_update' p.id %}">Edit</a>
-        <a href="{% url 'petowner_delete' p.id %}">Delete</a>
+        <a href="{% url 'vet_update' v.id %}">Edit</a>
+        <a href="{% url 'vet_delete' v.id %}">Delete</a>
     </td>
 </tr>
 {% endfor %}
 </table>
 <a href="{% url 'home' %}">Back</a>
 
-
-
+# INQUIRY.HTML
 
 {% load static %}
 
@@ -421,21 +445,3 @@ def consult_inquiry(request):
 <br>
 <a href="{% url 'home' %}">Back</a>
 {% endblock %}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-    
