@@ -163,23 +163,10 @@ function initializeReportNotifications() {
         console.log('Could not load lastCheckedReportId from localStorage:', e);
     }
     
-    // If we don't have a stored value, initialize to 0 or server's max - 1
-    // This ensures we check for all reports, including ones currently visible on the page
-    if (lastCheckedReportId === 0) {
-        if (typeof window.initialMaxReportId !== 'undefined' && window.initialMaxReportId > 0) {
-            // Set to max - 1 so we'll check for the current max report too
-            lastCheckedReportId = window.initialMaxReportId - 1;
-            console.log('Initialized lastCheckedReportId to', lastCheckedReportId, '(server max - 1)');
-        } else {
-            // Set to 0 to check for all reports
-            lastCheckedReportId = 0;
-            console.log('Initialized lastCheckedReportId to 0 (will check all reports)');
-        }
-    }
-    
-    // Check visible reports on the page and add unviewed ones to the notification queue
-    // This handles the case where a report is visible on the page but hasn't been viewed
+    // Check visible reports on the page first - mark them as viewed and update lastCheckedReportId
+    // This prevents existing reports on the page from triggering notifications
     const reportsTable = document.querySelector('.reports-table tbody');
+    let maxVisibleReportId = 0;
     if (reportsTable) {
         const rows = reportsTable.querySelectorAll('tr');
         rows.forEach(row => {
@@ -189,55 +176,55 @@ function initializeReportNotifications() {
                 const match = href.match(/report\/(\d+)\//);
                 if (match) {
                     const reportId = parseInt(match[1], 10);
-                    // If this report hasn't been viewed and isn't already in the queue, add it
-                    if (!viewedReportIds.has(reportId)) {
-                        const isInQueue = notificationQueue.some(r => r.id === reportId);
-                        const isActive = activeNotifications.has(reportId);
-                        if (!isInQueue && !isActive) {
-                            // Extract report info from the table row
-                            const reporterCell = row.querySelector('.report-reporter .reporter-name');
-                            const subjectCell = row.querySelector('.report-subject .subject-text');
-                            const targetCell = row.querySelector('.report-target .target-name, .report-target .target-badge');
-                            const statusCell = row.querySelector('.report-status .status-badge');
-                            const priorityCell = row.querySelector('.report-priority .priority-badge');
-                            const dateCell = row.querySelector('.report-date');
-                            
-                            // Get priority from the badge class or text
-                            let priority = 'level_2'; // default
-                            if (priorityCell) {
-                                const priorityClass = priorityCell.className;
-                                if (priorityClass.includes('priority-level_3')) priority = 'level_3';
-                                else if (priorityClass.includes('priority-level_1')) priority = 'level_1';
-                            }
-                            
-                            const reportData = {
-                                id: reportId,
-                                priority: priority,
-                                status: statusCell ? statusCell.textContent.trim().toLowerCase().replace(/\s+/g, '_') : 'pending',
-                                subject: subjectCell ? subjectCell.textContent.trim() : 'Report',
-                                reporter: reporterCell ? reporterCell.textContent.trim() : 'Unknown',
-                                target: targetCell ? targetCell.textContent.trim() : 'Unknown',
-                                created_at: dateCell ? dateCell.textContent.trim() : new Date().toISOString(),
-                            };
-                            
-                            notificationQueue.push(reportData);
-                            console.log('Added visible unviewed report', reportId, 'to notification queue');
-                        }
+                    // Mark all visible reports as viewed (they're already on the page, so user has seen them)
+                    viewedReportIds.add(reportId);
+                    // Track the maximum visible report ID
+                    if (reportId > maxVisibleReportId) {
+                        maxVisibleReportId = reportId;
                     }
                 }
             }
         });
         
-        // Sort queue by priority
-        if (notificationQueue.length > 0) {
-            notificationQueue.sort((a, b) => {
-                const priorityOrder = { 'level_3': 3, 'level_2': 2, 'level_1': 1 };
-                const aPriority = priorityOrder[a.priority] || 0;
-                const bPriority = priorityOrder[b.priority] || 0;
-                return bPriority - aPriority;
-            });
-            saveNotificationQueue();
+        // Save viewed reports
+        if (maxVisibleReportId > 0) {
+            saveViewedReportIds();
         }
+    }
+    
+    // If we don't have a stored value, initialize based on visible reports or server's max
+    // This ensures existing reports don't trigger notifications
+    if (lastCheckedReportId === 0) {
+        if (maxVisibleReportId > 0) {
+            // Use the max visible report ID so existing reports don't trigger notifications
+            lastCheckedReportId = maxVisibleReportId;
+            console.log('Initialized lastCheckedReportId to', lastCheckedReportId, '(max visible report ID)');
+        } else if (typeof window.initialMaxReportId !== 'undefined' && window.initialMaxReportId > 0) {
+            // If no visible reports, use server's max ID (not max - 1) so existing reports don't trigger
+            lastCheckedReportId = window.initialMaxReportId;
+            console.log('Initialized lastCheckedReportId to', lastCheckedReportId, '(server max)');
+        } else {
+            // Set to 0 to check for all reports (fallback)
+            lastCheckedReportId = 0;
+            console.log('Initialized lastCheckedReportId to 0 (will check all reports)');
+        }
+        
+        // Save the initialized value to localStorage
+        try {
+            localStorage.setItem('security_last_checked_report_id', lastCheckedReportId.toString());
+        } catch (e) {
+            console.log('Could not save lastCheckedReportId to localStorage:', e);
+        }
+    } else if (maxVisibleReportId > 0 && maxVisibleReportId > lastCheckedReportId) {
+        // If we have a stored value but visible reports have higher IDs, update it
+        // This handles the case where user views the page and sees newer reports
+        lastCheckedReportId = maxVisibleReportId;
+        try {
+            localStorage.setItem('security_last_checked_report_id', lastCheckedReportId.toString());
+        } catch (e) {
+            console.log('Could not save lastCheckedReportId to localStorage:', e);
+        }
+        console.log('Updated lastCheckedReportId to', lastCheckedReportId, 'based on visible reports');
     }
     
     // Load notification queue from localStorage (persist across page reloads)

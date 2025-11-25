@@ -36,16 +36,25 @@ pip install django==5.2.* psycopg[binary] pillow
 
 ## Configuration (.env)
 
-**Important**: The project uses environment variables for configuration. On a new machine, you MUST create a `.env` file to connect to the Neon database.
+**⚠️ CRITICAL**: The project uses environment variables for configuration. On a new machine, you MUST create a `.env` file to connect to the Neon database. **Without a `.env` file, the project will default to SQLite and use a local database instead of the shared Neon database.**
 
-1. Copy the example file:
+### Setup Steps:
+
+1. **Copy the example file:**
    ```bash
+   # Windows (PowerShell)
+   Copy-Item .env.example .env
+   
+   # Linux/Mac
    cp .env.example .env
    ```
 
-2. Edit `.env` and fill in your actual values (especially database credentials).
+2. **Edit `.env` and fill in your actual values:**
+   - **MOST IMPORTANT**: Make sure `USE_POSTGRES=true` is set (this is already in the example)
+   - Update `POSTGRES_PASSWORD` with your actual Neon database password
+   - Update other credentials as needed
 
-The `.env` file is gitignored and won't be committed to the repository.
+The `.env` file is gitignored and won't be committed to the repository. Each developer needs to create their own `.env` file from `.env.example`.
 
 ### Environment Variables:
 
@@ -82,10 +91,11 @@ DROPBOX_APP_SECRET=
 
 **Important Notes:**
 
-- **Without `.env` file**: The project will default to SQLite (`db.sqlite3`) - you'll have a separate local database
+- **Without `.env` file OR if `USE_POSTGRES` is not set to `true`**: The project will default to SQLite (`db.sqlite3`) - you'll have a separate local database that won't sync with other developers
 - **With `.env` file and `USE_POSTGRES=true`**: Connects to the shared Neon PostgreSQL database
 - **Database credentials**: Get these from your Neon console at https://console.neon.tech
 - The `.env` file is gitignored for security - each developer needs their own copy
+- **After creating `.env`**: Restart your Django development server for changes to take effect
 
 ## Database Migrations
 
@@ -163,6 +173,14 @@ Ensure your `.env` contains production-safe values (secret key, database, email,
 
 ## Troubleshooting
 
+- **Using SQLite instead of Neon PostgreSQL after cloning**
+  - **Problem**: After cloning the project, it's using `db.sqlite3` instead of your Neon database.
+  - **Solution**: 
+    1. Make sure you have a `.env` file in the project root (copy from `.env.example` if needed)
+    2. Verify `USE_POSTGRES=true` is set in your `.env` file
+    3. Check that all `POSTGRES_*` variables are filled in with correct values
+    4. Restart your Django development server (`python manage.py runserver`)
+    5. Verify connection by checking if you see your data from the Neon database
 - Migration conflicts or duplicate tables
   - Use `showmigrations` and optionally `--fake` for already-existing schema.
 - Static files not loading in production
