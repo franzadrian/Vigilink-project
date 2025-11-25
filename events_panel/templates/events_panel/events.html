@@ -21,8 +21,8 @@
                 <p class="subtitle">Stay updated with the latest events and announcements from {{ community.community_name }}</p>
                 
                 <!-- Filter Buttons -->
-                {% if platform_announcements %}
-                    {% if upcoming_ongoing_events or completed_events %}
+                {% if has_platform_announcements %}
+                    {% if has_upcoming_events or has_completed_events %}
                     <div class="events-filter-buttons">
                         <button type="button" class="filter-btn active" data-filter="all" id="filter-all">
                             <i class="fas fa-list"></i> All
@@ -34,11 +34,24 @@
                             <i class="fas fa-bullhorn"></i> Platform Announcements
                         </button>
                     </div>
+                    {% else %}
+                    <div class="events-filter-buttons solo-filter">
+                        <button type="button" class="filter-btn active" data-filter="platform" id="filter-platform">
+                            <i class="fas fa-bullhorn"></i> Platform Announcements
+                        </button>
+                    </div>
+                    <p class="filter-hint">No community events yet &mdash; showing VigiLink platform updates.</p>
                     {% endif %}
+                {% elif has_upcoming_events or has_completed_events %}
+                    <div class="events-filter-buttons solo-filter">
+                        <button type="button" class="filter-btn active" data-filter="community" id="filter-community">
+                            <i class="fas fa-calendar"></i> Community Events
+                        </button>
+                    </div>
                 {% endif %}
             </header>
             
-            {% if platform_announcements %}
+            {% if has_platform_announcements or has_expired_platform_announcements or not has_upcoming_events and not has_completed_events %}
             <div id="platform-announcements-section" class="filterable-section" data-filter-type="platform">
             <div class="events-section">
                 <div class="section-header">
@@ -48,6 +61,7 @@
                     </h2>
                     <p class="section-subtitle">Important updates and notices from VigiLink</p>
                 </div>
+                {% if has_platform_announcements %}
                 <div class="events-grid" id="announcements-grid">
                     {% for announcement in platform_announcements %}
                     <div class="event-row event-row-collapsible theme-announcement" data-announcement-id="{{ announcement.id }}">
@@ -76,8 +90,8 @@
                         </div>
                         <div class="event-row-body event-row-collapsible-content">
                             {% if announcement.image %}
-                            <div style="margin-bottom: 16px;">
-                                <img src="{{ announcement.image.url }}" alt="{{ announcement.title }}" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            <div style="margin-bottom: 16px; width: 100%;">
+                                <img src="{{ announcement.image.url }}" alt="{{ announcement.title }}" class="announcement-image-clickable" data-image-url="{{ announcement.image.url }}" data-image-title="{{ announcement.title }}" style="width: 100%; height: auto; display: block; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s ease;">
                             </div>
                             {% endif %}
                             <div class="event-row-content">
@@ -87,6 +101,13 @@
                     </div>
                     {% endfor %}
                 </div>
+                {% else %}
+                <div class="empty-state platform-empty-state">
+                    <div class="empty-icon"><i class="fas fa-bullhorn"></i></div>
+                    <h3>No platform announcements yet</h3>
+                    <p>VigiLink updates will appear here once they are published.</p>
+                </div>
+                {% endif %}
             </div>
             </div>
             {% endif %}
@@ -274,7 +295,7 @@
                                 <p class="event-description">{{ event.description|linebreaksbr }}</p>
                             </div>
                             <div class="event-actions-horizontal">
-                                {% if 'maintenance' not in lower_title and 'maintainance' not in lower_title and 'repair' not in lower_title and lower_type != 'maintenance' %}
+                                {% if request.user.role != 'security' and 'maintenance' not in lower_title and 'maintainance' not in lower_title and 'repair' not in lower_title and lower_type != 'maintenance' %}
                                 <div class="event-rsvp" data-current="{{ attendance_map|get_item:event.id|default:'' }}">
                                     <button class="event-rsvp-btn" data-status="attending">
                                         {% if 'halloween' in lower_title or 'haloween' in lower_title or 'hallowen' in lower_title or 'halowen' in lower_title or lower_type in 'halloween haloween hallowen halowen' %}
@@ -476,8 +497,8 @@
                         </div>
                         <div class="event-row-body event-row-collapsible-content">
                             {% if announcement.image %}
-                            <div style="margin-bottom: 16px;">
-                                <img src="{{ announcement.image.url }}" alt="{{ announcement.title }}" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            <div style="margin-bottom: 16px; width: 100%;">
+                                <img src="{{ announcement.image.url }}" alt="{{ announcement.title }}" class="announcement-image-clickable" data-image-url="{{ announcement.image.url }}" data-image-title="{{ announcement.title }}" style="width: 100%; height: auto; display: block; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s ease;">
                             </div>
                             {% endif %}
                             <div class="event-row-content">
@@ -510,14 +531,25 @@
             {% endif %}
         </div>
     </div>
+    
+    <!-- Image Modal/Lightbox -->
+    <div id="image-modal" class="image-modal">
+        <div class="image-modal-overlay"></div>
+        <div class="image-modal-content">
+            <button class="image-modal-close" id="image-modal-close">&times;</button>
+            <img id="image-modal-img" src="" alt="">
+            <div class="image-modal-title" id="image-modal-title"></div>
+        </div>
+    </div>
 {% endblock %}
 
 {% block extra_js %}
 {{ block.super }}
 <div id="events-data" data-max-event-id="{% if initial_max_event_id %}{{ initial_max_event_id }}{% else %}0{% endif %}" style="display:none;"></div>
 <script>
-    // Pass initial max event ID to JavaScript
+    // Pass user role and initial max event ID to JavaScript
     (function() {
+        window.userRole = '{{ request.user.role }}';
         var dataEl = document.getElementById('events-data');
         if (dataEl) {
             window.initialMaxEventId = parseInt(dataEl.getAttribute('data-max-event-id') || '0', 10);

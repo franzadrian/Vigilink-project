@@ -171,9 +171,52 @@
             return;
         }
         
-        // Initialize last checked event ID from localStorage
-        // Always load from localStorage to ensure RSVP updates persist across pages
-        lastCheckedEventId = getLastCheckedEventId();
+        // Check if user is Security and on events list page
+        // Security users can't RSVP, so automatically mark all events as viewed when they visit the page
+        const isSecurityUser = typeof window.userRole !== 'undefined' && window.userRole === 'security';
+        const isEventsListPage = window.location.pathname === '/events/' || window.location.pathname.match(/^\/events\/\?/);
+        
+        if (isSecurityUser && isEventsListPage) {
+            // For Security users, automatically mark all events as viewed
+            // Get the max event ID from the server and update lastCheckedEventId
+            fetch('/events/api/check-new-events/?last_check_id=0')
+                .then(response => {
+                    if (!response.ok) {
+                        if (response.status === 403) {
+                            return {
+                                current_max_id: 0,
+                                unseen_events_count: 0
+                            };
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Update lastCheckedEventId to the maximum event ID
+                    const maxEventId = data.current_max_id || (typeof window.initialMaxEventId !== 'undefined' ? window.initialMaxEventId : 0);
+                    if (maxEventId > 0) {
+                        lastCheckedEventId = maxEventId;
+                        saveLastCheckedEventId(maxEventId);
+                        console.log('Security user: Automatically marked all events as viewed, lastCheckedEventId:', maxEventId);
+                        // Clear the badge immediately
+                        renderBadge(0);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error marking events as viewed for Security user:', error);
+                    // Fallback: use initialMaxEventId if available
+                    if (typeof window.initialMaxEventId !== 'undefined' && window.initialMaxEventId > 0) {
+                        lastCheckedEventId = window.initialMaxEventId;
+                        saveLastCheckedEventId(window.initialMaxEventId);
+                        renderBadge(0);
+                    }
+                });
+        } else {
+            // Initialize last checked event ID from localStorage
+            // Always load from localStorage to ensure RSVP updates persist across pages
+            lastCheckedEventId = getLastCheckedEventId();
+        }
         
         // Start polling for new events every 10 seconds
         // Check immediately on load

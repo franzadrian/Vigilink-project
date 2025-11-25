@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initRsvpButtons();
     initCollapsibleEvents();
     initEventFilters();
+    initializeImageModal();
 });
 
 // Initialize event filter buttons
@@ -714,6 +715,85 @@ function initCollapsibleEvents() {
     });
 }
 
+// Image Modal Functionality
+function initializeImageModal() {
+    const imageModal = document.getElementById('image-modal');
+    const imageModalImg = document.getElementById('image-modal-img');
+    const imageModalTitle = document.getElementById('image-modal-title');
+    const imageModalClose = document.getElementById('image-modal-close');
+    const imageModalOverlay = imageModal ? imageModal.querySelector('.image-modal-overlay') : null;
+    
+    if (!imageModal || !imageModalImg) {
+        console.warn('Image modal elements not found');
+        return;
+    }
+    
+    // Handle clicks on announcement images
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('announcement-image-clickable')) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const imageUrl = e.target.getAttribute('data-image-url');
+            const imageTitle = e.target.getAttribute('data-image-title');
+            
+            if (imageUrl) {
+                openImageModal(imageUrl, imageTitle);
+            }
+        }
+    });
+    
+    // Close modal functions
+    function openImageModal(imageUrl, imageTitle) {
+        imageModalImg.src = imageUrl;
+        imageModalImg.alt = imageTitle || 'Announcement Image';
+        if (imageModalTitle) {
+            imageModalTitle.textContent = imageTitle || '';
+        }
+        imageModal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeImageModal() {
+        imageModal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+    
+    // Close button
+    if (imageModalClose) {
+        imageModalClose.addEventListener('click', closeImageModal);
+    }
+    
+    // Close on overlay click
+    if (imageModalOverlay) {
+        imageModalOverlay.addEventListener('click', closeImageModal);
+    }
+    
+    // Close on ESC key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && imageModal.classList.contains('active')) {
+            closeImageModal();
+        }
+    });
+}
+
+// Image modal will be initialized in DOMContentLoaded above
+
 // Make functions globally available
 window.viewEventDetails = viewEventDetails;
 window.closeEventModal = closeEventModal;
+window.openImageModal = function(imageUrl, imageTitle) {
+    const imageModal = document.getElementById('image-modal');
+    const imageModalImg = document.getElementById('image-modal-img');
+    const imageModalTitle = document.getElementById('image-modal-title');
+    
+    if (imageModal && imageModalImg) {
+        imageModalImg.src = imageUrl;
+        imageModalImg.alt = imageTitle || 'Announcement Image';
+        if (imageModalTitle) {
+            imageModalTitle.textContent = imageTitle || '';
+        }
+        imageModal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+};

@@ -73,6 +73,7 @@ def events_list(request):
         
         # Combine upcoming and ongoing for display
         upcoming_ongoing_events = (upcoming_events | ongoing_events).order_by('start_date')
+        has_upcoming_events = upcoming_ongoing_events.exists()
         
         # Get completed events - events that started more than 24 hours ago
         completed_events_qs = Event.objects.filter(
@@ -82,6 +83,7 @@ def events_list(request):
         ).order_by('-start_date')  # Most recent first
         
         # Paginate completed events separately (4 per page)
+        has_completed_events = completed_events_qs.exists()
         completed_page_number = request.GET.get('completed_page', 1)
         completed_paginator = Paginator(completed_events_qs, 4)
         completed_events_page = completed_paginator.get_page(completed_page_number)
@@ -94,20 +96,24 @@ def events_list(request):
         # Get active platform announcements (for this community or all communities)
         from admin_panel.models import PlatformAnnouncement
         now = timezone.now()
-        active_announcements = PlatformAnnouncement.objects.filter(
+        active_announcements_qs = PlatformAnnouncement.objects.filter(
             start_date__lte=now
         ).filter(
             Q(end_date__isnull=True) | Q(end_date__gte=now)
         ).filter(
             Q(community__isnull=True) | Q(community=community)
         ).order_by('-created_at')[:10]  # Limit to top 10
+        active_announcements = list(active_announcements_qs)
+        has_platform_announcements = len(active_announcements) > 0
         
         # Get expired platform announcements (for this community or all communities)
-        expired_announcements = PlatformAnnouncement.objects.filter(
+        expired_announcements_qs = PlatformAnnouncement.objects.filter(
             end_date__lt=now
         ).filter(
             Q(community__isnull=True) | Q(community=community)
         ).order_by('-end_date')  # Most recently expired first
+        expired_announcements = list(expired_announcements_qs)
+        has_expired_platform_announcements = len(expired_announcements) > 0
 
         context = {
             'upcoming_ongoing_events': upcoming_ongoing_events,
@@ -117,6 +123,10 @@ def events_list(request):
             'attendance_map': attendance_map,
             'platform_announcements': active_announcements,
             'expired_announcements': expired_announcements,
+            'has_platform_announcements': has_platform_announcements,
+            'has_expired_platform_announcements': has_expired_platform_announcements,
+            'has_upcoming_events': has_upcoming_events,
+            'has_completed_events': has_completed_events,
         }
         
         return render(request, 'events_panel/events.html', context)
