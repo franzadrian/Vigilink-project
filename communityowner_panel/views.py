@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.db import transaction
 from django.contrib.auth import get_user_model
 from .models import CommunityProfile, CommunityMembership, EmergencyContact
+from accounts.models import City, District
 from django.middleware.csrf import get_token
 from django.http import JsonResponse
 from django.db.models import Q, Count
@@ -15,10 +16,12 @@ from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.core.paginator import Paginator
 from django.utils import timezone
+from django.template.defaultfilters import slugify
 from datetime import datetime, timedelta
 from calendar import monthrange
 import csv
 import io
+import re
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -31,6 +34,12 @@ from reportlab.graphics.charts.piecharts import Pie
 from reportlab.graphics import renderPDF
 import math
 from security_panel.models import SecurityReport, Incident
+
+VALID_EMAIL_DOMAINS = [
+    'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'aol.com',
+    'icloud.com', 'protonmail.com', 'mail.com', 'zoho.com', 'yandex.com',
+    'live.com', 'msn.com', 'me.com', 'gmx.com', 'mail.ru'
+]
 
 
 @login_required
@@ -241,6 +250,14 @@ def community_owner_dashboard(request):
             reports_stats['resident_reports'] = security_reports.filter(target_type='resident').count()
             reports_stats['non_resident_reports'] = security_reports.filter(target_type='outsider').count()
             
+            # Status distribution for instant summary display
+            status_counts = security_reports.values('status').annotate(total=Count('id'))
+            status_map = {item['status']: item['total'] for item in status_counts}
+            reports_stats['pending_reports'] = status_map.get('pending', 0)
+            reports_stats['investigating_reports'] = status_map.get('investigating', 0)
+            reports_stats['false_alarm_reports'] = status_map.get('false_alarm', 0)
+            reports_stats['resolved_reports'] = status_map.get('resolved', 0)
+            
             # Debug logging
             print(f"DEBUG: Community: {profile.community_name}")
             print(f"DEBUG: Total reports: {reports_stats['total_reports']}")
@@ -278,6 +295,11 @@ def community_owner_dashboard(request):
     except Exception:
         pass
 
+    try:
+        cities_data = list(City.objects.all().order_by('name').values('id', 'name'))
+    except Exception:
+        cities_data = []
+
     context = {
         'profile': profile,
         'needs_onboarding': needs_onboarding,
@@ -285,6 +307,8 @@ def community_owner_dashboard(request):
         'members': members_data,
         'ec_count': ec_count,
         'reports_stats': reports_stats,
+        'cities_data': cities_data,
+        'valid_email_domains': VALID_EMAIL_DOMAINS,
     }
     return render(request, 'communityowner/community_owner.html', context)
 
@@ -536,6 +560,118 @@ def member_add(request):
 
 @login_required
 @require_POST
+def create_member_account(request):
+    profile, err = _ensure_owner_and_profile(request)
+    if err:
+        return err
+
+    data = request.POST
+    full_name = (data.get('full_name') or '').strip()
+    username = (data.get('username') or '').strip()
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+    confirm_password = data.get('confirm_password') or ''
+    city_id = data.get('city_id')
+    district_id = data.get('district_id')
+    contact = (data.get('emergency_contact') or '').strip()
+
+    if not all([full_name, username, email, password, confirm_password, city_id, district_id]):
+        return JsonResponse({'ok': False, 'error': 'Please complete all required fields.'}, status=400)
+
+    if len(full_name) < 4 or len(full_name) > 30:
+        return JsonResponse({'ok': False, 'error': 'Full name must be between 4 and 30 characters.'}, status=400)
+
+    if not re.match(r'^[A-Za-z\s]+$', full_name):
+        return JsonResponse({'ok': False, 'error': 'Full name can only contain letters and spaces.'}, status=400)
+
+    if '@' not in email:
+        return JsonResponse({'ok': False, 'error': 'Please provide a valid email address.'}, status=400)
+
+    email_domain = email.split('@')[-1]
+    if email_domain not in VALID_EMAIL_DOMAINS:
+        return JsonResponse({'ok': False, 'error': 'Please use a supported email domain.'}, status=400)
+
+    if contact and not re.match(r'^\d{11}$', contact):
+        return JsonResponse({'ok': False, 'error': 'Emergency contact must be exactly 11 digits.'}, status=400)
+
+    if len(username) < 6 or len(username) > 15:
+        return JsonResponse({'ok': False, 'error': 'Username must be between 6 and 15 characters.'}, status=400)
+
+    if re.search(r'[!@#$%^&*()_+\-=\[\]{};\'":\\|,.<>\/?]+', username):
+        return JsonResponse({'ok': False, 'error': 'Username cannot contain special characters.'}, status=400)
+
+    if len(password) < 8:
+        return JsonResponse({'ok': False, 'error': 'Password must be at least 8 characters.'}, status=400)
+
+    if password != confirm_password:
+        return JsonResponse({'ok': False, 'error': 'Passwords do not match.'}, status=400)
+
+    try:
+        city = City.objects.get(id=city_id)
+        district = District.objects.get(id=district_id)
+    except (City.DoesNotExist, District.DoesNotExist):
+        return JsonResponse({'ok': False, 'error': 'Invalid city or district selection.'}, status=400)
+
+    if district.city_id != city.id:
+        return JsonResponse({'ok': False, 'error': 'Selected district does not belong to the selected city.'}, status=400)
+
+    User = get_user_model()
+
+    if User.objects.filter(email=email).exists():
+        return JsonResponse({'ok': False, 'error': 'This email is already registered.'}, status=409)
+
+    if User.objects.filter(username=username).exists():
+        return JsonResponse({'ok': False, 'error': 'This username is already taken.'}, status=409)
+
+    with transaction.atomic():
+        new_user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            full_name=full_name,
+            city=city,
+            district=district,
+            contact=contact,
+            role='resident',
+            is_verified=True,
+        )
+
+        if profile.community_address:
+            new_user.address = profile.community_address
+            new_user.save(update_fields=['address'])
+
+        CommunityMembership.objects.create(user=new_user, community=profile)
+
+    role_map = dict(getattr(User, 'ROLE_CHOICES', ()))
+
+    avatar = ''
+    try:
+        if hasattr(new_user, 'get_profile_picture_url'):
+            avatar = new_user.get_profile_picture_url() or ''
+        elif getattr(new_user, 'profile_picture_url', ''):
+            avatar = new_user.profile_picture_url
+        elif getattr(new_user, 'profile_picture', None):
+            avatar = new_user.profile_picture.url
+    except Exception:
+        avatar = ''
+
+    return JsonResponse({
+        'ok': True,
+        'member': {
+            'id': new_user.id,
+            'name': (getattr(new_user, 'full_name', '') or new_user.username).strip(),
+            'email': getattr(new_user, 'email', ''),
+            'role': getattr(new_user, 'role', ''),
+            'role_display': role_map.get(getattr(new_user, 'role', ''), getattr(new_user, 'role', '')),
+            'block': getattr(new_user, 'block', ''),
+            'lot': getattr(new_user, 'lot', ''),
+            'avatar': avatar,
+        }
+    })
+
+
+@login_required
+@require_POST
 def member_remove(request):
     profile, err = _ensure_owner_and_profile(request)
     if err:
@@ -587,6 +723,8 @@ def emergency_add(request):
     phone = (request.POST.get('phone') or '').strip()
     if not label or not phone:
         return JsonResponse({'ok': False, 'error': 'Both label and phone are required.'}, status=400)
+    if not phone.isdigit():
+        return JsonResponse({'ok': False, 'error': 'Phone number must contain digits only.'}, status=400)
     try:
         max_order = EmergencyContact.objects.filter(community=profile).order_by('-order').values_list('order', flat=True).first() or 0
     except Exception:
@@ -625,6 +763,8 @@ def emergency_update(request):
     phone = (request.POST.get('phone') or '').strip()
     if not label or not phone:
         return JsonResponse({'ok': False, 'error': 'Both label and phone are required.'}, status=400)
+    if not phone.isdigit():
+        return JsonResponse({'ok': False, 'error': 'Phone number must contain digits only.'}, status=400)
     c = EmergencyContact.objects.filter(community=profile, id=cid).first()
     if not c:
         return JsonResponse({'ok': False, 'error': 'Contact not found.'}, status=404)
@@ -637,7 +777,7 @@ def emergency_update(request):
 @login_required
 @require_GET
 def reports_list(request):
-    """Get paginated list of security reports for community owner"""
+    """Get paginated list or summary of security reports for community owner"""
     profile, err = _ensure_owner_and_profile(request)
     if err:
         return err
@@ -651,6 +791,8 @@ def reports_list(request):
     month_filter = request.GET.get('month', '')
     page = int(request.GET.get('page', 1))
     per_page = int(request.GET.get('per_page', 20))
+    per_page = max(1, min(per_page, 100))  # guard against unbounded queries
+    summary_only = request.GET.get('summary') == '1'
     
     # Base queryset
     reports = SecurityReport.objects.filter(community=profile).order_by('-created_at')
@@ -673,6 +815,27 @@ def reports_list(request):
             Q(reporter_name__icontains=search_query) |
             Q(details__icontains=search_query)
         )
+    
+    if summary_only:
+        total_count = SecurityReport.objects.filter(community=profile).count()
+        summary_counts = reports.aggregate(
+            filtered=Count('id'),
+            pending=Count('id', filter=Q(status='pending')),
+            investigating=Count('id', filter=Q(status='investigating')),
+            false_alarm=Count('id', filter=Q(status='false_alarm')),
+            resolved=Count('id', filter=Q(status='resolved')),
+        )
+        return JsonResponse({
+            'ok': True,
+            'summary': {
+                'total': total_count,
+                'filtered': summary_counts.get('filtered', 0) or 0,
+                'pending': summary_counts.get('pending', 0) or 0,
+                'investigating': summary_counts.get('investigating', 0) or 0,
+                'false_alarm': summary_counts.get('false_alarm', 0) or 0,
+                'resolved': summary_counts.get('resolved', 0) or 0,
+            }
+        })
     
     # Pagination
     paginator = Paginator(reports, per_page)
@@ -711,6 +874,169 @@ def reports_list(request):
             'has_previous': page_obj.has_previous(),
         }
     })
+
+
+@login_required
+@require_GET
+def members_download_pdf(request):
+    """Download community members as a PDF roster with signature area."""
+    profile, err = _ensure_owner_and_profile(request)
+    if err:
+        return err
+
+    members_qs = (
+        CommunityMembership.objects
+        .select_related('user')
+        .filter(community=profile)
+        .order_by(Lower('user__full_name'), 'user__username')
+    )
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=72,
+        bottomMargin=54
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'MembersTitle',
+        parent=styles['Heading1'],
+        alignment=TA_CENTER,
+        fontSize=28,
+        leading=32,
+        spaceAfter=6,
+        textColor=colors.HexColor('#0f172a')
+    )
+    subtitle_style = ParagraphStyle(
+        'MembersSubtitle',
+        parent=styles['Normal'],
+        alignment=TA_CENTER,
+        fontSize=12,
+        textColor=colors.HexColor('#475569'),
+        spaceAfter=24
+    )
+    table_header_style = ParagraphStyle(
+        'TableHeader',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=10,
+        textColor=colors.HexColor('#0f172a'),
+        alignment=TA_CENTER
+    )
+    table_cell_style = ParagraphStyle(
+        'TableCell',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#1e293b'),
+        leading=12
+    )
+    info_style = ParagraphStyle(
+        'Info',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#475569'),
+        leading=14
+    )
+
+    story = []
+    story.append(Paragraph("COMMUNITY MEMBERSHIP ROSTER", title_style))
+    story.append(Paragraph(profile.community_name or "Community", subtitle_style))
+
+    generated = timezone.now().strftime('%B %d, %Y – %I:%M %p')
+    info_data = [
+        [Paragraph("<b>Generated On</b>", info_style), Paragraph(generated, info_style)],
+        [Paragraph("<b>Total Members</b>", info_style), Paragraph(str(members_qs.count()), info_style)],
+        [Paragraph("<b>Address</b>", info_style), Paragraph(profile.community_address or "—", info_style)],
+    ]
+    info_table = Table(info_data, colWidths=[110, 350])
+    info_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.whitesmoke),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5f5')),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#cbd5f5')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(info_table)
+    story.append(Spacer(1, 18))
+
+    table_data = [
+        [
+            Paragraph("#", table_header_style),
+            Paragraph("Full Name", table_header_style),
+            Paragraph("Email", table_header_style),
+            Paragraph("Role", table_header_style),
+            Paragraph("Block", table_header_style),
+            Paragraph("Lot", table_header_style),
+        ]
+    ]
+
+    for idx, membership in enumerate(members_qs, start=1):
+        user = membership.user
+        full_name = (getattr(user, 'full_name', '') or user.username or '').strip()
+        email = getattr(user, 'email', '') or '—'
+        role_display = dict(getattr(user._meta.model, 'ROLE_CHOICES', ())).get(user.role, user.role or '—')
+        block = getattr(user, 'block', '') or '—'
+        lot = getattr(user, 'lot', '') or '—'
+
+        table_data.append([
+            Paragraph(str(idx), table_cell_style),
+            Paragraph(full_name or '—', table_cell_style),
+            Paragraph(email, table_cell_style),
+            Paragraph(role_display.title() if role_display else '—', table_cell_style),
+            Paragraph(block, table_cell_style),
+            Paragraph(lot, table_cell_style),
+        ])
+
+    column_widths = [25, 150, 150, 80, 55, 55]
+    members_table = Table(table_data, colWidths=column_widths, repeatRows=1)
+    members_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#0f172a')),
+        ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        ('ALIGN', (3, 1), (3, -1), 'CENTER'),
+        ('ALIGN', (4, 1), (5, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#d1d5db')),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+
+    story.append(members_table)
+    story.append(Spacer(1, 36))
+
+    story.append(Spacer(1, 40))
+    signature_line = Paragraph(
+        "<para alignment='center'>______________________________</para>",
+        ParagraphStyle('CenteredLine', parent=info_style, alignment=TA_CENTER)
+    )
+    centered_signature = Paragraph(
+        "<para alignment='center'>Authorized Signature</para>",
+        ParagraphStyle('CenteredInfo', parent=info_style, alignment=TA_CENTER)
+    )
+    story.append(signature_line)
+    story.append(centered_signature)
+
+    doc.build(story)
+    pdf = buffer.getvalue()
+    buffer.close()
+
+    filename = f"{slugify(profile.community_name or 'community')}_members_{timezone.now().strftime('%Y%m%d_%H%M')}.pdf"
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response.write(pdf)
+    return response
 
 
 @login_required

@@ -88,6 +88,26 @@
             users = [];
         }
 
+        let cities = [];
+        try {
+            const citiesNode = document.getElementById('co-cities-data');
+            if (citiesNode && citiesNode.textContent) {
+                cities = JSON.parse(citiesNode.textContent);
+            }
+        } catch (e) {
+            cities = [];
+        }
+
+        let validEmailDomains = [];
+        try {
+            const domainsNode = document.getElementById('co-valid-email-domains');
+            if (domainsNode && domainsNode.textContent) {
+                validEmailDomains = JSON.parse(domainsNode.textContent);
+            }
+        } catch (e) {
+            validEmailDomains = [];
+        }
+
         // Reports data (for stats only)
         let reports = [];
         
@@ -288,6 +308,7 @@
         // DOM Elements
         const navCards = document.querySelectorAll('.nav-card');
         const overlay = document.getElementById('co-modal-overlay');
+        let allowOverlayDismiss = true;
         const modalShell = document.getElementById('co-modal-shell');
         const modalContainer = document.querySelector('#co-modal-overlay .co-onboarding-modal');
         const modalTitle = document.getElementById('co-modal-title');
@@ -453,10 +474,29 @@
                     if (typeof openAddUserModal === 'function') openAddUserModal();
                 });
             }
+            const createAccountBtn = document.getElementById('co-create-account-btn');
+            if (createAccountBtn) {
+                createAccountBtn.addEventListener('click', function() {
+                    if (typeof openCreateAccountModal === 'function') {
+                        openCreateAccountModal();
+                    }
+                });
+            }
+            const membersPdfBtn = document.getElementById('co-members-pdf-btn');
+            if (membersPdfBtn) {
+                membersPdfBtn.addEventListener('click', function() {
+                    const { membersDownload } = endpoints();
+                    if (!membersDownload) {
+                        CO_showToast && CO_showToast('Download link unavailable.', 'error');
+                        return;
+                    }
+                    window.open(membersDownload, '_blank');
+                });
+            }
 
             let currentSection = null;
 
-            function openModal(targetId) {
+        function openModal(targetId) {
                 // Don't open events or users in modals - they're shown inline
                 if (targetId === 'events' || targetId === 'users') {
                     return;
@@ -530,6 +570,8 @@
                 }
                 
                 // Show overlay with proper state
+                allowOverlayDismiss = true;
+                allowOverlayDismiss = false;
                 overlay.style.display = 'flex';
                 overlay.style.visibility = 'visible';
                 overlay.style.opacity = '1';
@@ -552,6 +594,7 @@
                 overlay.style.visibility = 'hidden';
                 overlay.style.opacity = '0';
                 overlay.classList.remove('active', 'show');
+                allowOverlayDismiss = true;
                 
                 // Restore section to its original location if it exists
                 if (sectionToRestore) {
@@ -696,7 +739,11 @@
             });
 
             if (modalClose) modalClose.addEventListener('click', closeModal);
-            if (overlay) overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+        if (overlay) overlay.addEventListener('click', (e) => {
+            if (e.target === overlay && allowOverlayDismiss) {
+                closeModal();
+            }
+        });
             document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
             
             // Auto-show code if provided by server
@@ -1042,6 +1089,7 @@
                 update: el.dataset.updateUrl,
                 search: el.dataset.searchUrl,
                 add: el.dataset.addUrl,
+                create: el.dataset.createUrl,
                 ecList: el.dataset.ecListUrl,
                 ecAdd: el.dataset.ecAddUrl,
                 ecDelete: el.dataset.ecDeleteUrl,
@@ -1050,6 +1098,7 @@
                 reportsDetail: el.dataset.reportsDetailUrl,
                 reportsDownloadPdf: el.dataset.reportsDownloadPdfUrl,
                 reportsAnalytics: el.dataset.reportsAnalyticsUrl,
+                membersDownload: el.dataset.membersDownloadUrl,
             } : {};
         }
 
@@ -1235,6 +1284,20 @@
                 const labelInput = document.getElementById('ec-label');
                 const phoneInput = document.getElementById('ec-phone');
 
+                const enforceNumericInput = (input) => {
+                    if (!input) return;
+                    input.setAttribute('inputmode', 'numeric');
+                    input.setAttribute('pattern', '[0-9]*');
+                    input.addEventListener('input', () => {
+                        const cleaned = input.value.replace(/\D/g, '');
+                        if (input.value !== cleaned) {
+                            input.value = cleaned;
+                        }
+                    });
+                };
+
+                enforceNumericInput(phoneInput);
+
                 function render(items){
                     listRoot.innerHTML = '';
                     if (!Array.isArray(items) || !items.length){
@@ -1270,7 +1333,15 @@
                             const phWrap = document.createElement('div');
                             phWrap.style.display = 'flex'; phWrap.style.flexDirection = 'column';
                             const phLbl = document.createElement('label'); phLbl.textContent = 'Phone Number'; phLbl.style.fontSize='0.85rem'; phLbl.style.color='#334155'; phLbl.style.marginBottom='4px';
-                            const ph = document.createElement('input'); ph.type='text'; ph.value = it.phone; ph.style.padding='8px 10px'; ph.style.border='1px solid #e5e7eb'; ph.style.borderRadius='8px'; ph.style.width='100%'; ph.style.minWidth='0';
+                            const ph = document.createElement('input');
+                            ph.type='text';
+                            ph.value = it.phone;
+                            ph.style.padding='8px 10px';
+                            ph.style.border='1px solid #e5e7eb';
+                            ph.style.borderRadius='8px';
+                            ph.style.width='100%';
+                            ph.style.minWidth='0';
+                            enforceNumericInput(ph);
                             phWrap.appendChild(phLbl); phWrap.appendChild(ph);
                             left.appendChild(labWrap); left.appendChild(phWrap);
 
@@ -1281,8 +1352,14 @@
                             btnWrap.appendChild(save); btnWrap.appendChild(cancel);
 
                             save.addEventListener('click', function(){
-                                const label = lab.value.trim(); const phone = ph.value.trim();
+                                const label = lab.value.trim();
+                                let phone = ph.value.trim();
                                 if (!label || !phone){ CO_showToast && CO_showToast('Please enter both title and phone.', 'warning'); return; }
+                                phone = phone.replace(/\D/g, '');
+                                if (!phone){
+                                    CO_showToast && CO_showToast('Phone number must contain digits only.', 'warning');
+                                    return;
+                                }
                                 const { ecUpdate } = endpoints(); if (!ecUpdate) return;
                                 fetch(ecUpdate, {
                                     method:'POST', headers:{ 'X-Requested-With':'XMLHttpRequest','Content-Type':'application/x-www-form-urlencoded','X-CSRFToken': getCsrfToken() },
@@ -1359,8 +1436,13 @@
 
                 addBtn.addEventListener('click', function(){
                     const label = (labelInput.value || '').trim();
-                    const phone = (phoneInput.value || '').trim();
+                    let phone = (phoneInput.value || '').trim();
                     if (!label || !phone){ CO_showToast && CO_showToast('Please enter both title and phone.', 'warning'); return; }
+                    phone = phone.replace(/\D/g, '');
+                    if (!phone){
+                        CO_showToast && CO_showToast('Phone number must contain digits only.', 'warning');
+                        return;
+                    }
                     if (!ecAdd) return;
                     fetch(ecAdd, {
                         method: 'POST',
@@ -2294,13 +2376,6 @@
 
         // Update reports summary based on filters
         function updateReportsSummary() {
-            const yearFilter = document.getElementById('co-report-year-filter');
-            const monthFilter = document.getElementById('co-report-month-filter');
-            const statusFilter = document.getElementById('co-report-status-filter');
-            const priorityFilter = document.getElementById('co-report-priority-filter');
-            const typeFilter = document.getElementById('co-report-type-filter');
-            const searchInput = document.getElementById('co-report-search');
-            
             const totalCountEl = document.getElementById('co-total-reports-count');
             const filteredCountEl = document.getElementById('co-filtered-reports-count');
             const pendingCountEl = document.getElementById('co-pending-count');
@@ -2310,63 +2385,42 @@
             
             if (!totalCountEl || !filteredCountEl) return;
             
-            // Get total reports count
             const { reportsList } = endpoints();
             if (!reportsList) return;
             
-            // Build filter parameters for API call
-            const year = yearFilter ? yearFilter.value : '';
-            const month = monthFilter ? monthFilter.value : '';
-            const status = statusFilter ? statusFilter.value : '';
-            const priority = priorityFilter ? priorityFilter.value : '';
-            const type = typeFilter ? typeFilter.value : '';
-            const search = searchInput ? searchInput.value : '';
-            
-            // Build query string with all filters
             const params = new URLSearchParams();
-            params.append('per_page', '1000');
-            if (year) params.append('year', year);
-            if (month) params.append('month', month);
-            if (status) params.append('status', status);
-            if (priority) params.append('priority', priority);
-            if (type) params.append('target_type', type);
-            if (search) params.append('search', search);
+            params.append('summary', '1');
             
-            fetch(`${reportsList}?${params.toString()}`, { 
+            const yearFilter = document.getElementById('co-report-year-filter');
+            const monthFilter = document.getElementById('co-report-month-filter');
+            const statusFilter = document.getElementById('co-report-status-filter');
+            const priorityFilter = document.getElementById('co-report-priority-filter');
+            const typeFilter = document.getElementById('co-report-type-filter');
+            const searchInput = document.getElementById('co-report-search');
+            
+            if (yearFilter && yearFilter.value) params.append('year', yearFilter.value);
+            if (monthFilter && monthFilter.value) params.append('month', monthFilter.value);
+            if (statusFilter && statusFilter.value) params.append('status', statusFilter.value);
+            if (priorityFilter && priorityFilter.value) params.append('priority', priorityFilter.value);
+            if (typeFilter && typeFilter.value) params.append('target_type', typeFilter.value);
+            if (searchInput && searchInput.value) params.append('search', searchInput.value);
+            
+            fetch(`${reportsList}?${params.toString()}`, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             })
             .then(r => r.json())
             .then(data => {
-                if (data && data.ok && Array.isArray(data.reports)) {
-                    // Get total reports (unfiltered) for comparison
-                    const totalReportsParams = new URLSearchParams();
-                    totalReportsParams.append('per_page', '1000');
-                    return fetch(`${reportsList}?${totalReportsParams.toString()}`, { 
-                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                    })
-                    .then(r2 => r2.json())
-                    .then(totalData => {
-                        if (totalData && totalData.ok && Array.isArray(totalData.reports)) {
-                            // Total reports (unfiltered)
-                            totalCountEl.textContent = totalData.reports.length;
-                        }
-                        
-                        // Filtered reports count
-                        const filteredReports = data.reports;
-                        filteredCountEl.textContent = filteredReports.length;
-                        
-                        // Count statuses from FILTERED reports
-                        const pending = filteredReports.filter(r => r.status === 'pending').length;
-                        const investigating = filteredReports.filter(r => r.status === 'investigating').length;
-                        const falseAlarm = filteredReports.filter(r => r.status === 'false_alarm').length;
-                        const resolved = filteredReports.filter(r => r.status === 'resolved').length;
-                        
-                        if (pendingCountEl) pendingCountEl.textContent = pending;
-                        if (investigatingCountEl) investigatingCountEl.textContent = investigating;
-                        if (falseAlarmCountEl) falseAlarmCountEl.textContent = falseAlarm;
-                        if (resolvedCountEl) resolvedCountEl.textContent = resolved;
-                    });
+                if (data && data.ok && data.summary) {
+                    const summary = data.summary;
+                    totalCountEl.textContent = summary.total ?? '-';
+                    filteredCountEl.textContent = summary.filtered ?? '-';
+                    if (pendingCountEl) pendingCountEl.textContent = summary.pending ?? '-';
+                    if (investigatingCountEl) investigatingCountEl.textContent = summary.investigating ?? '-';
+                    if (falseAlarmCountEl) falseAlarmCountEl.textContent = summary.false_alarm ?? '-';
+                    if (resolvedCountEl) resolvedCountEl.textContent = summary.resolved ?? '-';
+                    return;
                 }
+                throw new Error('Invalid summary response');
             })
             .catch(err => {
                 console.error('Failed to load reports summary:', err);
@@ -2392,6 +2446,7 @@
                 overlay.style.visibility = 'hidden';
                 overlay.style.opacity = '0';
                 overlay.classList.remove('active', 'show');
+                allowOverlayDismiss = true;
             }
             
             // Close the delete confirmation modal
@@ -2926,12 +2981,10 @@
                             <button id=\"co-add-search-btn\" class=\"action-btn edit-btn\"><i class=\"fas fa-search\"></i> Search</button>
                         </div>
                         <div id=\"co-add-search-results\" style=\"max-height:300px;overflow:auto;border:1px solid #f1f5f9;border-radius:8px;\"></div>
-                        <div style=\"display:flex;justify-content:flex-end;margin-top:12px;gap:8px;\">
-                            <button id=\"co-add-cancel\" class=\"action-btn delete-btn\" type=\"button\">Cancel</button>
-                        </div>
                     </div>`;
                 
                 // Properly set overlay state
+                allowOverlayDismiss = true;
                 overlay.style.display = 'flex';
                 overlay.style.visibility = 'visible';
                 overlay.style.opacity = '1';
@@ -2947,7 +3000,6 @@
                 const searchInput = document.getElementById('co-add-search-input');
                 const searchBtn = document.getElementById('co-add-search-btn');
                 const results = document.getElementById('co-add-search-results');
-                const cancelBtn = document.getElementById('co-add-cancel');
 
                 function renderResults(items, query){
                     results.innerHTML = '';
@@ -3059,25 +3111,492 @@
 
                 searchBtn.addEventListener('click', doSearch);
                 searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); doSearch(); } });
-                cancelBtn.addEventListener('click', function(){
-                    // Reuse global closeModal to hide overlay
-                    if (typeof closeModal === 'function') closeModal();
-                    else { overlay.style.display='none'; }
-                });
             }, 50); // Small delay to ensure cleanup is complete
         }
 
         // Expose cleanup function globally
         window.closeAllModals = closeAllModals;
 
+        function openCreateAccountModal(){
+            const { create } = endpoints();
+            if (!create) {
+                CO_showToast && CO_showToast('Create account endpoint not available.', 'error');
+                return;
+            }
 
+            closeAllModals();
 
+            setTimeout(() => {
+                if (modalTitle) modalTitle.textContent = 'Create New Account';
+                const cityOptions = cities.map(city => `<option value="${city.id}">${city.name}</option>`).join('');
 
+                modalShell.innerHTML = `
+                    <div class="co-create-user-modal">
+                        <form id="co-create-user-form" class="co-create-user-form" novalidate>
+                            <div class="co-field">
+                                <label for="co-create-full-name">Full Name</label>
+                                <input type="text" id="co-create-full-name" placeholder="Enter full name" autocomplete="off" />
+                            </div>
+                            <div class="co-field-row">
+                                <div class="co-field">
+                                    <label for="co-create-email">Email</label>
+                                    <input type="email" id="co-create-email" placeholder="name@example.com" autocomplete="off" />
+                                </div>
+                                <div class="co-field">
+                                    <label for="co-create-username">Username</label>
+                                    <input type="text" id="co-create-username" placeholder="6-15 characters" autocomplete="off" />
+                                </div>
+                            </div>
+                            <div class="co-field-row">
+                                <div class="co-field">
+                                    <label for="co-create-password">Password</label>
+                                    <input type="password" id="co-create-password" placeholder="Minimum 8 characters" />
+                                </div>
+                                <div class="co-field">
+                                    <label for="co-create-confirm-password">Confirm Password</label>
+                                    <input type="password" id="co-create-confirm-password" placeholder="Re-enter password" />
+                                </div>
+                            </div>
+                            <div class="co-field-row">
+                                <div class="co-field">
+                                    <label for="co-create-city">City</label>
+                                    <select id="co-create-city">
+                                        <option value="">Select City</option>
+                                        ${cityOptions}
+                                    </select>
+                                </div>
+                                <div class="co-field">
+                                    <label for="co-create-district">District</label>
+                                    <select id="co-create-district" disabled>
+                                        <option value="">Select District</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="co-field">
+                                <label for="co-create-emergency">Emergency Contact (Optional)</label>
+                                <input type="text" id="co-create-emergency" placeholder="11-digit phone number" inputmode="numeric" maxlength="11" />
+                            </div>
+                            <div class="action-row">
+                                <button type="submit" id="co-create-account-submit" class="action-btn edit-btn" disabled style="display:inline-flex;align-items:center;gap:8px;padding:0 20px;width:180px;justify-content:center;">
+                                    <i class="fas fa-save"></i><span>Create Account</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                `;
 
+                overlay.style.display = 'flex';
+                overlay.style.visibility = 'visible';
+                overlay.style.opacity = '1';
+                overlay.classList.add('active');
 
+                try {
+                    lockBodyScroll();
+                } catch (e) {
+                    console.error('Error locking body scroll in create user modal:', e);
+                }
 
+                const form = document.getElementById('co-create-user-form');
+                const fullNameInput = document.getElementById('co-create-full-name');
+                const emailInput = document.getElementById('co-create-email');
+                const usernameInput = document.getElementById('co-create-username');
+                const passwordInput = document.getElementById('co-create-password');
+                const confirmPasswordInput = document.getElementById('co-create-confirm-password');
+                const citySelect = document.getElementById('co-create-city');
+                const districtSelect = document.getElementById('co-create-district');
+                const emergencyInput = document.getElementById('co-create-emergency');
+                const submitBtn = document.getElementById('co-create-account-submit');
 
+                const state = {
+                    fullName: false,
+                    email: false,
+                    username: false,
+                    password: false,
+                    confirmPassword: false,
+                    city: false,
+                    district: false,
+                    emergency: true,
+                };
 
+                const emailCheck = { timer: null, controller: null };
+                const usernameCheck = { timer: null, controller: null };
+                let lastEmailChecked = '';
+                let lastEmailAvailable = false;
+                let lastUsernameChecked = '';
+                let lastUsernameAvailable = false;
+
+                function setFieldState(input, message = '', type = '') {
+                    if (!input) return;
+                    const wrapper = input.closest('.co-field') || input.parentNode;
+                    if (!wrapper) return;
+                    let msgEl = wrapper.querySelector('.co-field-message');
+                    if (!msgEl) {
+                        msgEl = document.createElement('div');
+                        msgEl.className = 'co-field-message';
+                        wrapper.appendChild(msgEl);
+                    }
+                    if (!message) {
+                        msgEl.textContent = '';
+                        msgEl.classList.remove('error', 'success');
+                        input.classList.remove('co-input-error', 'co-input-success');
+                        return;
+                    }
+                    msgEl.textContent = message;
+                    msgEl.classList.remove('error', 'success');
+                    if (type === 'error') {
+                        msgEl.classList.add('error');
+                        input.classList.add('co-input-error');
+                        input.classList.remove('co-input-success');
+                    } else if (type === 'success') {
+                        msgEl.classList.add('success');
+                        input.classList.add('co-input-success');
+                        input.classList.remove('co-input-error');
+                    } else {
+                        input.classList.remove('co-input-error', 'co-input-success');
+                    }
+                }
+
+                function updateSubmitState() {
+                    const ready = Object.values(state).every(Boolean);
+                    submitBtn.disabled = !ready;
+                }
+
+                function validateFullName() {
+                    const value = (fullNameInput.value || '').trim();
+                    if (!value) {
+                        setFieldState(fullNameInput, '', '');
+                        state.fullName = false;
+                    } else if (!/^[A-Za-z\s]+$/.test(value)) {
+                        setFieldState(fullNameInput, 'Full name can only contain letters and spaces.', 'error');
+                        state.fullName = false;
+                    } else if (value.length < 4 || value.length > 30) {
+                        setFieldState(fullNameInput, 'Full name must be between 4 and 30 characters.', 'error');
+                        state.fullName = false;
+                    } else {
+                        setFieldState(fullNameInput, 'Looks good.', 'success');
+                        state.fullName = true;
+                    }
+                    updateSubmitState();
+                }
+
+                function validateEmailFormat(value) {
+                    if (!value.includes('@')) {
+                        return 'Email must include @ symbol.';
+                    }
+                    const domain = value.split('@').pop();
+                    if (!validEmailDomains.includes(domain)) {
+                        return 'Please use a supported email domain.';
+                    }
+                    return '';
+                }
+
+                function validateEmail(options = {}) {
+                    const skipAvailability = !!options.skipAvailabilityCheck;
+                    const value = (emailInput.value || '').trim().toLowerCase();
+                    if (!value) {
+                        setFieldState(emailInput, '', '');
+                        state.email = false;
+                        updateSubmitState();
+                        return false;
+                    }
+                    const formatError = validateEmailFormat(value);
+                    if (formatError) {
+                        setFieldState(emailInput, formatError, 'error');
+                        state.email = false;
+                        updateSubmitState();
+                        return false;
+                    }
+
+                    if (value === lastEmailChecked && lastEmailAvailable) {
+                        setFieldState(emailInput, 'Email is available.', 'success');
+                        state.email = true;
+                        updateSubmitState();
+                        return true;
+                    }
+
+                    if (skipAvailability) {
+                        // Trigger async validation if this exact value hasn't been confirmed yet
+                        validateEmail();
+                        return false;
+                    }
+
+                    setFieldState(emailInput, 'Checking availability…', '');
+                    state.email = false;
+                    updateSubmitState();
+                    clearTimeout(emailCheck.timer);
+                    if (emailCheck.controller) {
+                        emailCheck.controller.abort();
+                    }
+                    emailCheck.timer = setTimeout(() => {
+                        emailCheck.controller = new AbortController();
+                        fetch(`/check-email/?email=${encodeURIComponent(value)}`, {
+                            signal: emailCheck.controller.signal,
+                        })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.available) {
+                                    lastEmailChecked = value;
+                                    lastEmailAvailable = true;
+                                    setFieldState(emailInput, 'Email is available.', 'success');
+                                    state.email = true;
+                                } else {
+                                    lastEmailChecked = value;
+                                    lastEmailAvailable = false;
+                                    setFieldState(emailInput, data.message || 'Email is already registered.', 'error');
+                                    state.email = false;
+                                }
+                                updateSubmitState();
+                            })
+                            .catch(() => {
+                                setFieldState(emailInput, 'Unable to verify email at the moment.', 'error');
+                                state.email = false;
+                                updateSubmitState();
+                            });
+                    }, 500);
+                    return false;
+                }
+
+                function validateUsernameFormat(value) {
+                    if (value.length < 6 || value.length > 15) {
+                        return 'Username must be between 6 and 15 characters.';
+                    }
+                    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(value)) {
+                        return 'Username cannot contain special characters.';
+                    }
+                    return '';
+                }
+
+                function validateUsername(options = {}) {
+                    const skipAvailability = !!options.skipAvailabilityCheck;
+                    const value = (usernameInput.value || '').trim();
+                    if (!value) {
+                        setFieldState(usernameInput, '', '');
+                        state.username = false;
+                        updateSubmitState();
+                        return false;
+                    }
+                    const formatError = validateUsernameFormat(value);
+                    if (formatError) {
+                        setFieldState(usernameInput, formatError, 'error');
+                        state.username = false;
+                        updateSubmitState();
+                        return false;
+                    }
+
+                    if (value === lastUsernameChecked && lastUsernameAvailable) {
+                        setFieldState(usernameInput, 'Username is available.', 'success');
+                        state.username = true;
+                        updateSubmitState();
+                        return true;
+                    }
+
+                    if (skipAvailability) {
+                        validateUsername();
+                        return false;
+                    }
+
+                    setFieldState(usernameInput, 'Checking availability…', '');
+                    state.username = false;
+                    updateSubmitState();
+                    clearTimeout(usernameCheck.timer);
+                    if (usernameCheck.controller) {
+                        usernameCheck.controller.abort();
+                    }
+                    usernameCheck.timer = setTimeout(() => {
+                        usernameCheck.controller = new AbortController();
+                        fetch(`/check-username/?username=${encodeURIComponent(value)}`, {
+                            signal: usernameCheck.controller.signal,
+                        })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.available) {
+                                    lastUsernameChecked = value;
+                                    lastUsernameAvailable = true;
+                                    setFieldState(usernameInput, 'Username is available.', 'success');
+                                    state.username = true;
+                                } else {
+                                    lastUsernameChecked = value;
+                                    lastUsernameAvailable = false;
+                                    setFieldState(usernameInput, data.message || 'Username is taken.', 'error');
+                                    state.username = false;
+                                }
+                                updateSubmitState();
+                            })
+                            .catch(() => {
+                                setFieldState(usernameInput, 'Unable to verify username at the moment.', 'error');
+                                state.username = false;
+                                updateSubmitState();
+                            });
+                    }, 500);
+                    return false;
+                }
+
+                function validatePassword() {
+                    const value = passwordInput.value || '';
+                    if (!value) {
+                        setFieldState(passwordInput, '', '');
+                        state.password = false;
+                    } else if (value.length < 8) {
+                        setFieldState(passwordInput, 'Password must be at least 8 characters.', 'error');
+                        state.password = false;
+                    } else {
+                        setFieldState(passwordInput, 'Password length looks good.', 'success');
+                        state.password = true;
+                    }
+                    validateConfirmPassword();
+                    updateSubmitState();
+                }
+
+                function validateConfirmPassword() {
+                    const value = confirmPasswordInput.value || '';
+                    if (!value) {
+                        setFieldState(confirmPasswordInput, '', '');
+                        state.confirmPassword = false;
+                    } else if (value !== passwordInput.value) {
+                        setFieldState(confirmPasswordInput, 'Passwords do not match.', 'error');
+                        state.confirmPassword = false;
+                    } else {
+                        setFieldState(confirmPasswordInput, 'Passwords match.', 'success');
+                        state.confirmPassword = true;
+                    }
+                    updateSubmitState();
+                }
+
+                function fetchDistrictsForCity(cityId) {
+                    districtSelect.innerHTML = '<option value="">Select District</option>';
+                    districtSelect.disabled = true;
+                    if (!cityId) {
+                        state.city = false;
+                        state.district = false;
+                        updateSubmitState();
+                        return;
+                    }
+                    state.city = true;
+                    setFieldState(citySelect, 'City selected.', 'success');
+                    updateSubmitState();
+                    fetch(`/get_districts/${cityId}/`)
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data && Array.isArray(data.districts)) {
+                                data.districts.forEach(d => {
+                                    const opt = document.createElement('option');
+                                    opt.value = d.id;
+                                    opt.textContent = d.name;
+                                    districtSelect.appendChild(opt);
+                                });
+                                districtSelect.disabled = false;
+                            }
+                        })
+                        .catch(() => {
+                            CO_showToast && CO_showToast('Unable to load districts.', 'error');
+                        });
+                }
+
+                function validateDistrict() {
+                    if (!districtSelect.value) {
+                        setFieldState(districtSelect, 'Please select a district.', 'error');
+                        state.district = false;
+                    } else {
+                        setFieldState(districtSelect, 'District selected.', 'success');
+                        state.district = true;
+                    }
+                    updateSubmitState();
+                }
+
+                function validateEmergencyContact() {
+                    const value = (emergencyInput.value || '').trim();
+                    if (!value) {
+                        setFieldState(emergencyInput, '', '');
+                        state.emergency = true;
+                    } else if (!/^\d+$/.test(value)) {
+                        setFieldState(emergencyInput, 'Numbers only.', 'error');
+                        state.emergency = false;
+                    } else if (value.length !== 11) {
+                        setFieldState(emergencyInput, 'Emergency contact must be exactly 11 digits.', 'error');
+                        state.emergency = false;
+                    } else {
+                        setFieldState(emergencyInput, 'Looks good.', 'success');
+                        state.emergency = true;
+                    }
+                    updateSubmitState();
+                }
+
+                fullNameInput.addEventListener('input', validateFullName);
+                emailInput.addEventListener('input', validateEmail);
+                usernameInput.addEventListener('input', validateUsername);
+                passwordInput.addEventListener('input', validatePassword);
+                confirmPasswordInput.addEventListener('input', validateConfirmPassword);
+                citySelect.addEventListener('change', function() {
+                    fetchDistrictsForCity(this.value);
+                });
+                districtSelect.addEventListener('change', validateDistrict);
+                emergencyInput.addEventListener('input', validateEmergencyContact);
+
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    validateFullName();
+                    const emailOk = validateEmail({ skipAvailabilityCheck: true });
+                    const usernameOk = validateUsername({ skipAvailabilityCheck: true });
+                    validatePassword();
+                    validateConfirmPassword();
+                    validateDistrict();
+                    validateEmergencyContact();
+                    if (!Object.values(state).every(Boolean) || !emailOk || !usernameOk) {
+                        CO_showToast && CO_showToast('Please fix the highlighted fields.', 'error');
+                        return;
+                    }
+
+                    submitBtn.disabled = true;
+                    const originalText = submitBtn.innerHTML;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+
+                    const params = new URLSearchParams();
+                    params.append('full_name', fullNameInput.value.trim());
+                    params.append('email', emailInput.value.trim());
+                    params.append('username', usernameInput.value.trim());
+                    params.append('password', passwordInput.value);
+                    params.append('confirm_password', confirmPasswordInput.value);
+                    params.append('city_id', citySelect.value);
+                    params.append('district_id', districtSelect.value);
+                    params.append('emergency_contact', emergencyInput.value.trim());
+
+                    fetch(create, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': getCsrfToken(),
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: params.toString(),
+                    })
+                        .then(async (response) => {
+                            const data = await response.json().catch(() => ({}));
+                            if (!response.ok || !data.ok) {
+                                throw new Error((data && data.error) || 'Unable to create account.');
+                            }
+                            return data;
+                        })
+                        .then(data => {
+                            if (data.member) {
+                                users.push(data.member);
+                                renderUsersTable();
+                                coPaginateRows();
+                                updateStats();
+                            }
+                            CO_showToast && CO_showToast('Account created and added to your community.', 'success');
+                            closeAllModals();
+                        })
+                        .catch(err => {
+                            CO_showToast && CO_showToast(err.message || 'Unable to create account.', 'error');
+                        })
+                        .finally(() => {
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = originalText;
+                        });
+                });
+
+                updateSubmitState();
+            }, 50);
+        }
 
 
 

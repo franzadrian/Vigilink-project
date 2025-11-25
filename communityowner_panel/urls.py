@@ -9,7 +9,9 @@ urlpatterns = [
     path('members/', views.members_list, name='members_list'),
     path('members/update/', views.member_update, name='member_update'),
     path('members/add/', views.member_add, name='member_add'),
+    path('members/create-account/', views.create_member_account, name='create_member_account'),
     path('members/remove/', views.member_remove, name='member_remove'),
+    path('members/download/pdf/', views.members_download_pdf, name='members_download_pdf'),
     path('users/search/', views.user_search, name='user_search'),
     # Emergency contacts API endpoints for modal management
     path('emergency/list/', views.emergency_list, name='emergency_list'),
