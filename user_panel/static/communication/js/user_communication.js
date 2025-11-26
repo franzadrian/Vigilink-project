@@ -1,5 +1,7 @@
 // Global state
 let selectedUser = null;
+let selectedGroupId = null; // Track if we're in a group chat
+let isGroupChat = false; // Flag to indicate if current chat is a group
 let messages = [];
 let pollTimer = null;
 let isMobile = window.innerWidth < 768;
@@ -506,6 +508,78 @@ function updateLastMessage(userId, messageText, isOwn = false, updateTime = true
     }
 }
 
+// Toast notification function
+function showToast(message, type = 'success') {
+    try {
+        // Remove any existing toasts
+        const existingToasts = document.querySelectorAll('.toast-notification');
+        existingToasts.forEach(toast => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        });
+        
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `toast-notification ${type}`;
+        toast.textContent = message;
+        
+        // Set inline styles to ensure visibility
+        toast.style.cssText = `
+            position: fixed !important;
+            top: 20px !important;
+            right: 20px !important;
+            background-color: ${type === 'error' ? '#f44336' : '#4CAF50'} !important;
+            color: white !important;
+            padding: 14px 24px !important;
+            border-radius: 8px !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+            z-index: 99999 !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            min-width: 250px !important;
+            max-width: 400px !important;
+            word-wrap: break-word !important;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 0;
+            transform: translateX(400px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        `;
+        
+        // Append to body
+        if (document.body) {
+            document.body.appendChild(toast);
+            
+            // Force reflow
+            void toast.offsetHeight;
+            
+            // Trigger animation
+            setTimeout(() => {
+                toast.style.opacity = '1';
+                toast.style.transform = 'translateX(0)';
+            }, 10);
+            
+            // Remove after 3.5 seconds
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(400px)';
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300);
+            }, 3500);
+        } else {
+            console.error('Document body not available for toast');
+        }
+    } catch (error) {
+        console.error('Error showing toast:', error);
+        // Fallback to alert if toast fails
+        alert(message);
+    }
+}
+
 function updateCharCount() {
     const counter = document.getElementById('char-count');
     if (!counter || !messageInput) return;
@@ -521,13 +595,26 @@ function updateCharCount() {
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     // Load hidden conversation IDs and remove any matching server-rendered entries
+    // Do this immediately to prevent flash of unwanted items
     loadHiddenChatIds();
-    document.querySelectorAll('#search-results .user-item').forEach((it) => {
-        const id = it.getAttribute('data-user-id');
-        if (id && hiddenChatUserIds.has(String(id))) {
-            it.remove();
-        }
-    });
+    
+    // Remove hidden users immediately
+    const container = document.getElementById('search-results');
+    if (container) {
+        container.querySelectorAll('.user-item').forEach((it) => {
+            const id = it.getAttribute('data-user-id');
+            if (id && hiddenChatUserIds.has(String(id))) {
+                it.remove();
+            }
+        });
+        // Also remove hidden group chats
+        container.querySelectorAll('.group-chat-item').forEach((it) => {
+            const groupId = it.getAttribute('data-group-id');
+            if (groupId && hiddenChatUserIds.has(`group_${groupId}`)) {
+                it.remove();
+            }
+        });
+    }
     // Normalize initial user names to avoid generic 'User' labels
     try {
         const items = document.querySelectorAll('#search-results .user-item');
@@ -721,10 +808,14 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput.addEventListener('input', handleSearch);
     }
     if (messageForm) {
-        messageForm.addEventListener('submit', (e) => {
+        messageForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (composeLocked) return;
-            sendMessage();
+            if (isGroupChat && selectedGroupId) {
+                await sendGroupMessage();
+            } else {
+                sendMessage();
+            }
         });
     }
 
@@ -756,7 +847,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!imageFileInput || !imageFileInput.files || !imageFileInput.files.length) return;
             const files = Array.from(imageFileInput.files);
             imageFileInput.value = '';
-            if (files.length === 1) {
+            if (isGroupChat && selectedGroupId) {
+                sendGroupImagesMessage(files);
+            } else if (files.length === 1) {
                 sendImageMessage(files[0]);
             } else {
                 sendImagesMessage(files);
@@ -871,9 +964,24 @@ document.addEventListener('DOMContentLoaded', () => {
     userItems.forEach(item => {
         item.addEventListener('click', (e) => {
             if (e && e.target && e.target.closest && e.target.closest('.remove-user-btn')) return;
-            const userId = parseInt(item.dataset.userId);
-            selectUser(userId);
+            // Check if it's a group chat
+            if (item.classList.contains('group-chat-item')) {
+                const groupId = parseInt(item.dataset.groupId);
+                selectGroupChat(groupId);
+            } else {
+                const userId = parseInt(item.dataset.userId);
+                selectUser(userId);
+            }
         });
+    });
+    
+    // Handle dynamically added group chat items
+    document.addEventListener('click', (e) => {
+        const groupItem = e.target.closest('.group-chat-item');
+        if (groupItem && !e.target.closest('.remove-user-btn')) {
+            const groupId = parseInt(groupItem.dataset.groupId);
+            selectGroupChat(groupId);
+        }
     });
     // Handle window resize
     window.addEventListener('resize', () => {
@@ -1294,6 +1402,90 @@ function createListUserItem(user) {
 
     return el;
 }
+
+// Create a group chat item for the user list
+function createGroupChatItem(group) {
+    const el = document.createElement('div');
+    el.className = 'user-item group-chat-item';
+    if (group.unread_count && group.unread_count > 0) {
+        el.classList.add('unread');
+    }
+    el.dataset.groupId = String(group.group_id);
+    el.dataset.isGroup = 'true';
+    if (group.created_by) {
+        el.dataset.createdBy = String(group.created_by);
+    }
+    if (group.last_message_time) {
+        el.dataset.lastMessageTime = group.last_message_time;
+    }
+    
+    // Avatar
+    const avatar = document.createElement('div');
+    avatar.className = 'user-avatar';
+    const groupIcon = document.createElement('span');
+    groupIcon.className = 'avatar-text group-icon';
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-users';
+    groupIcon.appendChild(icon);
+    avatar.appendChild(groupIcon);
+    
+    // Info
+    const info = document.createElement('div');
+    info.className = 'user-info';
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'user-name';
+    const groupName = document.createTextNode(group.name || 'Group');
+    const groupBadge = document.createElement('span');
+    groupBadge.className = 'group-badge';
+    groupBadge.textContent = 'Group';
+    nameDiv.appendChild(groupName);
+    nameDiv.appendChild(document.createTextNode(' '));
+    nameDiv.appendChild(groupBadge);
+    
+    const lastMsg = document.createElement('div');
+    lastMsg.className = 'last-message';
+    if (group.last_message) {
+        const lower = group.last_message.toLowerCase();
+        if (lower === 'you deleted a message' || lower === 'message deleted') {
+            lastMsg.textContent = group.last_message;
+        } else if (group.last_message_is_own) {
+            lastMsg.textContent = `You: ${group.last_message.length > 30 ? group.last_message.substring(0, 29) + '…' : group.last_message}`;
+        } else {
+            const senderName = (group.last_message_sender_name || '').toString().trim();
+            const prefix = senderName ? `${senderName}: ` : '';
+            const truncated = group.last_message.length > 30 ? group.last_message.substring(0, 29) + '…' : group.last_message;
+            lastMsg.textContent = prefix + truncated;
+        }
+    } else {
+        lastMsg.textContent = 'No messages yet';
+    }
+    info.appendChild(nameDiv);
+    info.appendChild(lastMsg);
+    
+    // Time
+    const time = document.createElement('div');
+    time.className = 'message-time';
+    if (group.last_message_time) {
+        time.dataset.timestamp = group.last_message_time;
+        time.textContent = formatRelativeTime(group.last_message_time);
+    }
+    
+    el.appendChild(avatar);
+    el.appendChild(info);
+    el.appendChild(time);
+    
+    // Click to select group
+    el.addEventListener('click', (e) => {
+        if (e && e.target && e.target.closest && e.target.closest('.remove-user-btn')) return;
+        const groupId = el.dataset.groupId ? parseInt(el.dataset.groupId) : null;
+        if (groupId) {
+            selectGroupChat(groupId);
+        }
+    });
+    
+    return el;
+}
+
 // Handle search
 function handleSearch() {
     const searchTerm = searchInput.value.toLowerCase();
@@ -1351,6 +1543,10 @@ function handleSearch() {
 
 // Select a user and open chat
 function selectUser(userId) {
+    // Clear group chat state when selecting a user
+    selectedGroupId = null;
+    isGroupChat = false;
+    
     // Capture the clicked element before clearing search overlays
     let selectedUserItem = document.querySelector(`.user-item[data-user-id="${userId}"]`);
     let fromSearch = false;
@@ -1407,6 +1603,9 @@ function selectUser(userId) {
 
 function continueSelectUser(userId, selectedUserItem, fromSearch) {
     selectedUser = userId;
+    // Ensure group chat state is cleared
+    selectedGroupId = null;
+    isGroupChat = false;
     // Preserve any pre-set meta (e.g., is_admin from contact panel) while resetting basics
     const prevMeta = selectedUserMeta || {};
     selectedUserMeta = {
@@ -1498,6 +1697,8 @@ function continueSelectUser(userId, selectedUserItem, fromSearch) {
                             userAvatarHeader.style.display = 'block';
                         }
                     }
+                    // Remove any badges from header
+                    removeBadgesFromHeader();
                 }
             })
             .catch(error => {
@@ -1592,7 +1793,9 @@ function continueSelectUser(userId, selectedUserItem, fromSearch) {
 // Deselect user and go back to list
 function deselectUser() {
     selectedUser = null;
-    document.querySelectorAll('.user-item').forEach(item => item.classList.remove('active'));
+    selectedGroupId = null;
+    isGroupChat = false;
+    document.querySelectorAll('.user-item').forEach(item => item.classList.remove('active', 'selected'));
     if (welcomeScreen) welcomeScreen.classList.remove('hidden');
     if (chatMessages) chatMessages.classList.add('hidden');
     stopPollingMessages();
@@ -1652,31 +1855,87 @@ function applyRecentChats(chats) {
         return str.length > n ? (str.slice(0, n - 1) + '…') : str;
     };
 
-    let totalUnread = 0;
+    // Track which IDs are in the API response (excluding hidden ones)
+    const validUserIds = new Set();
+    const validGroupIds = new Set();
+    
+    // First pass: collect valid IDs from the API response
     chats.forEach(chat => {
-        const id = chat.id || chat.user_id;
-        const unread = parseInt(chat.unread_count || 0, 10) || 0;
-        totalUnread += unread;
-        if (id && hiddenChatUserIds.has(String(id))) {
-            return; // keep hidden until user sends a new message (we unhide on send)
-        }
-        let el = container.querySelector(`.user-item[data-user-id="${id}"]`);
-        if (!el) {
-            // Create a new persistent list item for this chat
-            el = createListUserItem(chat);
-            if (chat && chat.last_message_time) {
-                el.dataset.lastMessageTime = chat.last_message_time;
+        const isGroup = chat.is_group || chat.group_id;
+        const id = isGroup ? chat.group_id : (chat.id || chat.user_id);
+        if (isGroup) {
+            if (id && !hiddenChatUserIds.has(`group_${id}`)) {
+                validGroupIds.add(String(id));
+            }
+        } else {
+            if (id && !hiddenChatUserIds.has(String(id))) {
+                validUserIds.add(String(id));
             }
         }
+    });
+    
+    // Remove user items that are not in the API response and are not search results
+    // Only remove if they're not hidden (hidden items are managed separately)
+    const existingUserItems = container.querySelectorAll('.user-item:not(.search-result-item)');
+    existingUserItems.forEach(item => {
+        const userId = item.getAttribute('data-user-id');
+        if (userId) {
+            // Remove if not in API response and not hidden
+            // Hidden items should stay hidden, so we don't remove them here
+            if (!validUserIds.has(userId) && !hiddenChatUserIds.has(userId)) {
+                item.remove();
+            }
+        }
+    });
+    
+    // Remove group items that are not in the API response
+    // Only remove if they're not hidden (hidden items are managed separately)
+    const existingGroupItems = container.querySelectorAll('.group-chat-item');
+    existingGroupItems.forEach(item => {
+        const groupId = item.getAttribute('data-group-id');
+        if (groupId) {
+            // Remove if not in API response and not hidden
+            // Hidden items should stay hidden, so we don't remove them here
+            if (!validGroupIds.has(groupId) && !hiddenChatUserIds.has(`group_${groupId}`)) {
+                item.remove();
+            }
+        }
+    });
 
-        el.classList.toggle('unread', unread > 0);
-
-        const lastEl = el.querySelector('.last-message');
-        if (lastEl) {
-            if (unread >= 2) {
-                const label = unread > 9 ? '9+ new message' : `${unread} new message`;
-                lastEl.textContent = label;
-            } else {
+    let totalUnread = 0;
+    chats.forEach(chat => {
+        const isGroup = chat.is_group || chat.group_id;
+        const id = isGroup ? chat.group_id : (chat.id || chat.user_id);
+        const unread = parseInt(chat.unread_count || 0, 10) || 0;
+        totalUnread += unread;
+        
+        if (isGroup) {
+            // Handle group chats
+            if (id && hiddenChatUserIds.has(`group_${id}`)) {
+                return; // keep hidden
+            }
+            let el = container.querySelector(`.group-chat-item[data-group-id="${id}"]`);
+            if (!el) {
+                // Create group chat item if it doesn't exist (e.g., when user is added to a new group)
+                el = createGroupChatItem(chat);
+                if (chat && chat.last_message_time) {
+                    el.dataset.lastMessageTime = chat.last_message_time;
+                }
+            }
+            
+            // Update unread badge (this will also remove any badges from the group icon)
+            updateGroupChatUnreadBadge(id, unread);
+            
+            // Also explicitly remove badges from the group icon
+            const groupIcon = el.querySelector('.group-icon');
+            if (groupIcon) {
+                const iconBadges = groupIcon.querySelectorAll('.unread-badge');
+                iconBadges.forEach(badge => badge.remove());
+            }
+            
+            // Update last message preview
+            const lastEl = el.querySelector('.last-message');
+            if (lastEl) {
                 const isOwn = !!chat.last_message_is_own;
                 const raw = (chat.last_message || '').toString();
                 const lower = raw.toLowerCase();
@@ -1685,25 +1944,98 @@ function applyRecentChats(chats) {
                 if (isOwn && !isSystemDeleted) {
                     prefix = 'You: ';
                 } else if (!isOwn && !isSystemDeleted) {
-                    const name = pickToken(chat.first_name) || pickToken(chat.last_name) || pickToken(chat.full_name) || pickToken(chat.username) || '';
-                    prefix = name ? `${name}: ` : '';
+                    // For group chats, show sender name in preview
+                    const senderName = (chat.last_message_sender_name || '').toString().trim();
+                    if (senderName) {
+                        prefix = `${senderName}: `;
+                    }
                 }
                 lastEl.textContent = `${prefix}${truncate(raw)}`;
             }
+            
+            // Update time
+            const timeEl = el.querySelector('.message-time');
+            if (timeEl && chat.last_message_time) {
+                timeEl.dataset.timestamp = chat.last_message_time;
+                timeEl.textContent = formatRelativeTime(chat.last_message_time);
+                el.dataset.lastMessageTime = chat.last_message_time;
+            }
+            
+            // If this is a newly created group chat item, add it to the container
+            // Reorder by recency: append in server-provided order (chats are already sorted by last message time)
+            if (!el.parentNode) {
+                container.appendChild(el);
+            }
+        } else {
+            // Handle regular user chats
+            if (id && hiddenChatUserIds.has(String(id))) {
+                return; // keep hidden until user sends a new message (we unhide on send)
+            }
+            let el = container.querySelector(`.user-item[data-user-id="${id}"]`);
+            if (!el) {
+                // Create a new persistent list item for this chat
+                el = createListUserItem(chat);
+                if (chat && chat.last_message_time) {
+                    el.dataset.lastMessageTime = chat.last_message_time;
+                }
+            }
+
+            el.classList.toggle('unread', unread > 0);
+            
+            // Update unread badge for regular user chats
+            const avatar = el.querySelector('.user-avatar');
+            let badge = avatar ? avatar.querySelector('.unread-badge') : null;
+            
+            if (unread > 0) {
+                if (!badge && avatar) {
+                    badge = document.createElement('span');
+                    badge.className = 'unread-badge';
+                    badge.textContent = unread > 9 ? '9+' : unread.toString();
+                    avatar.appendChild(badge);
+                } else if (badge) {
+                    badge.textContent = unread > 9 ? '9+' : unread.toString();
+                }
+            } else {
+                if (badge) badge.remove();
+            }
+
+            const lastEl = el.querySelector('.last-message');
+            if (lastEl) {
+                if (unread >= 2) {
+                    const label = unread > 9 ? '9+ new message' : `${unread} new message`;
+                    lastEl.textContent = label;
+                } else {
+                    const isOwn = !!chat.last_message_is_own;
+                    const raw = (chat.last_message || '').toString();
+                    const lower = raw.toLowerCase();
+                    const isSystemDeleted = lower.startsWith('you deleted a message') || lower.startsWith('message deleted');
+                    let prefix = '';
+                    if (isOwn && !isSystemDeleted) {
+                        prefix = 'You: ';
+                    } else if (!isOwn && !isSystemDeleted) {
+                        const name = pickToken(chat.first_name) || pickToken(chat.last_name) || pickToken(chat.full_name) || pickToken(chat.username) || '';
+                        prefix = name ? `${name}: ` : '';
+                    }
+                    lastEl.textContent = `${prefix}${truncate(raw)}`;
+                }
+            }
+            // Update time with friendly label and persist timestamp
+            const timeEl = el.querySelector('.message-time');
+            if (timeEl && chat.last_message_time) {
+                timeEl.dataset.timestamp = chat.last_message_time;
+                timeEl.textContent = formatRelativeTime(chat.last_message_time);
+                el.dataset.lastMessageTime = chat.last_message_time;
+            }
+            // Reorder by recency: append in server-provided order
+            container.appendChild(el);
         }
-        // Update time with friendly label and persist timestamp
-        const timeEl = el.querySelector('.message-time');
-        if (timeEl && chat.last_message_time) {
-            timeEl.dataset.timestamp = chat.last_message_time;
-            timeEl.textContent = formatRelativeTime(chat.last_message_time);
-            el.dataset.lastMessageTime = chat.last_message_time;
-        }
-        // Reorder by recency: append in server-provided order
-        container.appendChild(el);
     });
     // Toggle empty-state depending on whether any persistent users remain
     ensureListEmptyState();
     // Sidebar badge is now updated by dashboard unread_messages.js (aggregate: chats + contact requests)
+    
+    // Clean up any badges on group icons after updating the list
+    cleanupGroupIconBadges();
 }
 
 // Fetch messages from server for a given user
@@ -2403,12 +2735,21 @@ function buildMessageItem(message) {
     }
 
     if (message.is_edited) item.classList.add('has-edited');
+    
+    // Ensure no badges are added to message items
+    const badges = item.querySelectorAll('.unread-badge');
+    badges.forEach(badge => badge.remove());
+    
     return item;
 }
 
 // Upload and send an image message
 function sendImageMessage(file) {
     if (!file) return;
+    if (isGroupChat && selectedGroupId) {
+        sendGroupImageMessage(file);
+        return;
+    }
     if (!selectedUser) {
         alert('Please select a conversation before sending an image.');
         return;
@@ -2851,6 +3192,18 @@ function renderMessages() {
         scrollToBottom(false);
         setTimeout(() => scrollToBottom(false), 100);
     }
+    
+    // Clean up any badges that might have been added to message items
+    if (messagesList) {
+        const messageBadges = messagesList.querySelectorAll('.unread-badge');
+        messageBadges.forEach(badge => badge.remove());
+    }
+    
+    // Also ensure header doesn't have badges
+    removeBadgesFromHeader();
+    
+    // Clean up badges from group icons
+    cleanupGroupIconBadges();
 }
 // Send message
 function sendMessage() {
@@ -3009,7 +3362,1012 @@ function setSentBadgeOn(messageItem) {
 // Kick off user list polling once the page is fully loaded
 window.addEventListener('load', () => {
     startPollingUserList();
+    initializeGroupChatFeatures();
+    
+    // Clean up any badges on group icons on page load
+    cleanupGroupIconBadges();
 });
+
+// ===== Group Chat Functions =====
+
+function initializeGroupChatFeatures() {
+    // Create group chat button
+    const createGroupBtn = document.getElementById('create-group-chat');
+    if (createGroupBtn) {
+        createGroupBtn.addEventListener('click', () => {
+            openCreateGroupModal();
+        });
+    }
+    
+    // Create group modal handlers
+    const createGroupModal = document.getElementById('create-group-modal');
+    if (createGroupModal) {
+        const closeBtn = createGroupModal.querySelector('.modal-close');
+        // Cancel button removed - using X button in header instead
+        const form = document.getElementById('create-group-form');
+        
+        if (closeBtn) closeBtn.addEventListener('click', () => closeCreateGroupModal());
+        if (form) form.addEventListener('submit', handleCreateGroup);
+        
+        // Close on outside click
+        createGroupModal.addEventListener('click', (e) => {
+            if (e.target === createGroupModal) closeCreateGroupModal();
+        });
+        
+        // Community members will be loaded when modal opens
+    }
+    
+    // Add members modal handlers
+    const addMembersModal = document.getElementById('add-members-modal');
+    if (addMembersModal) {
+        const closeBtn = addMembersModal.querySelector('.modal-close');
+        const form = document.getElementById('add-members-form');
+        
+        if (closeBtn) closeBtn.addEventListener('click', () => closeAddMembersModal());
+        if (form) form.addEventListener('submit', handleAddMembers);
+        
+        addMembersModal.addEventListener('click', (e) => {
+            if (e.target === addMembersModal) closeAddMembersModal();
+        });
+        
+        // Community members will be loaded when modal opens
+    }
+    
+    // View members modal handlers
+    const viewMembersModal = document.getElementById('view-members-modal');
+    if (viewMembersModal) {
+        const closeBtn = viewMembersModal.querySelector('.modal-close');
+        
+        if (closeBtn) closeBtn.addEventListener('click', () => closeViewMembersModal());
+        
+        viewMembersModal.addEventListener('click', (e) => {
+            if (e.target === viewMembersModal) closeViewMembersModal();
+        });
+    }
+    
+    // Delete group modal handlers
+    const deleteGroupModal = document.getElementById('delete-group-modal');
+    if (deleteGroupModal) {
+        const closeBtn = deleteGroupModal.querySelector('.modal-close');
+        const confirmBtn = document.getElementById('confirm-delete-group');
+        
+        if (closeBtn) closeBtn.addEventListener('click', () => closeDeleteGroupModal());
+        if (confirmBtn) confirmBtn.addEventListener('click', () => confirmDeleteGroup());
+        
+        deleteGroupModal.addEventListener('click', (e) => {
+            if (e.target === deleteGroupModal) closeDeleteGroupModal();
+        });
+    }
+    
+    // Remove member modal handlers
+    const removeMemberModal = document.getElementById('remove-member-modal');
+    if (removeMemberModal) {
+        const closeBtn = document.getElementById('close-remove-member-modal');
+        const confirmBtn = document.getElementById('confirm-remove-member');
+        
+        if (closeBtn) closeBtn.addEventListener('click', () => closeRemoveMemberModal());
+        if (confirmBtn) confirmBtn.addEventListener('click', () => confirmRemoveMember());
+        
+        removeMemberModal.addEventListener('click', (e) => {
+            if (e.target === removeMemberModal) closeRemoveMemberModal();
+        });
+    }
+    
+    // Clean up any badges that might be on group icons
+    cleanupGroupIconBadges();
+}
+
+function cleanupGroupIconBadges() {
+    // Remove any badges that might be on group icons in the sidebar
+    const groupIcons = document.querySelectorAll('#search-results .group-icon');
+    groupIcons.forEach(icon => {
+        const badges = icon.querySelectorAll('.unread-badge');
+        badges.forEach(badge => badge.remove());
+    });
+}
+
+let selectedMembersForCreate = new Set();
+let selectedMembersForAdd = new Set();
+let currentGroupIdForAddMembers = null;
+
+function openCreateGroupModal() {
+    const modal = document.getElementById('create-group-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        selectedMembersForCreate.clear();
+        updateSelectedMembersDisplay('selected-members', selectedMembersForCreate, 'create');
+        document.getElementById('group-name').value = '';
+        
+        // Load community members
+        loadCommunityMembersForGroup('group-members-list', 'group-members-loading', 'no-members-message', 'create');
+    }
+}
+
+function closeCreateGroupModal() {
+    const modal = document.getElementById('create-group-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function openAddMembersModal(groupId) {
+    const modal = document.getElementById('add-members-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        currentGroupIdForAddMembers = groupId;
+        selectedMembersForAdd.clear();
+        updateSelectedMembersDisplay('selected-add-members', selectedMembersForAdd, 'add');
+        
+        // Load community members
+        loadCommunityMembersForGroup('add-members-list', 'add-members-loading', 'no-add-members-message', 'add', groupId);
+    }
+}
+
+function closeAddMembersModal() {
+    const modal = document.getElementById('add-members-modal');
+    if (modal) modal.classList.add('hidden');
+    currentGroupIdForAddMembers = null;
+}
+
+function openViewMembersModal(groupId) {
+    const modal = document.getElementById('view-members-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        loadGroupMembersForView(groupId);
+    }
+}
+
+function closeViewMembersModal() {
+    const modal = document.getElementById('view-members-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function handleDeleteGroup(groupId, groupName) {
+    const modal = document.getElementById('delete-group-modal');
+    const groupNameEl = document.getElementById('delete-group-name');
+    
+    if (modal && groupNameEl) {
+        groupNameEl.textContent = `"${groupName}"`;
+        modal.dataset.groupId = groupId;
+        modal.classList.remove('hidden');
+    }
+}
+
+function closeDeleteGroupModal() {
+    const modal = document.getElementById('delete-group-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        delete modal.dataset.groupId;
+    }
+}
+
+async function confirmDeleteGroup() {
+    const modal = document.getElementById('delete-group-modal');
+    if (!modal) return;
+    
+    const groupId = modal.dataset.groupId;
+    if (!groupId) return;
+    
+    try {
+        const response = await fetch(`/user/communication/group-chat/${groupId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+            // Get group name for toast (remove quotes if present)
+            const groupNameEl = document.getElementById('delete-group-name');
+            let groupName = 'Group';
+            if (groupNameEl) {
+                groupName = groupNameEl.textContent.replace(/^"|"$/g, '').trim() || 'Group';
+            }
+            
+            // Show success toast before reload
+            showToast(`Group "${groupName}" has been deleted`, 'success');
+            
+            closeDeleteGroupModal();
+            // Deselect the group and reload the page after a short delay to show toast
+            deselectUser();
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showToast(data.error || 'Failed to delete group chat', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting group:', error);
+        showToast('Error deleting group chat', 'error');
+    }
+}
+
+async function loadGroupMembersForView(groupId) {
+    const listEl = document.getElementById('view-members-list');
+    const loadingEl = document.getElementById('view-members-loading');
+    
+    if (!listEl || !loadingEl) return;
+    
+    loadingEl.classList.remove('hidden');
+    listEl.classList.add('hidden');
+    listEl.innerHTML = '';
+    
+    try {
+        const response = await fetch(`/user/communication/group-chat/${groupId}/members/`);
+        if (!response.ok) throw new Error('Failed to load members');
+        
+        const data = await response.json();
+        loadingEl.classList.add('hidden');
+        
+        if (data.status === 'success' && data.members && data.members.length > 0) {
+            listEl.classList.remove('hidden');
+            
+            // Check if current user is admin
+            const currentUserIdEl = document.getElementById('current-user-id');
+            const currentUserId = currentUserIdEl ? parseInt(currentUserIdEl.dataset.userId || '0') : 0;
+            const isAdmin = data.members.some(m => m.is_admin && m.id === currentUserId);
+            
+            data.members.forEach(member => {
+                const item = document.createElement('div');
+                item.className = 'view-member-item';
+                item.dataset.memberId = member.id;
+                
+                // Show remove button only for admin and not for the admin themselves
+                const showRemoveBtn = isAdmin && !member.is_admin;
+                
+                item.innerHTML = `
+                    <div class="view-member-avatar">
+                        <img src="${member.profile_picture_url || '/static/accounts/images/profile.png'}" 
+                             alt="${member.full_name || member.username}"
+                             onerror="this.src='/static/accounts/images/profile.png'">
+                    </div>
+                    <div class="view-member-info">
+                        <div class="view-member-name">
+                            ${member.full_name || member.username}
+                            ${member.is_admin ? '<span class="admin-badge">Admin</span>' : ''}
+                        </div>
+                        <div class="view-member-email">${member.username}</div>
+                    </div>
+                    ${showRemoveBtn ? `
+                    <button type="button" class="remove-member-btn" data-member-id="${member.id}" title="Remove member">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    ` : ''}
+                `;
+                
+                // Add click handler for remove button
+                if (showRemoveBtn) {
+                    const removeBtn = item.querySelector('.remove-member-btn');
+                    if (removeBtn) {
+                        removeBtn.addEventListener('click', () => {
+                            handleRemoveMember(groupId, member.id, member.full_name || member.username);
+                        });
+                    }
+                }
+                
+                listEl.appendChild(item);
+            });
+        } else {
+            listEl.innerHTML = '<div class="no-members-message"><p>No members found</p></div>';
+            listEl.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error loading group members:', error);
+        loadingEl.classList.add('hidden');
+        listEl.innerHTML = '<div class="no-members-message"><p>Error loading members. Please try again.</p></div>';
+        listEl.classList.remove('hidden');
+    }
+}
+
+// Global variables for remove member modal
+let pendingRemoveMember = { groupId: null, memberId: null };
+
+function openRemoveMemberModal(groupId, memberId, memberName) {
+    const modal = document.getElementById('remove-member-modal');
+    const memberNameEl = document.getElementById('remove-member-name');
+    
+    if (modal && memberNameEl) {
+        memberNameEl.textContent = memberName;
+        pendingRemoveMember.groupId = groupId;
+        pendingRemoveMember.memberId = memberId;
+        modal.classList.remove('hidden');
+    }
+}
+
+function closeRemoveMemberModal() {
+    const modal = document.getElementById('remove-member-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        pendingRemoveMember.groupId = null;
+        pendingRemoveMember.memberId = null;
+    }
+}
+
+async function confirmRemoveMember() {
+    const { groupId, memberId } = pendingRemoveMember;
+    
+    if (!groupId || !memberId) return;
+    
+    try {
+        const response = await fetch(`/user/communication/group-chat/${groupId}/members/${memberId}/remove/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+            closeRemoveMemberModal();
+            
+            // Get member name for toast
+            const memberName = document.getElementById('remove-member-name')?.textContent || 'Member';
+            
+            // Remove the member item from the list
+            const memberItem = document.querySelector(`.view-member-item[data-member-id="${memberId}"]`);
+            if (memberItem) {
+                memberItem.remove();
+            }
+            
+            // Reload the members list to update
+            await loadGroupMembersForView(groupId);
+            
+            // Also update the header to reflect new member count
+            if (selectedGroupId === groupId) {
+                await updateGroupChatHeader(groupId);
+            }
+            
+            // Show success toast
+            showToast(`${memberName} has been removed from the group`, 'success');
+        } else {
+            showToast(data.error || 'Failed to remove member', 'error');
+        }
+    } catch (error) {
+        console.error('Error removing member:', error);
+        showToast('Error removing member', 'error');
+    }
+}
+
+async function handleRemoveMember(groupId, memberId, memberName) {
+    openRemoveMemberModal(groupId, memberId, memberName);
+}
+
+async function loadCommunityMembersForGroup(listId, loadingId, noMembersId, mode, groupId = null) {
+    const listEl = document.getElementById(listId);
+    const loadingEl = document.getElementById(loadingId);
+    const noMembersEl = document.getElementById(noMembersId);
+    
+    if (!listEl || !loadingEl) return;
+    
+    // Show loading, hide list and no members message
+    loadingEl.classList.remove('hidden');
+    listEl.classList.add('hidden');
+    if (noMembersEl) noMembersEl.classList.add('hidden');
+    listEl.innerHTML = '';
+    
+    try {
+        // Get existing group members if adding to existing group
+        let existingMemberIds = new Set();
+        if (mode === 'add' && groupId) {
+            try {
+                const membersResponse = await fetch(`/user/communication/group-chat/${groupId}/members/`);
+                if (membersResponse.ok) {
+                    const membersData = await membersResponse.json();
+                    if (membersData.status === 'success' && membersData.members) {
+                        existingMemberIds = new Set(membersData.members.map(m => m.id));
+                    }
+                }
+            } catch (e) {
+                console.error('Error fetching existing members:', e);
+            }
+        }
+        
+        // Fetch community members
+        const response = await fetch('/user/communication/group-chat/community-members/');
+        if (!response.ok) {
+            throw new Error('Failed to load community members');
+        }
+        
+        const data = await response.json();
+        
+        // Hide loading
+        loadingEl.classList.add('hidden');
+        
+        if (data.status === 'success' && data.members && data.members.length > 0) {
+            // Filter out already added members if in add mode
+            const availableMembers = data.members.filter(m => !existingMemberIds.has(m.id));
+            
+            if (availableMembers.length === 0) {
+                // All members are already in the group
+                if (noMembersEl) {
+                    noMembersEl.textContent = 'All community members are already in this group.';
+                    noMembersEl.classList.remove('hidden');
+                }
+                return;
+            }
+            
+            // Show list and populate it
+            listEl.classList.remove('hidden');
+            
+            availableMembers.forEach(user => {
+                const item = document.createElement('div');
+                item.className = 'member-list-item';
+                item.dataset.userId = user.id;
+                
+                const isSelected = mode === 'create' 
+                    ? selectedMembersForCreate.has(user.id)
+                    : selectedMembersForAdd.has(user.id);
+                
+                item.innerHTML = `
+                    <label class="member-checkbox-label">
+                        <input type="checkbox" class="member-checkbox" data-user-id="${user.id}" ${isSelected ? 'checked' : ''}>
+                        <div class="member-item-content">
+                            <div class="member-avatar">
+                                <img src="${user.profile_picture_url || '/static/accounts/images/profile.png'}" 
+                                     alt="${user.full_name || user.username}"
+                                     onerror="this.src='/static/accounts/images/profile.png'">
+                            </div>
+                            <div class="member-info">
+                                <div class="member-name">${user.full_name || user.username}</div>
+                                ${user.email ? `<div class="member-email">${user.email}</div>` : ''}
+                            </div>
+                        </div>
+                    </label>
+                `;
+                
+                const checkbox = item.querySelector('.member-checkbox');
+                checkbox.addEventListener('change', (e) => {
+                    const userId = parseInt(checkbox.dataset.userId);
+                    if (checkbox.checked) {
+                        if (mode === 'create') {
+                            selectedMembersForCreate.add(userId);
+                        } else {
+                            selectedMembersForAdd.add(userId);
+                        }
+                    } else {
+                        if (mode === 'create') {
+                            selectedMembersForCreate.delete(userId);
+                        } else {
+                            selectedMembersForAdd.delete(userId);
+                        }
+                    }
+                    updateSelectedMembersDisplay(
+                        mode === 'create' ? 'selected-members' : 'selected-add-members',
+                        mode === 'create' ? selectedMembersForCreate : selectedMembersForAdd,
+                        mode
+                    );
+                });
+                
+                listEl.appendChild(item);
+            });
+        } else {
+            // No members found
+            if (noMembersEl) {
+                noMembersEl.classList.remove('hidden');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading community members:', error);
+        loadingEl.classList.add('hidden');
+        if (noMembersEl) {
+            noMembersEl.textContent = 'Error loading community members. Please try again.';
+            noMembersEl.classList.remove('hidden');
+        }
+    }
+}
+
+function updateSelectedMembersDisplay(containerId, selectedSet, mode) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    container.innerHTML = '';
+    if (selectedSet.size === 0) return;
+    
+    // Fetch user details for selected IDs
+    selectedSet.forEach(userId => {
+        fetch(`/user/communication/user/${userId}/`)
+            .then(r => r.json())
+            .then(user => {
+                const tag = document.createElement('div');
+                tag.className = 'member-tag';
+                tag.innerHTML = `
+                    <span>${user.full_name || user.username}</span>
+                    <button type="button" class="remove-member" data-user-id="${user.id}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                
+                const removeBtn = tag.querySelector('.remove-member');
+                removeBtn.addEventListener('click', () => {
+                    if (mode === 'create') {
+                        selectedMembersForCreate.delete(user.id);
+                        updateSelectedMembersDisplay('selected-members', selectedMembersForCreate, 'create');
+                        // Uncheck the corresponding checkbox
+                        const listId = 'group-members-list';
+                        const checkbox = document.querySelector(`#${listId} .member-checkbox[data-user-id="${user.id}"]`);
+                        if (checkbox) {
+                            checkbox.checked = false;
+                        }
+                    } else {
+                        selectedMembersForAdd.delete(user.id);
+                        updateSelectedMembersDisplay('selected-add-members', selectedMembersForAdd, 'add');
+                        // Uncheck the corresponding checkbox
+                        const listId = 'add-members-list';
+                        const checkbox = document.querySelector(`#${listId} .member-checkbox[data-user-id="${user.id}"]`);
+                        if (checkbox) {
+                            checkbox.checked = false;
+                        }
+                    }
+                });
+                
+                container.appendChild(tag);
+            })
+            .catch(err => console.error('Error fetching user:', err));
+    });
+}
+
+async function handleCreateGroup(e) {
+    e.preventDefault();
+    const nameInput = document.getElementById('group-name');
+    const groupName = nameInput.value.trim();
+    
+    if (!groupName) {
+        alert('Please enter a group name');
+        return;
+    }
+    
+    const memberIds = Array.from(selectedMembersForCreate);
+    
+    try {
+        const response = await fetch('/user/communication/group-chat/create/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                name: groupName,
+                member_ids: memberIds
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+            closeCreateGroupModal();
+            // Reload the page to show the new group
+            window.location.reload();
+        } else {
+            alert(data.error || 'Failed to create group chat');
+        }
+    } catch (error) {
+        console.error('Error creating group:', error);
+        alert('Error creating group chat');
+    }
+}
+
+async function handleAddMembers(e) {
+    e.preventDefault();
+    if (!currentGroupIdForAddMembers) return;
+    
+    const memberIds = Array.from(selectedMembersForAdd);
+    if (memberIds.length === 0) {
+        showToast('Please select at least one member to add', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/user/communication/group-chat/${currentGroupIdForAddMembers}/members/add/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                member_ids: memberIds
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+            closeAddMembersModal();
+            
+            // Show success toast
+            const memberCount = memberIds.length;
+            const message = memberCount === 1 
+                ? 'Member added successfully' 
+                : `${memberCount} members added successfully`;
+            showToast(message, 'success');
+            
+            // Update the UI
+            if (selectedGroupId === currentGroupIdForAddMembers) {
+                await loadGroupMembersForView(currentGroupIdForAddMembers);
+                await updateGroupChatHeader(currentGroupIdForAddMembers);
+            }
+            
+            // Refresh the user list to ensure group chat appears and is properly positioned
+            refreshUserList(true);
+            
+            // Ensure the group chat item is visible in the list
+            setTimeout(() => {
+                const container = document.getElementById('search-results');
+                if (container && currentGroupIdForAddMembers) {
+                    const groupItem = container.querySelector(`.group-chat-item[data-group-id="${currentGroupIdForAddMembers}"]`);
+                    if (groupItem) {
+                        // Make sure it's visible
+                        groupItem.style.display = '';
+                        // Move it to the top if needed (will be reordered by refreshUserList)
+                        container.prepend(groupItem);
+                    }
+                }
+            }, 100);
+        } else {
+            showToast(data.error || 'Failed to add members', 'error');
+        }
+    } catch (error) {
+        console.error('Error adding members:', error);
+        showToast('Error adding members', 'error');
+    }
+}
+
+function selectGroupChat(groupId) {
+    selectedGroupId = groupId;
+    selectedUser = null;
+    isGroupChat = true;
+    
+    // Update UI
+    if (welcomeScreen) welcomeScreen.classList.add('hidden');
+    if (chatMessages) chatMessages.classList.remove('hidden');
+    
+    // Update selected item
+    document.querySelectorAll('.user-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    const groupItem = document.querySelector(`.group-chat-item[data-group-id="${groupId}"]`);
+    if (groupItem) groupItem.classList.add('selected');
+    
+    // Load group chat messages
+    loadGroupChatMessages(groupId);
+    
+    // Start polling for new messages
+    if (pollTimer) clearInterval(pollTimer);
+    startPollingGroupMessages(groupId);
+    
+    // Update header
+    updateGroupChatHeader(groupId);
+    
+    // Mobile: hide user list
+    if (isMobile && userList) {
+        userList.classList.add('hidden');
+        chatMessages.classList.remove('hidden');
+    }
+}
+
+async function loadGroupChatMessages(groupId) {
+    try {
+        const response = await fetch(`/user/communication/group-chat/${groupId}/messages/`);
+        if (!response.ok) throw new Error('Failed to load messages');
+        
+        const data = await response.json();
+        messages = Array.isArray(data) ? data : [];
+        renderMessages();
+        scrollToBottom(true);
+        
+        // Clear unread badge when messages are loaded
+        updateGroupChatUnreadBadge(groupId, 0);
+    } catch (error) {
+        console.error('Error loading group messages:', error);
+        messages = [];
+        renderMessages();
+    }
+}
+
+function removeBadgesFromHeader() {
+    // Remove any unread badges from header avatar elements
+    const avatarEl = document.getElementById('selected-user-avatar');
+    if (avatarEl) {
+        const badges = avatarEl.querySelectorAll('.unread-badge');
+        badges.forEach(badge => badge.remove());
+        // Also check if badge is a direct child
+        const directBadges = Array.from(avatarEl.children).filter(el => el.classList && el.classList.contains('unread-badge'));
+        directBadges.forEach(badge => badge.remove());
+    }
+    const avatarHeader = document.querySelector('.user-avatar-header');
+    if (avatarHeader) {
+        const headerBadges = avatarHeader.querySelectorAll('.unread-badge');
+        headerBadges.forEach(badge => badge.remove());
+        // Also check if badge is a direct child
+        const directBadges = Array.from(avatarHeader.children).filter(el => el.classList && el.classList.contains('unread-badge'));
+        directBadges.forEach(badge => badge.remove());
+    }
+    const selectedUserInfo = document.querySelector('.selected-user-info');
+    if (selectedUserInfo) {
+        const infoBadges = selectedUserInfo.querySelectorAll('.unread-badge');
+        infoBadges.forEach(badge => badge.remove());
+    }
+    // Also check the entire chat header
+    const chatHeader = document.querySelector('.chat-header');
+    if (chatHeader) {
+        const headerBadges = chatHeader.querySelectorAll('.unread-badge');
+        headerBadges.forEach(badge => badge.remove());
+    }
+}
+
+function updateGroupChatUnreadBadge(groupId, count) {
+    // Only update badges in sidebar items
+    const groupItem = document.querySelector(`#search-results .group-chat-item[data-group-id="${groupId}"]`);
+    if (!groupItem) return;
+    
+    const avatar = groupItem.querySelector('.user-avatar');
+    if (!avatar) return;
+    
+    // Remove any badges that might be on the group icon itself or in the avatar container
+    const groupIcon = avatar.querySelector('.group-icon');
+    if (groupIcon) {
+        const iconBadges = groupIcon.querySelectorAll('.unread-badge');
+        iconBadges.forEach(badge => badge.remove());
+    }
+    
+    // Remove any existing badges from the avatar container (group chats should not show badges)
+    const existingBadges = avatar.querySelectorAll('.unread-badge');
+    existingBadges.forEach(badge => badge.remove());
+    
+    // Update unread class for styling purposes, but don't create badges
+    if (count > 0) {
+        groupItem.classList.add('unread');
+    } else {
+        groupItem.classList.remove('unread');
+    }
+    
+    // Always ensure header doesn't have badges
+    removeBadgesFromHeader();
+}
+
+function startPollingGroupMessages(groupId) {
+    if (pollTimer) clearInterval(pollTimer);
+    
+    pollTimer = setInterval(async () => {
+        if (selectedGroupId !== groupId || !isGroupChat) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/user/communication/group-chat/${groupId}/messages/`);
+            if (!response.ok) return;
+            
+            const data = await response.json();
+            const newMessages = Array.isArray(data) ? data : [];
+            
+            if (JSON.stringify(newMessages) !== JSON.stringify(messages)) {
+                messages = newMessages;
+                renderMessages();
+                if (isNearBottom()) {
+                    scrollToBottom(true);
+                }
+            }
+        } catch (error) {
+            console.error('Error polling group messages:', error);
+        }
+    }, 3000);
+}
+
+async function updateGroupChatHeader(groupId) {
+    try {
+        const response = await fetch(`/user/communication/group-chat/${groupId}/members/`);
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        if (data.status === 'success' && data.members) {
+            const groupItem = document.querySelector(`.group-chat-item[data-group-id="${groupId}"]`);
+            let groupName = 'Group Chat';
+            if (groupItem) {
+                const nameText = groupItem.querySelector('.user-name');
+                if (nameText) {
+                    // Remove "Group" badge text and get just the name
+                    groupName = nameText.textContent.replace(/Group\s*/gi, '').trim() || 'Group Chat';
+                }
+            }
+            
+            const nameEl = document.getElementById('selected-user-name');
+            if (nameEl) {
+                nameEl.textContent = groupName;
+            }
+            
+            // Update avatar to show group icon
+            const avatarEl = document.getElementById('selected-user-avatar');
+            if (avatarEl) {
+                avatarEl.innerHTML = '<i class="fas fa-users"></i>';
+                avatarEl.style.display = 'inline-flex';
+            }
+            const avatarImg = document.getElementById('selected-user-avatar-img');
+            if (avatarImg) avatarImg.style.display = 'none';
+            
+            // Remove any badges from header
+            removeBadgesFromHeader();
+            
+            // Show group chat actions (view members for all, add members for creator only)
+            const groupChatActions = document.getElementById('group-chat-actions');
+            const viewMembersBtn = document.getElementById('view-members-btn');
+            const addMembersBtn = document.getElementById('add-members-btn');
+            
+            if (groupChatActions && viewMembersBtn) {
+                // Show view members button for all group members
+                groupChatActions.classList.remove('hidden');
+                viewMembersBtn.onclick = () => openViewMembersModal(groupId);
+                // Check if current user is the creator
+                const creatorId = groupItem ? parseInt(groupItem.dataset.createdBy || '0') : 0;
+                const currentUserIdEl = document.getElementById('current-user-id');
+                const currentUserId = currentUserIdEl ? parseInt(currentUserIdEl.dataset.userId || '0') : 0;
+                const isCreator = (creatorId === currentUserId && creatorId > 0);
+                
+                // Show add members and delete buttons only for creator
+                if (addMembersBtn) {
+                    if (isCreator) {
+                        addMembersBtn.style.display = 'flex';
+                        addMembersBtn.onclick = () => openAddMembersModal(groupId);
+                    } else {
+                        addMembersBtn.style.display = 'none';
+                    }
+                }
+                
+                const deleteGroupBtn = document.getElementById('delete-group-btn');
+                if (deleteGroupBtn) {
+                    if (isCreator) {
+                        deleteGroupBtn.style.display = 'flex';
+                        // Get clean group name for delete confirmation
+                        const cleanGroupName = groupName.replace(/\s*\(.*?\)\s*/g, '').trim();
+                        deleteGroupBtn.onclick = () => handleDeleteGroup(groupId, cleanGroupName);
+                    } else {
+                        deleteGroupBtn.style.display = 'none';
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error updating group header:', error);
+    }
+}
+
+// Modify sendMessage to handle group chats
+const originalSendMessage = window.sendMessage || (() => {});
+window.sendMessage = async function() {
+    if (isGroupChat && selectedGroupId) {
+        await sendGroupMessage();
+    } else {
+        originalSendMessage();
+    }
+};
+
+async function sendGroupMessage() {
+    const input = document.getElementById('message-input');
+    const messageText = input.value.trim();
+    
+    if (!messageText || !selectedGroupId) return;
+    
+    try {
+        const response = await fetch(`/user/communication/group-chat/${selectedGroupId}/send/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                message: messageText
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            input.value = '';
+            updateCharCount();
+            updateSendButton();
+            // Reload messages to show the new one
+            await loadGroupChatMessages(selectedGroupId);
+            // Refresh user list to update unread counts for other members
+            try { refreshUserList(true); } catch (e) {}
+        } else {
+            alert(data.error || 'Failed to send message');
+        }
+    } catch (error) {
+        console.error('Error sending group message:', error);
+        alert('Error sending message');
+    }
+}
+
+async function sendGroupImageMessage(file) {
+    if (!file || !selectedGroupId) return;
+    
+    try {
+        const maxBytes = 10 * 1024 * 1024;
+        if (file.size && file.size > maxBytes) {
+            alert('Image is too large (max 10 MB).');
+            return;
+        }
+        if (file.type && !file.type.startsWith('image/')) {
+            alert('Please select a valid image file.');
+            return;
+        }
+        
+        const compressed = await compressImage(file).catch(() => file);
+        const formData = new FormData();
+        formData.append('image', compressed || file);
+        
+        const response = await fetch(`/user/communication/group-chat/${selectedGroupId}/send-image/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            await loadGroupChatMessages(selectedGroupId);
+            // Refresh user list to update unread counts for other members
+            try { refreshUserList(true); } catch (e) {}
+        } else {
+            alert(data.error || 'Failed to send image');
+        }
+    } catch (error) {
+        console.error('Error sending group image:', error);
+        alert('Error sending image');
+    }
+}
+
+async function sendGroupImagesMessage(files) {
+    if (!files || !files.length || !selectedGroupId) return;
+    
+    try {
+        const formData = new FormData();
+        for (let i = 0; i < Math.min(files.length, 10); i++) {
+            const file = files[i];
+            const maxBytes = 10 * 1024 * 1024;
+            if (file.size && file.size > maxBytes) {
+                alert(`Image ${i + 1} is too large (max 10 MB).`);
+                continue;
+            }
+            if (file.type && !file.type.startsWith('image/')) {
+                alert(`File ${i + 1} is not a valid image.`);
+                continue;
+            }
+            const compressed = await compressImage(file).catch(() => file);
+            formData.append('images', compressed || file);
+        }
+        
+        if (formData.getAll('images').length === 0) return;
+        
+        const response = await fetch(`/user/communication/group-chat/${selectedGroupId}/send-image/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            await loadGroupChatMessages(selectedGroupId);
+            // Refresh user list to update unread counts for other members
+            try { refreshUserList(true); } catch (e) {}
+        } else {
+            alert(data.error || 'Failed to send images');
+        }
+    } catch (error) {
+        console.error('Error sending group images:', error);
+        alert('Error sending images');
+    }
+}
+
+// Note: Message form submit handler is already set up above in the initialization section
 
 
 

@@ -40,6 +40,17 @@ urlpatterns = [
     path('communication/contact-unread-count/', views.get_contact_unread_count, name='contact_unread_count'),
     # Mark message as read (message_id is an integer primary key)
     path('mark-read/<int:message_id>/', views.mark_message_read, name='mark_message_read'),
+    
+    # Group Chat
+    path('communication/group-chat/create/', views.create_group_chat, name='create_group_chat'),
+    path('communication/group-chat/community-members/', views.get_community_members_for_group, name='get_community_members_for_group'),
+    path('communication/group-chat/<int:group_id>/members/', views.get_group_chat_members, name='get_group_chat_members'),
+    path('communication/group-chat/<int:group_id>/members/add/', views.add_group_chat_members, name='add_group_chat_members'),
+    path('communication/group-chat/<int:group_id>/messages/', views.get_group_chat_messages, name='get_group_chat_messages'),
+    path('communication/group-chat/<int:group_id>/send/', views.send_group_message, name='send_group_message'),
+    path('communication/group-chat/<int:group_id>/send-image/', views.send_group_image_message, name='send_group_image_message'),
+    path('communication/group-chat/<int:group_id>/delete/', views.delete_group_chat, name='delete_group_chat'),
+    path('communication/group-chat/<int:group_id>/members/<int:user_id>/remove/', views.remove_group_member, name='remove_group_member'),
     path('global-user-search/', views.global_user_search, name='global_user_search'),
     path('search-users/', views.search_users, name='search_users'),
     path('payment/create/', views.create_payment, name='create_payment'),

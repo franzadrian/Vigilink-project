@@ -13,6 +13,7 @@
 
 {% block content %}
 {% csrf_token %}
+<div id="current-user-id" data-user-id="{{ user.id }}" style="display: none;"></div>
 <!-- Chat Content -->
 <div class="chat-content">
   <!-- User List (Left Section) -->
@@ -28,6 +29,12 @@
     </div>
     <!-- Quick Actions -->
     <div class="user-list-actions">
+      {% if is_community_president %}
+      <button id="create-group-chat" class="create-group-btn" type="button" title="Create a group chat">
+        <i class="fas fa-users" aria-hidden="true"></i>
+        <span>Create Group Chat</span>
+      </button>
+      {% endif %}
       <button id="open-contact-threads" class="contact-admin-btn" type="button" title="View my contact requests">
         <i class="fas fa-headset" aria-hidden="true"></i>
         <span>My Contact Requests</span>
@@ -36,6 +43,48 @@
     
     <div class="users-container">
       <div id="search-results">
+        <!-- Group Chats -->
+        {% for group in group_chats %}
+        <div class="user-item group-chat-item{% if group.unread_count and group.unread_count > 0 %} unread{% endif %}" data-group-id="{{ group.group_id }}" 
+             data-is-group="true"
+             data-created-by="{{ group.created_by }}"
+             {% if group.last_message_time %}data-last-message-time="{{ group.last_message_time|date:'c' }}"{% endif %}>
+          <div class="user-avatar">
+            <span class="avatar-text group-icon"><i class="fas fa-users"></i></span>
+          </div>
+          <div class="user-info">
+            <div class="user-name">
+              {{ group.name }}
+              <span class="group-badge">Group</span>
+            </div>
+            <div class="last-message">
+              {% if group.last_message %}
+                {% with lm=group.last_message|lower %}
+                  {% if lm == 'you deleted a message' or lm == 'message deleted' %}
+                    {{ group.last_message|truncatechars:30 }}
+                  {% elif group.last_message_is_own %}
+                    You: {{ group.last_message|truncatechars:30 }}
+                  {% else %}
+                    {% if group.last_message_sender_name %}
+                      {{ group.last_message_sender_name }}: {{ group.last_message|truncatechars:30 }}
+                    {% else %}
+                      {{ group.last_message|truncatechars:30 }}
+                    {% endif %}
+                  {% endif %}
+                {% endwith %}
+              {% else %}
+                No messages yet
+              {% endif %}
+            </div>
+          </div>
+          <div class="message-time" {% if group.last_message_time %}data-timestamp="{{ group.last_message_time|date:'c' }}"{% endif %}>
+            {% if group.last_message_time %}
+              {{ group.last_message_time|friendly_timesince }}
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+        
         <!-- Users with messages -->
         {% for user in users %}
         <div class="user-item{% if user.unread_count and user.unread_count > 0 %} unread{% endif %}" data-user-id="{{ user.id }}" 
@@ -129,6 +178,17 @@
         <div class="user-name-header">
           <span id="selected-user-name">User</span>
         </div>
+        <div id="group-chat-actions" class="group-chat-actions hidden">
+          <button id="view-members-btn" class="view-members-btn" type="button" title="View group members">
+            <i class="fas fa-users"></i>
+          </button>
+          <button id="add-members-btn" class="add-members-btn" type="button" title="Add members to group">
+            <i class="fas fa-user-plus"></i>
+          </button>
+          <button id="delete-group-btn" class="delete-group-btn" type="button" title="Delete group">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
       </div>
     </div>
     
@@ -172,6 +232,145 @@
       <div class="welcome-text">
         <h3>Welcome to VigiLink Communications</h3>
         <p>Select a user to start a conversation</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Group Chat Modal -->
+  <div id="create-group-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create Group Chat</h3>
+        <button type="button" class="modal-close" aria-label="Close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="create-group-form">
+          <div class="form-group">
+            <label for="group-name">Group Name</label>
+            <input type="text" id="group-name" name="group_name" placeholder="Enter group name" maxlength="255" required>
+          </div>
+          <div class="form-group">
+            <label for="group-members-list">Select Members from Your Community</label>
+            <div id="group-members-loading" class="members-loading">
+              <i class="fas fa-spinner fa-spin"></i> Loading community members...
+            </div>
+            <div id="group-members-list" class="members-list hidden">
+              <!-- Community members will be loaded here -->
+            </div>
+            <div id="no-members-message" class="no-members-message hidden">
+              <p>No members found in your community. Members will appear here once they join your community.</p>
+            </div>
+            <div id="selected-members" class="selected-members"></div>
+          </div>
+          <div class="modal-actions">
+            <button type="submit" class="btn-primary">Create Group</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Group Members Modal -->
+  <div id="view-members-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fas fa-users"></i> Group Members</h3>
+        <button type="button" class="modal-close" aria-label="Close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="view-members-loading" class="members-loading">
+          <i class="fas fa-spinner fa-spin"></i> Loading members...
+        </div>
+        <div id="view-members-list" class="view-members-list hidden">
+          <!-- Group members will be loaded here -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Remove Member Confirmation Modal -->
+  <div id="remove-member-modal" class="modal hidden">
+    <div class="modal-content delete-confirm-modal">
+      <div class="modal-header">
+        <h3><i class="fas fa-exclamation-triangle"></i> Remove Member</h3>
+        <button type="button" class="modal-close" aria-label="Close" id="close-remove-member-modal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="delete-warning-icon">
+          <i class="fas fa-user-minus"></i>
+        </div>
+        <div class="delete-confirm-message">
+          <p class="delete-warning-text">Are you sure you want to remove <span id="remove-member-name"></span> from this group chat?</p>
+        </div>
+        <div class="delete-modal-actions">
+          <button type="button" class="btn-danger" id="confirm-remove-member">Remove Member</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Group Confirmation Modal -->
+  <div id="delete-group-modal" class="modal hidden">
+    <div class="modal-content delete-confirm-modal">
+      <div class="modal-header">
+        <h3><i class="fas fa-exclamation-triangle"></i> Delete Group Chat</h3>
+        <button type="button" class="modal-close" aria-label="Close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="delete-confirm-content">
+          <div class="delete-warning-icon">
+            <i class="fas fa-trash"></i>
+          </div>
+          <p class="delete-confirm-message">
+            Are you sure you want to delete <strong id="delete-group-name">this group</strong>?
+          </p>
+          <p class="delete-warning-text">
+            This action cannot be undone. All messages and member associations will be permanently deleted.
+          </p>
+        </div>
+      </div>
+      <div class="modal-actions delete-modal-actions">
+        <button type="button" class="btn-danger" id="confirm-delete-group">Delete Group</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Members to Group Modal -->
+  <div id="add-members-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Members to Group</h3>
+        <button type="button" class="modal-close" aria-label="Close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="add-members-form">
+          <div class="form-group">
+            <label for="add-members-list">Select Members from Your Community</label>
+            <div id="add-members-loading" class="members-loading">
+              <i class="fas fa-spinner fa-spin"></i> Loading community members...
+            </div>
+            <div id="add-members-list" class="members-list hidden">
+              <!-- Community members will be loaded here -->
+            </div>
+            <div id="no-add-members-message" class="no-members-message hidden">
+              <p>No members found in your community. Members will appear here once they join your community.</p>
+            </div>
+            <div id="selected-add-members" class="selected-members"></div>
+          </div>
+          <div class="modal-actions">
+            <button type="submit" class="btn-primary">Add Members</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

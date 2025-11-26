@@ -7,7 +7,7 @@ from django.contrib.auth import update_session_auth_hash
 from django.db import models
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
-from .models import Post, PostReaction, PostReply, PostImage, Message  # PostShare removed
+from .models import Post, PostReaction, PostReply, PostImage, Message, GroupChat, GroupChatMember, GroupChatMessage, GroupChatMessageRead  # PostShare removed
 from accounts.models import User
 from communityowner_panel.models import CommunityMembership, CommunityProfile
 import logging
@@ -190,9 +190,139 @@ def communication(request):
         if len(chat_summaries) >= MAX_USERS:
             break
 
+    # Get group chats the user is a member of
+    group_chats = []
+    
+    # Calculate unread counts for group chats
+    # Get all group chats the user is a member of
+    user_group_chats = GroupChat.objects.filter(group_members__user=request.user).values_list('group_id', flat=True)
+    
+    # Get all read message IDs for this user
+    read_message_ids = set(GroupChatMessageRead.objects.filter(user=request.user).values_list('message_id', flat=True))
+    
+    # Calculate unread count per group
+    unread_group_map = {}
+    for group_id in user_group_chats:
+        unread_count = GroupChatMessage.objects.filter(
+            group_chat_id=group_id
+        ).exclude(sender=request.user).exclude(message_id__in=read_message_ids).count()
+        if unread_count > 0:
+            unread_group_map[group_id] = unread_count
+    
+    if request.user.role == 'communityowner':
+        # Get groups created by this user
+        created_groups = GroupChat.objects.filter(created_by=request.user).order_by('-created_at')
+        for group in created_groups:
+            # Get last message
+            last_msg = GroupChatMessage.objects.filter(group_chat=group).order_by('-sent_at').first()
+            last_preview = ''
+            last_msg_time = None
+            last_is_own = False
+            if last_msg:
+                last_preview = last_msg.message or ''
+                last_msg_time = last_msg.sent_at
+                last_is_own = (last_msg.sender == request.user)
+                try:
+                    if getattr(last_msg, 'is_deleted', False):
+                        last_preview = 'You deleted a message' if last_is_own else 'Message deleted'
+                        last_is_own = False
+                    elif isinstance(last_preview, str):
+                        if last_preview.startswith('[img]'):
+                            last_preview = 'Sent a photo'
+                        elif last_preview.startswith('[imgs]'):
+                            last_preview = 'Sent photos'
+                except Exception:
+                    pass
+            
+            # Get sender name for last message
+            last_message_sender_name = None
+            if last_msg and not last_is_own:
+                # Get full_name and extract first word
+                full_name = last_msg.sender.full_name
+                full_name_str = str(full_name).strip() if full_name else ''
+                # Check if name is invalid (empty, None, or contains "none")
+                if not full_name_str or full_name_str.lower() in ('none', 'null', 'undefined', 'n/a', 'na') or 'none' in full_name_str.lower():
+                    sname = last_msg.sender.username
+                else:
+                    # Extract first word from full_name (e.g., "Franz Adrian" -> "Franz")
+                    first_word = full_name_str.split()[0] if full_name_str.split() else full_name_str
+                    sname = first_word
+                last_message_sender_name = sname
+            
+            group_chats.append({
+                'id': f'group_{group.group_id}',
+                'group_id': group.group_id,
+                'name': group.name,
+                'is_group': True,
+                'created_by': group.created_by.id,
+                'last_message': last_preview,
+                'last_message_time': last_msg_time,
+                'last_message_is_own': last_is_own,
+                'last_message_sender_name': last_message_sender_name,
+                'unread_count': unread_group_map.get(group.group_id, 0),
+            })
+    
+    # Also get groups where user is a member (but not creator)
+    member_groups = GroupChat.objects.filter(
+        group_members__user=request.user
+    ).exclude(created_by=request.user).order_by('-created_at')
+    
+    for group in member_groups:
+        # Get last message
+        last_msg = GroupChatMessage.objects.filter(group_chat=group).order_by('-sent_at').first()
+        last_preview = ''
+        last_msg_time = None
+        last_is_own = False
+        if last_msg:
+            last_preview = last_msg.message or ''
+            last_msg_time = last_msg.sent_at
+            last_is_own = (last_msg.sender == request.user)
+            try:
+                if getattr(last_msg, 'is_deleted', False):
+                    last_preview = 'You deleted a message' if last_is_own else 'Message deleted'
+                    last_is_own = False
+                elif isinstance(last_preview, str):
+                    if last_preview.startswith('[img]'):
+                        last_preview = 'Sent a photo'
+                    elif last_preview.startswith('[imgs]'):
+                        last_preview = 'Sent photos'
+            except Exception:
+                pass
+        
+        # Get sender name for last message
+        last_message_sender_name = None
+        if last_msg and not last_is_own:
+            # Get full_name and extract first word
+            full_name = last_msg.sender.full_name
+            full_name_str = str(full_name).strip() if full_name else ''
+            # Check if name is invalid (empty, None, or contains "none")
+            if not full_name_str or full_name_str.lower() in ('none', 'null', 'undefined', 'n/a', 'na') or 'none' in full_name_str.lower():
+                sname = last_msg.sender.username
+            else:
+                # Extract first word from full_name (e.g., "Franz Adrian" -> "Franz")
+                first_word = full_name_str.split()[0] if full_name_str.split() else full_name_str
+                sname = first_word
+            last_message_sender_name = sname
+        
+        group_chats.append({
+            'id': f'group_{group.group_id}',
+            'group_id': group.group_id,
+            'name': group.name,
+            'is_group': True,
+            'created_by': group.created_by.id,
+            'last_message': last_preview,
+            'last_message_time': last_msg_time,
+            'last_message_is_own': last_is_own,
+            'last_message_sender_name': last_message_sender_name,
+            'unread_count': unread_group_map.get(group.group_id, 0),
+        })
+
     context = {
         'user_messages': None,
         'users': chat_summaries,
+        'group_chats': group_chats,
+        'is_community_president': request.user.role == 'communityowner',
+        'user': request.user,
     }
     return render(request, 'communication/user_communications.html', context)
 
@@ -283,7 +413,70 @@ def get_recent_chats(request):
         if len(recent_users) >= 20:
             break
 
-    return JsonResponse({'status': 'success', 'users': recent_users})
+    # Add group chats with unread counts
+    user_group_chats = GroupChat.objects.filter(group_members__user=request.user).values_list('group_id', flat=True)
+    read_message_ids = set(GroupChatMessageRead.objects.filter(user=request.user).values_list('message_id', flat=True))
+    
+    group_chats_list = []
+    for group_id in user_group_chats:
+        group = GroupChat.objects.get(group_id=group_id)
+        last_msg = GroupChatMessage.objects.filter(group_chat=group).order_by('-sent_at').first()
+        last_preview = ''
+        last_msg_time = None
+        last_is_own = False
+        if last_msg:
+            last_preview = last_msg.message or ''
+            last_msg_time = last_msg.sent_at
+            last_is_own = (last_msg.sender == request.user)
+            try:
+                if getattr(last_msg, 'is_deleted', False):
+                    last_preview = 'You deleted a message' if last_is_own else 'Message deleted'
+                    last_is_own = False
+                elif isinstance(last_preview, str):
+                    if last_preview.startswith('[img]'):
+                        last_preview = 'Sent a photo'
+                    elif last_preview.startswith('[imgs]'):
+                        last_preview = 'Sent photos'
+            except Exception:
+                pass
+        
+        unread_count = GroupChatMessage.objects.filter(
+            group_chat_id=group_id
+        ).exclude(sender=request.user).exclude(message_id__in=read_message_ids).count()
+        
+        # Get sender name for last message
+        last_message_sender_name = None
+        if last_msg and not last_is_own:
+            # Get full_name and extract first word
+            full_name = last_msg.sender.full_name
+            full_name_str = str(full_name).strip() if full_name else ''
+            # Check if name is invalid (empty, None, or contains "none")
+            if not full_name_str or full_name_str.lower() in ('none', 'null', 'undefined', 'n/a', 'na') or 'none' in full_name_str.lower():
+                sname = last_msg.sender.username
+            else:
+                # Extract first word from full_name (e.g., "Franz Adrian" -> "Franz")
+                first_word = full_name_str.split()[0] if full_name_str.split() else full_name_str
+                sname = first_word
+            last_message_sender_name = sname
+        
+        group_chats_list.append({
+            'id': f'group_{group.group_id}',
+            'group_id': group.group_id,
+            'name': group.name,
+            'is_group': True,
+            'created_by': group.created_by.id,
+            'last_message': last_preview,
+            'last_message_time': last_msg_time.isoformat() if last_msg_time else None,
+            'last_message_is_own': last_is_own,
+            'last_message_sender_name': last_message_sender_name,
+            'unread_count': unread_count,
+        })
+    
+    # Combine users and group chats, sort by last message time
+    all_chats = recent_users + group_chats_list
+    all_chats.sort(key=lambda x: x.get('last_message_time', ''), reverse=True)
+    
+    return JsonResponse({'status': 'success', 'users': all_chats})
 
 @login_required
 def chat_messages(request):
@@ -2017,3 +2210,463 @@ def bootstrap_contact_chat(request):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
     return JsonResponse({'status': 'success', 'admin_id': admin.id, 'created': created})
+
+# ===== Group Chat Views =====
+@login_required
+@require_POST
+def create_group_chat(request):
+    """Create a new group chat (only for Community Presidents)"""
+    if request.user.role != 'communityowner':
+        return JsonResponse({'error': 'Only Community Presidents can create group chats'}, status=403)
+    
+    try:
+        data = json.loads(request.body)
+        group_name = data.get('name', '').strip()
+        member_ids = data.get('member_ids', [])
+        
+        if not group_name:
+            return JsonResponse({'error': 'Group name is required'}, status=400)
+        
+        if len(group_name) > 255:
+            return JsonResponse({'error': 'Group name is too long (max 255 characters)'}, status=400)
+        
+        # Create the group chat
+        group_chat = GroupChat.objects.create(
+            name=group_name,
+            created_by=request.user
+        )
+        
+        # Add the creator as an admin member
+        GroupChatMember.objects.create(
+            group_chat=group_chat,
+            user=request.user,
+            is_admin=True
+        )
+        
+        # Add other members
+        added_members = []
+        for member_id in member_ids:
+            try:
+                member = User.objects.get(id=member_id)
+                # Don't add the creator again
+                if member.id != request.user.id:
+                    GroupChatMember.objects.get_or_create(
+                        group_chat=group_chat,
+                        user=member
+                    )
+                    added_members.append({
+                        'id': member.id,
+                        'username': member.username,
+                        'full_name': member.full_name or member.username
+                    })
+            except User.DoesNotExist:
+                continue
+        
+        return JsonResponse({
+            'status': 'success',
+            'group_chat': {
+                'id': group_chat.group_id,
+                'name': group_chat.name,
+                'created_by': request.user.id,
+                'created_at': group_chat.created_at.isoformat(),
+                'members': added_members
+            }
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error creating group chat: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+@require_POST
+def add_group_chat_members(request, group_id):
+    """Add members to a group chat (only the creator can add members)"""
+    try:
+        group_chat = GroupChat.objects.get(group_id=group_id)
+    except GroupChat.DoesNotExist:
+        return JsonResponse({'error': 'Group chat not found'}, status=404)
+    
+    # Check if user is the creator
+    if group_chat.created_by != request.user:
+        return JsonResponse({'error': 'Only the group creator can add members'}, status=403)
+    
+    try:
+        data = json.loads(request.body)
+        member_ids = data.get('member_ids', [])
+        
+        if not member_ids:
+            return JsonResponse({'error': 'No members provided'}, status=400)
+        
+        added_members = []
+        for member_id in member_ids:
+            try:
+                member = User.objects.get(id=member_id)
+                # Don't add the creator again
+                if member.id != request.user.id:
+                    membership, created = GroupChatMember.objects.get_or_create(
+                        group_chat=group_chat,
+                        user=member
+                    )
+                    if created:
+                        added_members.append({
+                            'id': member.id,
+                            'username': member.username,
+                            'full_name': member.full_name or member.username
+                        })
+            except User.DoesNotExist:
+                continue
+        
+        return JsonResponse({
+            'status': 'success',
+            'added_members': added_members
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error adding group chat members: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def get_group_chat_messages(request, group_id):
+    """Get messages for a group chat"""
+    try:
+        group_chat = GroupChat.objects.get(group_id=group_id)
+    except GroupChat.DoesNotExist:
+        return JsonResponse({'error': 'Group chat not found'}, status=404)
+    
+    # Check if user is a member
+    if not GroupChatMember.objects.filter(group_chat=group_chat, user=request.user).exists():
+        return JsonResponse({'error': 'You are not a member of this group'}, status=403)
+    
+    try:
+        messages = GroupChatMessage.objects.filter(
+            group_chat=group_chat
+        ).select_related('sender').order_by('sent_at')
+        
+        # Mark all unread messages (not sent by user) as read
+        unread_messages = messages.exclude(sender=request.user).exclude(
+            message_id__in=GroupChatMessageRead.objects.filter(user=request.user).values_list('message_id', flat=True)
+        )
+        for msg in unread_messages:
+            GroupChatMessageRead.objects.get_or_create(message=msg, user=request.user)
+        
+        messages_data = []
+        for msg in messages:
+            sname = msg.sender.get_full_name()
+            if not sname or str(sname).strip().lower() in ('none', 'null', 'undefined', 'n/a', 'na'):
+                sname = msg.sender.username
+            
+            # Extract image placeholder if present
+            image_url = None
+            image_urls = None
+            try:
+                if isinstance(msg.message, str):
+                    if msg.message.startswith('[img]'):
+                        image_url = msg.message[5:]
+                    elif msg.message.startswith('[imgs]'):
+                        payload = msg.message[6:]
+                        image_urls = [u for u in payload.split('|') if u]
+            except Exception:
+                image_url = None
+            
+            messages_data.append({
+                'id': msg.message_id,
+                'sender': msg.sender.id,
+                'sender_name': sname,
+                'message': msg.message,
+                'image_url': image_url,
+                'image_urls': image_urls,
+                'sent_at': msg.sent_at.isoformat(),
+                'is_own': msg.sender.id == request.user.id,
+                'is_edited': msg.is_edited,
+                'is_deleted': msg.is_deleted
+            })
+        
+        return JsonResponse(messages_data, safe=False)
+    except Exception as e:
+        logger.error(f"Error fetching group chat messages: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+@require_POST
+def send_group_message(request, group_id):
+    """Send a message to a group chat"""
+    try:
+        group_chat = GroupChat.objects.get(group_id=group_id)
+    except GroupChat.DoesNotExist:
+        return JsonResponse({'error': 'Group chat not found'}, status=404)
+    
+    # Check if user is a member
+    if not GroupChatMember.objects.filter(group_chat=group_chat, user=request.user).exists():
+        return JsonResponse({'error': 'You are not a member of this group'}, status=403)
+    
+    try:
+        data = json.loads(request.body)
+        message_content = data.get('message', '').strip()
+        
+        if not message_content:
+            return JsonResponse({'error': 'Message cannot be empty'}, status=400)
+        
+        message = GroupChatMessage.objects.create(
+            group_chat=group_chat,
+            sender=request.user,
+            message=message_content
+        )
+        
+        sname = request.user.get_full_name()
+        if not sname or str(sname).strip().lower() in ('none', 'null', 'undefined', 'n/a', 'na'):
+            sname = request.user.username
+        
+        return JsonResponse({
+            'id': message.message_id,
+            'sender': request.user.id,
+            'sender_name': sname,
+            'message': message.message,
+            'sent_at': message.sent_at.isoformat(),
+            'is_own': True
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error sending group message: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+@require_POST
+def send_group_image_message(request, group_id):
+    """Send image(s) to a group chat"""
+    try:
+        group_chat = GroupChat.objects.get(group_id=group_id)
+    except GroupChat.DoesNotExist:
+        return JsonResponse({'error': 'Group chat not found'}, status=404)
+    
+    # Check if user is a member
+    if not GroupChatMember.objects.filter(group_chat=group_chat, user=request.user).exists():
+        return JsonResponse({'error': 'You are not a member of this group'}, status=403)
+    
+    try:
+        files = request.FILES.getlist('images')
+        if not files:
+            single = request.FILES.get('image')
+            if single:
+                files = [single]
+        if not files:
+            return JsonResponse({'error': 'At least one image is required'}, status=400)
+        
+        # Upload to Dropbox
+        from .dropbox_utils import upload_chat_image, get_dropbox_client
+        
+        try:
+            if not get_dropbox_client():
+                return JsonResponse({'error': 'Dropbox authentication failed. Please configure a valid DROPBOX_REFRESH_TOKEN (or ACCESS_TOKEN).'}, status=500)
+        except Exception:
+            return JsonResponse({'error': 'Dropbox client initialization failed.'}, status=500)
+        
+        files = files[:10]
+        urls = []
+        for f in files:
+            url = upload_chat_image(f)
+            if not url:
+                return JsonResponse({'error': 'Image upload failed. Please check Dropbox app token/scopes and try again.'}, status=500)
+            urls.append(url)
+        
+        if len(urls) == 1:
+            placeholder = '[img]' + urls[0]
+        else:
+            placeholder = '[imgs]' + '|'.join(urls)
+        
+        message = GroupChatMessage.objects.create(
+            group_chat=group_chat,
+            sender=request.user,
+            message=placeholder
+        )
+        
+        sname = request.user.get_full_name()
+        if not sname or str(sname).strip().lower() in ('none', 'null', 'undefined', 'n/a', 'na'):
+            sname = request.user.username
+        
+        return JsonResponse({
+            'id': message.message_id,
+            'sender': request.user.id,
+            'sender_name': sname,
+            'message': message.message,
+            'image_url': urls[0] if len(urls) == 1 else None,
+            'image_urls': urls if len(urls) > 1 else None,
+            'sent_at': message.sent_at.isoformat(),
+            'is_own': True
+        })
+    except Exception as e:
+        logger.error(f"Error sending group image message: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def get_community_members_for_group(request):
+    """Get community members for group chat creation (only for Community Presidents)"""
+    if request.user.role != 'communityowner':
+        return JsonResponse({'error': 'Only Community Presidents can access this'}, status=403)
+    
+    try:
+        # Get the community profile for this president
+        try:
+            community_profile = CommunityProfile.objects.get(owner=request.user)
+        except CommunityProfile.DoesNotExist:
+            return JsonResponse({'status': 'success', 'members': []})
+        
+        # Get all community members
+        members = CommunityMembership.objects.filter(
+            community=community_profile
+        ).select_related('user').order_by('user__full_name', 'user__username')
+        
+        members_data = []
+        for membership in members:
+            user = membership.user
+            # Skip the president themselves (they're automatically added)
+            if user.id == request.user.id:
+                continue
+            
+            try:
+                pic_url = user.get_profile_picture_url() if hasattr(user, 'get_profile_picture_url') else None
+            except Exception:
+                pic_url = None
+            if not pic_url:
+                try:
+                    pic_url = user.profile_picture.url if getattr(user, 'profile_picture', None) else None
+                except Exception:
+                    pic_url = None
+            
+            members_data.append({
+                'id': user.id,
+                'username': user.username,
+                'full_name': user.full_name or user.username,
+                'email': user.email,
+                'profile_picture_url': pic_url or '/static/accounts/images/profile.png',
+                'block': getattr(user, 'block', ''),
+                'lot': getattr(user, 'lot', ''),
+            })
+        
+        return JsonResponse({
+            'status': 'success',
+            'members': members_data
+        })
+    except Exception as e:
+        logger.error(f"Error fetching community members: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def get_group_chat_members(request, group_id):
+    """Get members of a group chat"""
+    try:
+        group_chat = GroupChat.objects.get(group_id=group_id)
+    except GroupChat.DoesNotExist:
+        return JsonResponse({'error': 'Group chat not found'}, status=404)
+    
+    # Check if user is a member
+    if not GroupChatMember.objects.filter(group_chat=group_chat, user=request.user).exists():
+        return JsonResponse({'error': 'You are not a member of this group'}, status=403)
+    
+    try:
+        members = GroupChatMember.objects.filter(
+            group_chat=group_chat
+        ).select_related('user')
+        
+        members_data = []
+        for membership in members:
+            user = membership.user
+            try:
+                pic_url = user.get_profile_picture_url() if hasattr(user, 'get_profile_picture_url') else None
+            except Exception:
+                pic_url = None
+            if not pic_url:
+                try:
+                    pic_url = user.profile_picture.url if getattr(user, 'profile_picture', None) else None
+                except Exception:
+                    pic_url = None
+            
+            members_data.append({
+                'id': user.id,
+                'username': user.username,
+                'full_name': user.full_name or user.username,
+                'profile_picture_url': pic_url or '/static/accounts/images/profile.png',
+                'is_admin': membership.is_admin,
+                'joined_at': membership.joined_at.isoformat()
+            })
+        
+        return JsonResponse({
+            'status': 'success',
+            'members': members_data
+        })
+    except Exception as e:
+        logger.error(f"Error fetching group chat members: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+@require_POST
+def remove_group_member(request, group_id, user_id):
+    """Remove a member from a group chat (only the creator can remove members)"""
+    try:
+        group_chat = GroupChat.objects.get(group_id=group_id)
+    except GroupChat.DoesNotExist:
+        return JsonResponse({'error': 'Group chat not found'}, status=404)
+    
+    # Check if user is the creator
+    if group_chat.created_by != request.user:
+        return JsonResponse({'error': 'Only the group creator can remove members'}, status=403)
+    
+    try:
+        # Get the member to remove
+        try:
+            member_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'User not found'}, status=404)
+        
+        # Don't allow removing the creator
+        if member_user.id == group_chat.created_by.id:
+            return JsonResponse({'error': 'Cannot remove the group creator'}, status=400)
+        
+        # Remove the member
+        membership = GroupChatMember.objects.filter(
+            group_chat=group_chat,
+            user=member_user
+        ).first()
+        
+        if membership:
+            membership.delete()
+            logger.info(f"Member {member_user.username} removed from group '{group_chat.name}' by {request.user.username}")
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Member removed successfully'
+            })
+        else:
+            return JsonResponse({'error': 'User is not a member of this group'}, status=404)
+            
+    except Exception as e:
+        logger.error(f"Error removing group member: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+@require_POST
+def delete_group_chat(request, group_id):
+    """Delete a group chat (only the creator can delete)"""
+    try:
+        group_chat = GroupChat.objects.get(group_id=group_id)
+    except GroupChat.DoesNotExist:
+        return JsonResponse({'error': 'Group chat not found'}, status=404)
+    
+    # Check if user is the creator
+    if group_chat.created_by != request.user:
+        return JsonResponse({'error': 'Only the group creator can delete the group'}, status=403)
+    
+    try:
+        # Delete the group chat (this will cascade delete members and messages)
+        group_name = group_chat.name
+        group_chat.delete()
+        
+        logger.info(f"Group chat '{group_name}' deleted by {request.user.username}")
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Group chat deleted successfully'
+        })
+    except Exception as e:
+        logger.error(f"Error deleting group chat: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
