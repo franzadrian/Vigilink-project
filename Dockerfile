@@ -16,8 +16,12 @@ COPY . .
 # Collect static files (served by WhiteNoise in production)
 RUN python manage.py collectstatic --noinput
 
-# Koyeb provides PORT; default to 8080 for local Docker runs
+# Copy entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Render/Platform provides PORT; default to 8080 for local Docker runs
 ENV PORT=8080
 
-# Run via gunicorn (expand $PORT at runtime; default to 8080 locally)
-CMD ["sh", "-c", "gunicorn vigilink.wsgi:application --bind 0.0.0.0:${PORT:-8080} --workers 3 --timeout 120"]
+# Run migrations and start server via entrypoint script
+CMD ["/app/entrypoint.sh"]
