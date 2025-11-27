@@ -1,0 +1,1088 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}Visitor Logs - VigiLink{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'security_panel/css/security.css' %}">
+<style>
+  .visitor-logs-container {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .visitor-logs-header {
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  .header-left {
+    margin-bottom: 20px;
+    display: block;
+    clear: both;
+    flex: 1;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+    padding-bottom: 0;
+    align-self: flex-end;
+  }
+
+  .btn-add-visitor {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-add-visitor:hover {
+    background: #2563eb;
+  }
+
+  .btn-add-visitor i {
+    font-size: 18px;
+  }
+
+  .btn-back {
+    background: #6b7280;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-back:hover {
+    background: #4b5563;
+  }
+
+  .btn-back i {
+    font-size: 18px;
+  }
+
+  .visitor-logs-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 8px 0;
+    display: block;
+    width: 100%;
+    clear: both;
+  }
+
+  .visitor-logs-subtitle {
+    color: #6b7280;
+    font-size: 16px;
+    display: block;
+    margin: 0;
+    width: 100%;
+    clear: both;
+  }
+
+  /* Summary Card */
+  .summary-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    width: 100%;
+  }
+
+  .summary-card-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 15px 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e5e7eb;
+  }
+
+  .summary-sections-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .summary-section {
+    margin-bottom: 0;
+  }
+
+  .summary-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    margin: 0 0 10px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .summary-section-title i {
+    font-size: 16px;
+  }
+
+  .visiting-title {
+    color: #2563eb;
+  }
+
+  .returned-title {
+    color: #10b981;
+  }
+
+  .summary-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .summary-list li {
+    padding: 8px 0;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 14px;
+    color: #111827;
+  }
+
+  .summary-list li:last-child {
+    border-bottom: none;
+  }
+
+  .summary-visitor-name {
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .summary-resident-name {
+    color: #6b7280;
+    font-size: 12px;
+    margin-top: 2px;
+  }
+
+  .summary-time {
+    color: #9ca3af;
+    font-size: 12px;
+    margin-top: 2px;
+  }
+
+  .summary-empty {
+    color: #9ca3af;
+    font-size: 13px;
+    font-style: italic;
+    padding: 5px 0;
+  }
+
+  @media (max-width: 1024px) {
+    .visitor-logs-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .header-actions {
+      margin-top: 15px;
+      margin-bottom: 0;
+    }
+
+    .summary-sections-container {
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+  }
+
+  /* Add Visitor Form - Simple and Large */
+  .visitor-form-container {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 30px;
+    display: none;
+  }
+
+  .visitor-form-container.show {
+    display: block;
+  }
+
+  .visitor-list-view {
+    display: block;
+  }
+
+  .visitor-list-view.hide {
+    display: none;
+  }
+
+  .form-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 25px 0;
+  }
+
+  .visitor-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .form-group.full-width {
+    grid-column: 1 / -1;
+  }
+
+  .form-group label {
+    font-size: 16px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 10px;
+  }
+
+  .form-group input,
+  .form-group select {
+    padding: 15px;
+    border: 2px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: border-color 0.2s;
+  }
+
+  .form-group input:focus,
+  .form-group select:focus {
+    outline: none;
+    border-color: #3b82f6;
+  }
+
+  .file-upload-label {
+    display: block;
+    padding: 30px;
+    border: 3px dashed #d1d5db;
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #f9fafb;
+    font-size: 16px;
+    color: #374151;
+  }
+
+  .file-upload-label:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+  }
+
+  .file-upload-label i {
+    font-size: 32px;
+    display: block;
+    margin-bottom: 10px;
+    color: #3b82f6;
+  }
+
+  .file-upload-input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+
+  .file-preview {
+    margin-top: 15px;
+    max-width: 300px;
+    display: none;
+  }
+
+  .file-preview img {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    border: 2px solid #d1d5db;
+  }
+
+  .btn-submit {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 18px 40px;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    align-self: start;
+    margin-top: 10px;
+  }
+
+  .btn-submit:hover {
+    background: #2563eb;
+  }
+
+  /* Visitor Logs Table - Simple and Clear */
+  .visitor-logs-table-container {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow-x: auto;
+  }
+
+  .table-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 15px 0;
+  }
+
+  .visitor-logs-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .visitor-logs-table th {
+    background: #f3f4f6;
+    padding: 10px 8px;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+    border-bottom: 2px solid #e5e7eb;
+  }
+
+  .visitor-logs-table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 14px;
+    color: #111827;
+    vertical-align: middle;
+  }
+
+  .visitor-logs-table tbody tr:hover {
+    background: #f9fafb;
+  }
+
+  .id-image-preview {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid #e5e7eb;
+  }
+
+  .status-badge {
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-block;
+  }
+
+  .status-visiting {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .status-returned {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  .btn-return {
+    background: #10b981;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .btn-return:hover {
+    background: #059669;
+  }
+
+  .btn-return:disabled {
+    background: #d1d5db;
+    color: #9ca3af;
+    cursor: not-allowed;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6b7280;
+  }
+
+  .empty-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+    color: #d1d5db;
+  }
+
+  .empty-state h3 {
+    font-size: 20px;
+    margin-bottom: 10px;
+  }
+
+  .pagination {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    padding: 10px 12px;
+    margin-top: 20px;
+  }
+
+  .pagination a,
+  .pagination span {
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    color: #374151;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .pagination a:hover {
+    background: #f3f4f6;
+  }
+
+  .pagination .current {
+    border-color: #2563eb;
+    color: #2563eb;
+    background: #eff6ff;
+  }
+
+  /* Image Modal */
+  #imageModal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    align-items: center;
+    justify-content: center;
+  }
+
+  #imageModal .modal-content {
+    position: relative;
+    max-width: 90%;
+    max-height: 90%;
+  }
+
+  #imageModal .close-btn {
+    position: absolute;
+    top: -50px;
+    right: 0;
+    color: white;
+    font-size: 50px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  #imageModal img {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 8px;
+  }
+
+  /* Return Confirmation Modal */
+  #returnConfirmModal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    align-items: center;
+    justify-content: center;
+  }
+
+  #returnConfirmModal.active {
+    display: flex;
+  }
+
+  .return-modal-content {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    text-align: center;
+  }
+
+  .return-modal-icon {
+    font-size: 48px;
+    color: #10b981;
+    margin-bottom: 15px;
+  }
+
+  .return-modal-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 10px;
+  }
+
+  .return-modal-message {
+    font-size: 16px;
+    color: #6b7280;
+    margin-bottom: 25px;
+    line-height: 1.5;
+  }
+
+  .return-modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .btn-cancel {
+    background: #f3f4f6;
+    color: #374151;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .btn-cancel:hover {
+    background: #e5e7eb;
+  }
+
+  .btn-confirm-return {
+    background: #10b981;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .btn-confirm-return:hover {
+    background: #059669;
+  }
+
+  /* Toast Notifications */
+  .toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10001;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 400px;
+  }
+
+  .toast {
+    background: white;
+    border-radius: 8px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 300px;
+    transform: translateX(100%);
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    opacity: 0;
+  }
+
+  .toast.show {
+    transform: translateX(0);
+    opacity: 1;
+  }
+
+  .toast.success {
+    border-left: 4px solid #10b981;
+  }
+
+  .toast.error {
+    border-left: 4px solid #ef4444;
+  }
+
+  .toast-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .toast.success .toast-icon {
+    color: #10b981;
+  }
+
+  .toast.error .toast-icon {
+    color: #ef4444;
+  }
+
+  .toast-message {
+    flex: 1;
+    color: #1f2937;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .toast-close {
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0;
+    font-size: 18px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .toast-close:hover {
+    background: #f3f4f6;
+    color: #1f2937;
+  }
+
+  @media (max-width: 768px) {
+    .visitor-logs-container {
+      padding: 15px;
+    }
+
+    .toast-container {
+      left: 15px;
+      right: 15px;
+      max-width: none;
+    }
+
+    .toast {
+      min-width: auto;
+    }
+
+    .visitor-logs-title {
+      font-size: 24px;
+    }
+
+    .form-row {
+      grid-template-columns: 1fr;
+    }
+
+    .visitor-form-container {
+      padding: 20px;
+    }
+
+    .visitor-logs-table {
+      font-size: 14px;
+    }
+
+    .visitor-logs-table th,
+    .visitor-logs-table td {
+      padding: 12px 8px;
+      font-size: 14px;
+    }
+
+    .btn-submit {
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="visitor-logs-container">
+  <div class="visitor-logs-header">
+    <div class="header-left">
+      <h1 class="visitor-logs-title">Visitor Logs</h1>
+      <p class="visitor-logs-subtitle">Track visitors entering and exiting the community</p>
+    </div>
+    
+    <!-- Add Visitor Button -->
+    <div class="header-actions">
+      <button type="button" class="btn-add-visitor" id="add-visitor-btn" onclick="showAddVisitorForm()">
+        <i class="fa-solid fa-plus"></i>
+        Add Visitor
+      </button>
+    </div>
+  </div>
+
+  <div class="visitor-logs-header">
+    <!-- Summary Card -->
+    <div class="summary-card visitor-list-view" id="summary-card">
+      <h2 class="summary-card-title">Quick Summary</h2>
+      
+      <div class="summary-sections-container">
+        <div class="summary-section">
+          <h3 class="summary-section-title visiting-title">
+            <i class="fa-solid fa-user-check"></i>
+            Currently Visiting ({{ stats.currently_visiting }})
+          </h3>
+          {% if currently_visiting_list %}
+            <ul class="summary-list">
+              {% for log in currently_visiting_list %}
+              <li>
+                <div class="summary-visitor-name">{{ log.visitor_name }}</div>
+                <div class="summary-resident-name">Visiting: {{ log.visiting_resident.full_name|default:log.visiting_resident.username }}</div>
+                <div class="summary-time">Entered: {{ log.entry_time|date:"M d, Y g:i A" }}</div>
+              </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="summary-empty">No visitors currently</div>
+          {% endif %}
+        </div>
+        
+        <div class="summary-section">
+          <h3 class="summary-section-title returned-title">
+            <i class="fa-solid fa-user-xmark"></i>
+            Recently Returned
+          </h3>
+          {% if recently_returned_list %}
+            <ul class="summary-list">
+              {% for log in recently_returned_list %}
+              <li>
+                <div class="summary-visitor-name">{{ log.visitor_name }}</div>
+                <div class="summary-resident-name">Visited: {{ log.visiting_resident.full_name|default:log.visiting_resident.username }}</div>
+                <div class="summary-time">Returned: {{ log.exit_time|date:"M d, Y g:i A" }}</div>
+              </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="summary-empty">No recent returns</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Visitor Form - Simple and Clear -->
+  <div class="visitor-form-container" id="visitor-form-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+      <h2 class="form-title" style="margin: 0;">Add New Visitor</h2>
+      <button type="button" class="btn-back" onclick="showVisitorList()">
+        <i class="fa-solid fa-arrow-left"></i>
+        Back
+      </button>
+    </div>
+    <form method="POST" action="{% url 'security_panel:create_visitor_log' %}" enctype="multipart/form-data" class="visitor-form">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="visitor_name">Visitor Name *</label>
+          <input type="text" id="visitor_name" name="visitor_name" required placeholder="Enter visitor's full name">
+        </div>
+        <div class="form-group">
+          <label for="visiting_resident">Visiting Resident *</label>
+          <select id="visiting_resident" name="visiting_resident" required>
+            <option value="">Select Resident</option>
+            {% for resident in residents %}
+              <option value="{{ resident.id }}">{{ resident.full_name|default:resident.username }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-group full-width">
+        <label>ID Photo</label>
+        <div style="position: relative;">
+          <label for="id_image" class="file-upload-label">
+            <i class="fa-solid fa-camera"></i>
+            Click here to take or upload ID photo
+            <input type="file" id="id_image" name="id_image" accept="image/*" class="file-upload-input">
+          </label>
+          <div class="file-preview" id="file-preview">
+            <img id="preview-image" src="" alt="ID Preview">
+          </div>
+        </div>
+      </div>
+      <button type="submit" class="btn-submit">Add Visitor</button>
+    </form>
+  </div>
+
+  <!-- Visitor Logs Table -->
+  <div class="visitor-logs-table-container visitor-list-view" id="visitor-list-view">
+    <h2 class="table-title">Visitor List</h2>
+    
+    {% if page_obj %}
+    <table class="visitor-logs-table">
+      <thead>
+        <tr>
+          <th>Visitor Name</th>
+          <th>ID Photo</th>
+          <th>Visiting</th>
+          <th>Entered</th>
+          <th>Exited</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in page_obj %}
+        <tr>
+          <td><strong>{{ log.visitor_name }}</strong></td>
+          <td>
+            {% if log.id_image %}
+              <img src="{{ log.id_image.url }}" alt="ID" class="id-image-preview" onclick="openImageModal('{{ log.id_image.url }}', '{{ log.visitor_name }}')">
+            {% else %}
+              <span style="color: #9ca3af;">No photo</span>
+            {% endif %}
+          </td>
+          <td>{{ log.visiting_resident.full_name|default:log.visiting_resident.username }}</td>
+          <td>{{ log.entry_time|date:"M d, Y" }}<br>{{ log.entry_time|date:"g:i A" }}</td>
+          <td>
+            {% if log.exit_time %}
+              {{ log.exit_time|date:"M d, Y" }}<br>{{ log.exit_time|date:"g:i A" }}
+            {% else %}
+              <span style="color: #9ca3af;">-</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="status-badge status-{{ log.status }}">
+              {{ log.get_status_display }}
+            </span>
+          </td>
+          <td>
+            {% if log.status == 'visiting' %}
+              <form method="POST" action="{% url 'security_panel:update_visitor_status' log.id %}" id="return-form-{{ log.id }}" style="display: inline;">
+                {% csrf_token %}
+                <button type="button" class="btn-return" onclick="showReturnConfirm('{{ log.id }}', '{{ log.visitor_name }}')">
+                  Mark Returned
+                </button>
+              </form>
+            {% else %}
+              <button type="button" class="btn-return" disabled>Returned</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="pagination">
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">Previous</a>
+      {% endif %}
+      
+      <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+      
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">Next</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon"><i class="fa-solid fa-users"></i></div>
+      <h3>No Visitors Yet</h3>
+      <p>Start logging visitors using the form above.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Image Modal -->
+<div id="imageModal">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeImageModal()">&times;</span>
+    <img id="modalImage" src="" alt="ID Image">
+  </div>
+</div>
+
+<!-- Return Confirmation Modal -->
+<div id="returnConfirmModal">
+  <div class="return-modal-content">
+    <div class="return-modal-icon">✓</div>
+    <h3 class="return-modal-title">Mark Visitor as Returned?</h3>
+    <p class="return-modal-message">
+      Are you sure you want to mark <strong id="visitor-name-confirm"></strong> as returned?
+    </p>
+    <div class="return-modal-buttons">
+      <button type="button" class="btn-cancel" onclick="closeReturnConfirm()">Cancel</button>
+      <button type="button" class="btn-confirm-return" onclick="confirmReturn()">Yes, Mark Returned</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container" class="toast-container"></div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+  // File preview
+  document.getElementById('id_image').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById('preview-image').src = e.target.result;
+        document.getElementById('file-preview').style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    } else {
+      document.getElementById('file-preview').style.display = 'none';
+    }
+  });
+
+  // Image modal
+  function openImageModal(imageUrl, visitorName) {
+    document.getElementById('modalImage').src = imageUrl;
+    document.getElementById('modalImage').alt = visitorName + ' ID';
+    document.getElementById('imageModal').style.display = 'flex';
+  }
+
+  function closeImageModal() {
+    document.getElementById('imageModal').style.display = 'none';
+  }
+
+  // Close modal on outside click
+  document.getElementById('imageModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+      closeImageModal();
+    }
+  });
+
+  // Return Confirmation Modal
+  let currentReturnFormId = null;
+
+  function showReturnConfirm(logId, visitorName) {
+    currentReturnFormId = logId;
+    document.getElementById('visitor-name-confirm').textContent = visitorName;
+    document.getElementById('returnConfirmModal').classList.add('active');
+  }
+
+  function closeReturnConfirm() {
+    document.getElementById('returnConfirmModal').classList.remove('active');
+    currentReturnFormId = null;
+  }
+
+  function confirmReturn() {
+    if (currentReturnFormId) {
+      document.getElementById('return-form-' + currentReturnFormId).submit();
+    }
+  }
+
+  // Close modal on outside click
+  document.getElementById('returnConfirmModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+      closeReturnConfirm();
+    }
+  });
+
+  // Toast Notification Function
+  function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    const icons = {
+      success: '<i class="fas fa-check-circle toast-icon"></i>',
+      error: '<i class="fas fa-exclamation-circle toast-icon"></i>'
+    };
+
+    toast.innerHTML = `
+      ${icons[type] || icons.success}
+      <span class="toast-message">${message}</span>
+      <button class="toast-close" onclick="this.parentElement.remove()">&times;</button>
+    `;
+
+    container.appendChild(toast);
+
+    // Show toast with animation
+    setTimeout(() => toast.classList.add('show'), 10);
+
+    // Auto remove after 4 seconds
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => {
+        if (toast.parentElement) {
+          toast.remove();
+        }
+      }, 300);
+    }, 4000);
+  }
+
+  // Show toasts from Django messages on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    {% if messages %}
+      {% for message in messages %}
+        showToast('{{ message|escapejs }}', '{{ message.tags|default:"success" }}');
+      {% endfor %}
+    {% endif %}
+  });
+
+  // Toggle between list view and form view
+  function showAddVisitorForm() {
+    document.getElementById('visitor-form-container').classList.add('show');
+    document.getElementById('visitor-list-view').classList.add('hide');
+    document.getElementById('summary-card').classList.add('hide');
+    document.getElementById('add-visitor-btn').style.display = 'none';
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function showVisitorList() {
+    document.getElementById('visitor-form-container').classList.remove('show');
+    document.getElementById('visitor-list-view').classList.remove('hide');
+    document.getElementById('summary-card').classList.remove('hide');
+    document.getElementById('add-visitor-btn').style.display = 'inline-flex';
+    // Reset form
+    document.querySelector('.visitor-form').reset();
+    document.getElementById('file-preview').style.display = 'none';
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+</script>
+{% endblock %}

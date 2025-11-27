@@ -943,7 +943,7 @@ def members_download_pdf(request):
     )
 
     story = []
-    story.append(Paragraph("COMMUNITY MEMBERSHIP ROSTER", title_style))
+    story.append(Paragraph("COMMUNITY MEMBERS", title_style))
     story.append(Paragraph(profile.community_name or "Community", subtitle_style))
 
     generated = timezone.now().strftime('%B %d, %Y – %I:%M %p')
@@ -1763,7 +1763,8 @@ def reports_download_pdf(request):
     
     # Create response
     response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-    # Format filename: DECAHOMES-1 REPORT 2025-10-27 11-30-00.pdf
+    # Format filename: [Community Name] REPORT [Date] [Time].pdf
+    # Example: Greenfield Village REPORT 2025-10-27 11-30-00.pdf
     formatted_time = current_time.replace(":", "-").replace(" ", " ")
     filename = f"{profile.community_name} REPORT {formatted_time}.pdf"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'

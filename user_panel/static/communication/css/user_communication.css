@@ -170,26 +170,10 @@
     overflow: hidden;
 }
 
-/* Unread badge - ONLY appears in sidebar user items, NOT on group icon */
+/* Unread badge - HIDDEN - badges removed from profile pictures */
 #search-results .user-item .user-avatar .unread-badge,
 #search-results .group-chat-item .user-avatar .unread-badge {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    background-color: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-    border-radius: 9999px;
-    min-width: 18px;
-    height: 18px;
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    padding: 0 4px;
-    border: 2px solid hsl(var(--card));
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-    z-index: 10;
+    display: none !important;
 }
 
 /* Hide badges on the group icon itself */
@@ -218,6 +202,12 @@
 .chat-messages * .unread-badge,
 .vl-msg .unread-badge,
 .vl-msg * .unread-badge {
+    display: none !important;
+}
+
+/* Hide unread badges on current user's own profile in the user list */
+/* This will be handled by JavaScript, but adding CSS as a fallback */
+#search-results .user-item.current-user-profile .user-avatar .unread-badge {
     display: none !important;
 }
 

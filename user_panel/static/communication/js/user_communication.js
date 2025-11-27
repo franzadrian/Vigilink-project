@@ -615,6 +615,58 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    // Remove unread badges from current user's own profile
+    removeBadgesFromCurrentUserProfile();
+    
+    // Set up MutationObserver to watch for badge additions to current user's profile
+    try {
+        const currentUserIdEl = document.getElementById('current-user-id');
+        const currentUserId = currentUserIdEl ? String(currentUserIdEl.dataset.userId || '') : '';
+        if (currentUserId && container) {
+            const currentUserItem = container.querySelector(`.user-item[data-user-id="${currentUserId}"]`);
+            if (currentUserItem) {
+                // Add class for CSS targeting
+                currentUserItem.classList.add('current-user-profile');
+                
+                // Watch for badge additions to the avatar
+                const avatar = currentUserItem.querySelector('.user-avatar');
+                if (avatar) {
+                    const observer = new MutationObserver((mutations) => {
+                        const badges = avatar.querySelectorAll('.unread-badge');
+                        if (badges.length > 0) {
+                            badges.forEach(badge => badge.remove());
+                        }
+                        // Also check direct children
+                        Array.from(avatar.children).forEach(child => {
+                            if (child.classList && child.classList.contains('unread-badge')) {
+                                child.remove();
+                            }
+                        });
+                    });
+                    
+                    observer.observe(avatar, { 
+                        childList: true, 
+                        subtree: true,
+                        attributes: false
+                    });
+                    
+                    // Also watch the entire user item for changes
+                    const itemObserver = new MutationObserver((mutations) => {
+                        removeBadgesFromCurrentUserProfile();
+                    });
+                    
+                    itemObserver.observe(currentUserItem, {
+                        childList: true,
+                        subtree: true
+                    });
+                }
+            }
+        }
+    } catch (e) {}
+    
+    // Start continuous badge monitor
+    startBadgeMonitor();
+    
     // Normalize initial user names to avoid generic 'User' labels
     try {
         const items = document.querySelectorAll('#search-results .user-item');
@@ -1808,9 +1860,16 @@ function startPollingUserList(intervalMs = 5000) {
         clearInterval(userListPollTimer);
         userListPollTimer = null;
     }
-    userListPollTimer = setInterval(refreshUserList, intervalMs);
+    userListPollTimer = setInterval(() => {
+        refreshUserList();
+        // Also remove badges from current user's profile after each refresh
+        setTimeout(removeBadgesFromCurrentUserProfile, 100);
+    }, intervalMs);
     // Initial tick
-    setTimeout(refreshUserList, 300);
+    setTimeout(() => {
+        refreshUserList();
+        setTimeout(removeBadgesFromCurrentUserProfile, 100);
+    }, 300);
 }
 
 function stopPollingUserList() {
@@ -1818,6 +1877,7 @@ function stopPollingUserList() {
         clearInterval(userListPollTimer);
         userListPollTimer = null;
     }
+    stopBadgeMonitor();
 }
 
 function refreshUserList(force = false) {
@@ -1836,9 +1896,63 @@ function refreshUserList(force = false) {
     .catch(() => {});
 }
 
+// Function to remove badges from current user's profile
+function removeBadgesFromCurrentUserProfile() {
+    try {
+        const currentUserIdEl = document.getElementById('current-user-id');
+        const currentUserId = currentUserIdEl ? String(currentUserIdEl.dataset.userId || '') : '';
+        if (!currentUserId) return;
+        
+        const container = document.getElementById('search-results');
+        if (!container) return;
+        
+        const currentUserItem = container.querySelector(`.user-item[data-user-id="${currentUserId}"]`);
+        if (currentUserItem) {
+            // Add class for CSS targeting
+            currentUserItem.classList.add('current-user-profile');
+            const avatar = currentUserItem.querySelector('.user-avatar');
+            if (avatar) {
+                // Remove all badges, including any that might be nested
+                const badges = avatar.querySelectorAll('.unread-badge');
+                badges.forEach(badge => {
+                    badge.remove();
+                });
+                // Also check direct children
+                Array.from(avatar.children).forEach(child => {
+                    if (child.classList && child.classList.contains('unread-badge')) {
+                        child.remove();
+                    }
+                });
+            }
+        }
+    } catch (e) {
+        // Silently fail
+    }
+}
+
+// Continuous monitor to remove badges from current user's profile
+let badgeMonitorInterval = null;
+function startBadgeMonitor() {
+    if (badgeMonitorInterval) return;
+    // Check every 500ms to catch badges that appear after updates
+    badgeMonitorInterval = setInterval(() => {
+        removeBadgesFromCurrentUserProfile();
+    }, 500);
+}
+
+function stopBadgeMonitor() {
+    if (badgeMonitorInterval) {
+        clearInterval(badgeMonitorInterval);
+        badgeMonitorInterval = null;
+    }
+}
+
 function applyRecentChats(chats) {
     const container = document.getElementById('search-results');
     if (!container) return;
+    
+    // Remove badges from current user's profile before processing
+    removeBadgesFromCurrentUserProfile();
     const bad = ['none','null','undefined','n/a','na'];
     const normalize = (s) => (s || '').toString().trim();
     const pickToken = (s) => {
@@ -1983,10 +2097,33 @@ function applyRecentChats(chats) {
             el.classList.toggle('unread', unread > 0);
             
             // Update unread badge for regular user chats
+            // Don't show badge on current user's own profile
+            const currentUserIdEl = document.getElementById('current-user-id');
+            const currentUserId = currentUserIdEl ? parseInt(currentUserIdEl.dataset.userId || '0') : 0;
+            const userId = parseInt(id || chat.id || chat.user_id || '0', 10);
+            const isCurrentUser = (userId === currentUserId);
+            
+            // Add class for CSS targeting if it's the current user
+            if (isCurrentUser) {
+                el.classList.add('current-user-profile');
+            } else {
+                el.classList.remove('current-user-profile');
+            }
+            
             const avatar = el.querySelector('.user-avatar');
             let badge = avatar ? avatar.querySelector('.unread-badge') : null;
             
-            if (unread > 0) {
+            // Remove badge if it's the current user's profile - NEVER create badges for current user
+            if (isCurrentUser) {
+                // Force remove any existing badges immediately
+                if (badge) badge.remove();
+                // Also remove any badges that might exist
+                if (avatar) {
+                    const allBadges = avatar.querySelectorAll('.unread-badge');
+                    allBadges.forEach(b => b.remove());
+                }
+                // Don't create badge for current user - skip the rest
+            } else if (unread > 0) {
                 if (!badge && avatar) {
                     badge = document.createElement('span');
                     badge.className = 'unread-badge';
@@ -1997,6 +2134,11 @@ function applyRecentChats(chats) {
                 }
             } else {
                 if (badge) badge.remove();
+            }
+            
+            // Double-check: Remove badges from current user's profile after update
+            if (isCurrentUser) {
+                removeBadgesFromCurrentUserProfile();
             }
 
             const lastEl = el.querySelector('.last-message');
@@ -2030,6 +2172,10 @@ function applyRecentChats(chats) {
             container.appendChild(el);
         }
     });
+    
+    // Final check: Remove badges from current user's profile after all updates
+    removeBadgesFromCurrentUserProfile();
+    
     // Toggle empty-state depending on whether any persistent users remain
     ensureListEmptyState();
     // Sidebar badge is now updated by dashboard unread_messages.js (aggregate: chats + contact requests)
@@ -2268,6 +2414,9 @@ function applyMessagesDiff(newData) {
             }
         }
     }
+    
+    // Final check: Remove badges from current user's profile after all updates
+    removeBadgesFromCurrentUserProfile();
 }
 
 // Start editing a message

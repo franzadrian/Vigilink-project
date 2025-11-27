@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from communityowner_panel.models import CommunityProfile
+from admin_panel.storage import DropboxStorage
 import json
 
 User = get_user_model()
@@ -216,3 +217,61 @@ class Incident(models.Model):
             'other': 'Other',
         }
         return type_map.get(self.incident_type, self.incident_type)
+
+
+class VisitorLog(models.Model):
+    """Model to track visitors entering and exiting the community"""
+    
+    STATUS_CHOICES = [
+        ('visiting', 'Currently Visiting'),
+        ('returned', 'Returned'),
+    ]
+    
+    # Visitor information
+    visitor_name = models.CharField(max_length=200, help_text="Name of the visitor")
+    id_image = models.ImageField(
+        storage=DropboxStorage(location='/vigilink/visitor_ids/'),
+        upload_to='',
+        blank=True,
+        null=True,
+        help_text="Photo of visitor's ID (stored in Dropbox)"
+    )
+    
+    # Resident being visited
+    visiting_resident = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='visitor_logs',
+        help_text="Resident that the visitor is visiting"
+    )
+    
+    # Status tracking
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='visiting')
+    
+    # Timestamps
+    entry_time = models.DateTimeField(auto_now_add=True, help_text="When the visitor entered")
+    exit_time = models.DateTimeField(null=True, blank=True, help_text="When the visitor returned home/exited")
+    
+    # Community context
+    community = models.ForeignKey(CommunityProfile, on_delete=models.CASCADE, related_name='visitor_logs')
+    
+    # Security personnel who logged this
+    logged_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='logged_visitors')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-entry_time']
+        verbose_name = 'Visitor Log'
+        verbose_name_plural = 'Visitor Logs'
+    
+    def __str__(self):
+        return f"{self.visitor_name} visiting {self.visiting_resident.full_name or self.visiting_resident.username} - {self.get_status_display()}"
+    
+    def mark_as_returned(self):
+        """Mark visitor as returned and set exit time"""
+        from django.utils import timezone
+        self.status = 'returned'
+        self.exit_time = timezone.now()
+        self.save()
