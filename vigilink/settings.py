@@ -198,9 +198,10 @@ STATICFILES_DIRS = [
     BASE_DIR / 'user_panel' / 'static',
 ]
 
-# WhiteNoise static files storage (hashed files, compression) only in production
+# WhiteNoise static files storage (compression) only in production
+# Using CompressedStaticFilesStorage instead of Manifest for better compatibility
 if not DEBUG:
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 # Media files (User uploads)
 MEDIA_URL = '/media/'

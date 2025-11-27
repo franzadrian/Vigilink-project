@@ -27,9 +27,9 @@ services:
       - key: POSTGRES_SSLMODE
         value: require
       - key: DJANGO_ALLOWED_HOSTS
-        value: your-app-name.onrender.com  # Update with your actual Render URL after first deploy
+        value: vigilink-project.onrender.com  # Your actual Render URL
       - key: CSRF_TRUSTED_ORIGINS
-        value: https://your-app-name.onrender.com  # Update with your actual Render URL after first deploy
+        value: https://vigilink-project.onrender.com  # Your actual Render URL
       # Optional: Add other environment variables as needed (set manually in Render dashboard):
       # - key: EMAIL_HOST_USER
       #   sync: false
