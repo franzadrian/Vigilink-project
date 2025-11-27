@@ -15,10 +15,15 @@ COPY . .
 
 # Collect static files (served by WhiteNoise in production)
 # Set required env vars for collectstatic to work properly
+# Note: collectstatic doesn't need database, so we can skip DB connection
 ENV DJANGO_DEBUG=false
 ENV SECRET_KEY=dummy-key-for-static-collection-only
 ENV ALLOWED_HOSTS=*
-RUN python manage.py collectstatic --noinput || echo "Warning: collectstatic had issues, but continuing..."
+# Temporarily disable database to avoid connection errors during build
+ENV USE_POSTGRES=false
+RUN python manage.py collectstatic --noinput
+# Re-enable postgres for runtime (will be overridden by Render env vars)
+ENV USE_POSTGRES=true
 
 # Copy entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
