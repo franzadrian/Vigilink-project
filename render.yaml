@@ -10,7 +10,7 @@ services:
       - key: DJANGO_SECRET_KEY
         sync: false  # Set this manually in Render dashboard (generate a strong secret key)
       - key: DJANGO_DEBUG
-        value: false
+        value: "false"  # Must be string "false" (lowercase) for Django to recognize it
       - key: USE_POSTGRES
         value: true
       # Neon PostgreSQL Database Connection (set these manually in Render dashboard)

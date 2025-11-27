@@ -83,8 +83,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    # WhiteNoise only needed in production; enable when DEBUG is False
-    *(['whitenoise.middleware.WhiteNoiseMiddleware'] if not DEBUG else []),
+    # WhiteNoise for serving static files in production
+    # Must be after SecurityMiddleware and before all other middleware
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -192,16 +193,17 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Define static files directories (for local dev; collected to STATIC_ROOT in prod)
+# Note: Django automatically finds static files in each app's static/ directory
+# STATICFILES_DIRS should only contain directories that are NOT part of installed apps
 STATICFILES_DIRS = [
-    BASE_DIR / 'accounts' / 'static',
-    BASE_DIR / 'admin_panel' / 'static',
-    BASE_DIR / 'user_panel' / 'static',
+    # Add any non-app static directories here if needed
+    # App static files are automatically discovered from INSTALLED_APPS
 ]
 
-# WhiteNoise static files storage (compression) only in production
-# Using CompressedStaticFilesStorage instead of Manifest for better compatibility
-if not DEBUG:
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+# WhiteNoise static files storage (compression) for production
+# Using CompressedStaticFilesStorage for better compatibility
+# Always use WhiteNoise storage (even if DEBUG is True, it won't break anything)
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 # Media files (User uploads)
 MEDIA_URL = '/media/'
