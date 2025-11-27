@@ -1769,3 +1769,130 @@ def download_resource(request, resource_id):
     except Exception as e:
         logger.error(f"Error downloading resource {resource_id}: {e}", exc_info=True)
         return HttpResponse(f"Error downloading file: {str(e)}", status=500)
+
+@login_required
+def admin_income(request):
+    """Admin income page showing all subscriptions with filtering by plan type"""
+    # Check if user has admin role or is a superuser
+    if request.user.role != 'admin' and not request.user.is_superuser:
+        return HttpResponseForbidden("You don't have permission to access this page.")
+    
+    from settings_panel.models import Subscription
+    from communityowner_panel.models import CommunityProfile
+    
+    # Get filter parameters
+    plan_filter = request.GET.get('plan', 'all').strip().lower()  # all, standard, premium
+    search_query = request.GET.get('search', '').strip()
+    
+    # Base queryset with select_related for optimization
+    subscriptions_qs = Subscription.objects.select_related('user').order_by('-created_at')
+    
+    # Apply plan type filter
+    if plan_filter in ['standard', 'premium']:
+        subscriptions_qs = subscriptions_qs.filter(plan_type=plan_filter)
+    
+    # Apply search filter (search by username, email, or community name)
+    if search_query:
+        subscriptions_qs = subscriptions_qs.filter(
+            Q(user__username__icontains=search_query) |
+            Q(user__email__icontains=search_query) |
+            Q(user__full_name__icontains=search_query)
+        )
+    
+    # Pagination
+    page_number = request.GET.get('page') or 1
+    try:
+        page_number = int(page_number)
+    except Exception:
+        page_number = 1
+    
+    paginator = Paginator(subscriptions_qs, 10)  # 10 subscriptions per page
+    page_obj = paginator.get_page(page_number)
+    subscriptions = page_obj.object_list
+    
+    # Pricing structure (in PHP)
+    PRICING = {
+        'standard': {'monthly': 1500, 'yearly': 14400},
+        'premium': {'monthly': 3000, 'yearly': 28800},
+    }
+    
+    def get_subscription_revenue(subscription):
+        """Calculate revenue for a subscription (excluding free trials)"""
+        if subscription.is_trial:
+            return 0
+        return PRICING.get(subscription.plan_type, {}).get(subscription.billing_cycle, 0)
+    
+    # Prepare subscription data with community information and revenue
+    subscription_list = []
+    for subscription in subscriptions:
+        # Get community for this subscription's user
+        community = None
+        try:
+            community = CommunityProfile.objects.filter(owner=subscription.user).first()
+        except Exception:
+            pass
+        
+        revenue = get_subscription_revenue(subscription)
+        
+        subscription_list.append({
+            'subscription': subscription,
+            'community_name': community.community_name if community else 'N/A',
+            'community_id': community.id if community else None,
+            'user': subscription.user,
+            'revenue': revenue,
+        })
+    
+    # Calculate summary statistics
+    all_subscriptions = Subscription.objects.all()
+    total_subscriptions = all_subscriptions.count()
+    standard_count = all_subscriptions.filter(plan_type='standard').count()
+    premium_count = all_subscriptions.filter(plan_type='premium').count()
+    active_count = all_subscriptions.filter(status='active').count()
+    
+    # Calculate revenue statistics (excluding free trials)
+    total_revenue = sum(get_subscription_revenue(sub) for sub in all_subscriptions if not sub.is_trial)
+    standard_revenue = sum(
+        get_subscription_revenue(sub) 
+        for sub in all_subscriptions.filter(plan_type='standard') 
+        if not sub.is_trial
+    )
+    premium_revenue = sum(
+        get_subscription_revenue(sub) 
+        for sub in all_subscriptions.filter(plan_type='premium') 
+        if not sub.is_trial
+    )
+    active_revenue = sum(
+        get_subscription_revenue(sub) 
+        for sub in all_subscriptions.filter(status='active') 
+        if not sub.is_trial
+    )
+    
+    context = {
+        'subscriptions': subscription_list,
+        'page_obj': page_obj,
+        'paginator': paginator,
+        'total_count': paginator.count,
+        'plan_filter': plan_filter,
+        'search_query': search_query,
+        'summary': {
+            'total': total_subscriptions,
+            'standard': standard_count,
+            'premium': premium_count,
+            'active': active_count,
+            'total_revenue': total_revenue,
+            'standard_revenue': standard_revenue,
+            'premium_revenue': premium_revenue,
+            'active_revenue': active_revenue,
+        }
+    }
+    
+    # Check if this is an AJAX request
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    
+    if is_ajax:
+        # Return just the content area for AJAX requests
+        from django.template.loader import render_to_string
+        html = render_to_string('admin_income/admin_income_partial.html', context, request=request)
+        return HttpResponse(html)
+    
+    return render(request, 'admin_income/admin_income.html', context)

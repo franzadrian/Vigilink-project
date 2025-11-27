@@ -1,0 +1,119 @@
+{% load humanize %}
+<!-- Summary Cards -->
+<div class="summary-cards">
+  <div class="summary-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+    <h3 style="color: rgba(255,255,255,0.9);">Total Revenue</h3>
+    <p class="value" style="color: white;">₱{{ summary.total_revenue|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="summary-card">
+    <h3>Total Subscriptions</h3>
+    <p class="value">{{ summary.total }}</p>
+  </div>
+  <div class="summary-card">
+    <h3>Standard Plans</h3>
+    <p class="value">{{ summary.standard }}</p>
+    <p style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;">₱{{ summary.standard_revenue|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="summary-card">
+    <h3>Premium Plans</h3>
+    <p class="value">{{ summary.premium }}</p>
+    <p style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;">₱{{ summary.premium_revenue|floatformat:0|intcomma }}</p>
+  </div>
+  <div class="summary-card">
+    <h3>Active Subscriptions</h3>
+    <p class="value">{{ summary.active }}</p>
+    <p style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;">₱{{ summary.active_revenue|floatformat:0|intcomma }}</p>
+  </div>
+</div>
+
+<!-- Subscriptions Table -->
+<div class="subscriptions-table">
+  <div class="table-header">
+    <h2>Subscriptions ({{ total_count }})</h2>
+  </div>
+  {% if subscriptions %}
+    <table>
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Community</th>
+          <th>Plan Type</th>
+          <th>Billing Cycle</th>
+          <th>Status</th>
+          <th>Revenue</th>
+          <th>Start Date</th>
+          <th>Expiry Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in subscriptions %}
+          <tr>
+            <td>
+              <div>
+                <strong>{{ item.user.full_name|default:item.user.username }}</strong><br>
+                <small style="color: #6b7280;">{{ item.user.email }}</small>
+              </div>
+            </td>
+            <td>
+              <strong>{{ item.community_name }}</strong>
+            </td>
+            <td>
+              <span class="badge badge-{{ item.subscription.plan_type }}">
+                {{ item.subscription.get_plan_type_display }}
+              </span>
+            </td>
+            <td>
+              {% if item.subscription.is_trial %}
+                <span style="color: #6b7280;">14 Days (Trial)</span>
+              {% else %}
+                {{ item.subscription.get_billing_cycle_display }}
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge badge-{{ item.subscription.status }}">
+                {{ item.subscription.get_status_display }}
+              </span>
+            </td>
+            <td>
+              {% if item.subscription.is_trial %}
+                <span style="color: #6b7280;">Free</span>
+              {% else %}
+                <strong style="color: #059669;">₱{{ item.revenue|floatformat:0|intcomma }}</strong>
+              {% endif %}
+            </td>
+            <td>{{ item.subscription.start_date|date:"M d, Y" }}</td>
+            <td>
+              {% if item.subscription.expiry_date %}
+                {{ item.subscription.expiry_date|date:"M d, Y" }}
+              {% else %}
+                <span style="color: #6b7280;">N/A</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state">
+      <i class="fas fa-inbox"></i>
+      <h3>No subscriptions found</h3>
+      <p>Try adjusting your filters or search query.</p>
+    </div>
+  {% endif %}
+
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+    <div class="pagination" id="pagination-container">
+      {% if page_obj.has_previous %}
+        <button type="button" class="page-link" data-page="{{ page_obj.previous_page_number }}">Previous</button>
+      {% endif %}
+      
+      <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+      
+      {% if page_obj.has_next %}
+        <button type="button" class="page-link" data-page="{{ page_obj.next_page_number }}">Next</button>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+

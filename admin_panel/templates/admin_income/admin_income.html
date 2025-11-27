@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+{% load static %}
+{% load humanize %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Income & Subscriptions - VigiLink Admin</title>
+    <meta name="description" content="VigiLink admin income and subscription management panel." />
+    <link rel="icon" href="{% static 'favicon/shield.svg' %}" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="{% static 'favicon/shield.svg' %}">
+    <link rel="manifest" href="{% static 'favicon/site.webmanifest' %}">
+    <link rel="canonical" href="{% url 'admin_panel:admin_income' %}" />
+    {% csrf_token %}
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+    <link rel="stylesheet" href="{% static 'admin_dashboard/css/admin_dashboard.css' %}">
+    <link rel="stylesheet" href="{% static 'admin_dashboard/css/unread_badge.css' %}">
+    <script defer src="{% static 'admin_dashboard/js/unread_messages.js' %}"></script>
+    <style>
+        .income-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+
+        @media (min-width: 768px) {
+            .income-container {
+                padding: 2rem;
+            }
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (min-width: 768px) {
+            .summary-cards {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 1.5rem;
+            }
+        }
+
+        .summary-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e5e7eb;
+        }
+
+        @media (min-width: 768px) {
+            .summary-card {
+                padding: 1.5rem;
+            }
+        }
+
+        .summary-card h3 {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin: 0 0 0.5rem 0;
+            font-weight: 500;
+        }
+
+        .summary-card .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #111827;
+            margin: 0;
+        }
+
+        @media (min-width: 768px) {
+            .summary-card .value {
+                font-size: 2rem;
+            }
+        }
+
+        .summary-card p {
+            margin: 0.25rem 0;
+        }
+
+        .summary-card h3 {
+            font-size: 0.75rem;
+        }
+
+        @media (min-width: 768px) {
+            .summary-card h3 {
+                font-size: 0.875rem;
+            }
+        }
+
+        .search-filter-section {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e5e7eb;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            flex-wrap: nowrap;
+            justify-content: flex-start;
+        }
+
+        @media (min-width: 768px) {
+            .filter-buttons {
+                gap: 0.75rem;
+            }
+        }
+
+        .filter-btn {
+            flex: 1;
+            min-width: 0;
+        }
+
+        @media (min-width: 768px) {
+            .filter-btn {
+                flex: 0 1 auto;
+            }
+        }
+
+        .filter-btn {
+            padding: 0.5rem 0.75rem;
+            border: 2px solid #e5e7eb;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            color: #6b7280;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+        }
+
+        @media (min-width: 768px) {
+            .filter-btn {
+                padding: 0.5rem 1rem;
+            }
+        }
+
+        .filter-btn:hover {
+            border-color: #2563eb;
+            color: #2563eb;
+        }
+
+        .filter-btn.active {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: white;
+        }
+
+        .search-form {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            align-items: stretch;
+        }
+
+        @media (min-width: 768px) {
+            .search-form {
+                flex-direction: row;
+                align-items: center;
+            }
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 0.875rem;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+
+        .search-btn {
+            padding: 0.75rem 1.5rem;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+            white-space: nowrap;
+            width: 100%;
+        }
+
+        @media (min-width: 768px) {
+            .search-btn {
+                width: auto;
+            }
+        }
+
+        .search-btn:hover {
+            background: #1d4ed8;
+        }
+
+
+        .subscriptions-table {
+            background: white;
+            border-radius: 12px;
+            overflow-x: auto;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e5e7eb;
+        }
+
+        @media (max-width: 767px) {
+            .subscriptions-table {
+                overflow-x: scroll;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+
+        .table-header {
+            background: #f9fafb;
+            padding: 1rem 1.5rem;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        @media (max-width: 767px) {
+            .table-header {
+                padding: 0.75rem 1rem;
+            }
+        }
+
+        .table-header h2 {
+            margin: 0;
+            font-size: 1.25rem;
+            color: #111827;
+        }
+
+        @media (max-width: 767px) {
+            .table-header h2 {
+                font-size: 1rem;
+            }
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        @media (max-width: 767px) {
+            table {
+                min-width: auto;
+                font-size: 0.75rem;
+            }
+        }
+
+        thead {
+            background: #f9fafb;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        th {
+            padding: 1rem 1.5rem;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        @media (max-width: 767px) {
+            th {
+                padding: 0.5rem 0.75rem;
+                font-size: 0.7rem;
+            }
+        }
+
+        td {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #111827;
+            font-size: 0.875rem;
+        }
+
+        @media (max-width: 767px) {
+            td {
+                padding: 0.5rem 0.75rem;
+                font-size: 0.75rem;
+            }
+        }
+
+        tbody tr:hover {
+            background: #f9fafb;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 767px) {
+            .badge {
+                padding: 0.15rem 0.5rem;
+                font-size: 0.65rem;
+            }
+        }
+
+        .badge-standard {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge-premium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-active {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge-cancelled {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-expired {
+            background: #f3f4f6;
+            color: #4b5563;
+        }
+
+        .pagination {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+            padding: 10px 12px;
+            margin-top: 30px;
+        }
+
+        .pagination .page-link,
+        .pagination span {
+            border: 1px solid #e5e7eb;
+            background: #fff;
+            color: #374151;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s;
+        }
+
+        .pagination .page-link:hover {
+            background: #f3f4f6;
+        }
+
+        .pagination .current {
+            border-color: #2563eb;
+            color: #2563eb;
+            background: #eff6ff;
+            font-weight: 600;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #6b7280;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+        <div class="header-left">
+            <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle sidebar" style="margin-right: 20px;">
+                <svg class="sidebar-toggle-icon" width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+            <div class="logo" style="margin-left: 40px; border-bottom: none;">
+                <a href="{% url 'admin_panel:admin_dashboard' %}" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                    <img src="{% static 'accounts/images/vigilink_logo.png' %}" alt="VigiLink Logo" class="logo-img" style="height:40px;">
+                    <span class="logo-text" style="vertical-align:middle; margin-left: 10px; color: #2563EB;">VigiLink Admin</span>
+                </a>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="nav-links">
+                <!-- Navigation links removed as requested -->
+            </div>
+        </div>
+    </header>
+
+    <div class="sidebar" id="sidebar">
+      <ul class="sidebar-nav">
+        <li>
+          <a href="{% url 'admin_panel:admin_dashboard' %}" class="sidebar-link">
+            <svg class="sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+            </svg>
+            Dashboard
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'admin_panel:admin_resident' %}" class="sidebar-link">
+            <svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            Residents
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'admin_panel:admin_alert' %}" class="sidebar-link">
+            <svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            Alerts
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'admin_panel:admin_communication' %}" class="sidebar-link">
+            <svg class="sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+            </svg>
+            Communication
+            <span id="unread-badge" class="unread-badge" style="display: none;">0</span>
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'admin_panel:admin_resources' %}" class="sidebar-link">
+            <svg class="sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+            </svg>
+            Resources
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'admin_panel:admin_income' %}" class="sidebar-link active">
+            <svg class="sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Income & Subscriptions
+          </a>
+        </li>
+        <li>
+          <form method="post" action="{% url 'admin_panel:admin_logout' %}" style="margin: 0; padding: 0;">
+            {% csrf_token %}
+            <button type="submit" class="sidebar-link" id="logout-btn" style="width: 100%; text-align: left; background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem;">
+              <svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              Logout
+            </button>
+          </form>
+        </li>
+      </ul>
+    </div>
+        
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+
+    <main role="main">
+      <header class="page">
+        <h1>Income & Subscriptions</h1>
+        <p>View and manage all subscription income from Standard and Premium plans</p>
+      </header>
+
+      <div class="income-container">
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+          <div class="summary-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <h3 style="color: rgba(255,255,255,0.9);">Total Revenue</h3>
+            <p class="value" style="color: white;">₱{{ summary.total_revenue|floatformat:0|intcomma }}</p>
+          </div>
+          <div class="summary-card">
+            <h3>Total Subscriptions</h3>
+            <p class="value">{{ summary.total }}</p>
+          </div>
+          <div class="summary-card">
+            <h3>Standard Plans</h3>
+            <p class="value">{{ summary.standard }}</p>
+            <p style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;">₱{{ summary.standard_revenue|floatformat:0|intcomma }}</p>
+          </div>
+          <div class="summary-card">
+            <h3>Premium Plans</h3>
+            <p class="value">{{ summary.premium }}</p>
+            <p style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;">₱{{ summary.premium_revenue|floatformat:0|intcomma }}</p>
+          </div>
+          <div class="summary-card">
+            <h3>Active Subscriptions</h3>
+            <p class="value">{{ summary.active }}</p>
+            <p style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;">₱{{ summary.active_revenue|floatformat:0|intcomma }}</p>
+          </div>
+        </div>
+
+        <!-- Search and Filter Section -->
+        <div class="search-filter-section">
+          <form method="get" action="{% url 'admin_panel:admin_income' %}" id="filter-form">
+            <div class="search-form">
+              <input 
+                type="text" 
+                name="search" 
+                id="search-input"
+                class="search-input" 
+                placeholder="Search by username, email, or name..." 
+                value="{{ search_query }}"
+              >
+              <input type="hidden" name="plan" id="plan-filter-input" value="{{ plan_filter }}">
+              <button type="submit" class="search-btn">
+                <i class="fas fa-search"></i> Search
+              </button>
+            </div>
+            <div class="filter-buttons">
+              <button type="button" class="filter-btn {% if plan_filter == 'all' %}active{% endif %}" data-plan="all">
+                All Plans
+              </button>
+              <button type="button" class="filter-btn {% if plan_filter == 'standard' %}active{% endif %}" data-plan="standard">
+                Standard
+              </button>
+              <button type="button" class="filter-btn {% if plan_filter == 'premium' %}active{% endif %}" data-plan="premium">
+                Premium
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Subscriptions Table -->
+        <div class="subscriptions-table">
+          <div class="table-header">
+            <h2>Subscriptions ({{ total_count }})</h2>
+          </div>
+          {% if subscriptions %}
+            <table>
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Community</th>
+                  <th>Plan Type</th>
+                  <th>Billing Cycle</th>
+                  <th>Status</th>
+                  <th>Revenue</th>
+                  <th>Start Date</th>
+                  <th>Expiry Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in subscriptions %}
+                  <tr>
+                    <td>
+                      <div>
+                        <strong style="font-size: inherit;">{{ item.user.full_name|default:item.user.username }}</strong><br>
+                        <small style="color: #6b7280; font-size: 0.85em;">{{ item.user.email }}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <strong style="font-size: inherit;">{{ item.community_name }}</strong>
+                    </td>
+                    <td>
+                      <span class="badge badge-{{ item.subscription.plan_type }}">
+                        {{ item.subscription.get_plan_type_display }}
+                      </span>
+                    </td>
+                    <td>
+                      {% if item.subscription.is_trial %}
+                        <span style="color: #6b7280;">14 Days (Trial)</span>
+                      {% else %}
+                        {{ item.subscription.get_billing_cycle_display }}
+                      {% endif %}
+                    </td>
+                    <td>
+                      <span class="badge badge-{{ item.subscription.status }}">
+                        {{ item.subscription.get_status_display }}
+                      </span>
+                    </td>
+                    <td>
+                      {% if item.subscription.is_trial %}
+                        <span style="color: #6b7280; font-size: inherit;">Free</span>
+                      {% else %}
+                        <strong style="color: #059669; font-size: inherit;">₱{{ item.revenue|floatformat:0|intcomma }}</strong>
+                      {% endif %}
+                    </td>
+                    <td style="white-space: nowrap;">{{ item.subscription.start_date|date:"M d, Y" }}</td>
+                    <td style="white-space: nowrap;">
+                      {% if item.subscription.expiry_date %}
+                        {{ item.subscription.expiry_date|date:"M d, Y" }}
+                      {% else %}
+                        <span style="color: #6b7280;">N/A</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="empty-state">
+              <i class="fas fa-inbox"></i>
+              <h3>No subscriptions found</h3>
+              <p>Try adjusting your filters or search query.</p>
+            </div>
+          {% endif %}
+
+          <!-- Pagination -->
+          {% if page_obj.has_other_pages %}
+            <div class="pagination" id="pagination-container">
+              {% if page_obj.has_previous %}
+                <button type="button" class="page-link" data-page="{{ page_obj.previous_page_number }}">Previous</button>
+              {% endif %}
+              
+              <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+              
+              {% if page_obj.has_next %}
+                <button type="button" class="page-link" data-page="{{ page_obj.next_page_number }}">Next</button>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Use event delegation for filter buttons to avoid re-binding issues
+    document.addEventListener('click', function(e) {
+      // Handle filter button clicks
+      if (e.target.closest('.filter-btn')) {
+        const btn = e.target.closest('.filter-btn');
+        e.preventDefault();
+        
+        // Update active state
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        // Update hidden input
+        const planFilter = btn.getAttribute('data-plan');
+        document.getElementById('plan-filter-input').value = planFilter;
+        
+        // Apply filters
+        applyFilters();
+      }
+    });
+
+    // Function to apply filters without page refresh using AJAX
+    function applyFilters() {
+      const planFilter = document.querySelector('.filter-btn.active')?.getAttribute('data-plan') || 
+                        document.getElementById('plan-filter-input')?.value || 'all';
+      const searchQuery = document.getElementById('search-input')?.value.trim() || '';
+      
+      // Build URL parameters
+      const params = new URLSearchParams();
+      if (planFilter && planFilter !== 'all') {
+        params.set('plan', planFilter);
+      }
+      if (searchQuery) {
+        params.set('search', searchQuery);
+      }
+      
+      const queryString = params.toString();
+      const url = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
+      
+      // Show loading state
+      const contentArea = document.querySelector('.income-container');
+      if (contentArea) {
+        contentArea.style.opacity = '0.6';
+        contentArea.style.pointerEvents = 'none';
+      }
+      
+      // Fetch filtered content
+      fetch(url, {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.text();
+      })
+      .then(html => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        
+        // Update summary cards
+        const newSummaryCards = doc.querySelector('.summary-cards');
+        if (newSummaryCards) {
+          const currentSummaryCards = document.querySelector('.summary-cards');
+          if (currentSummaryCards) {
+            currentSummaryCards.innerHTML = newSummaryCards.innerHTML;
+          }
+        }
+        
+        // Update subscriptions table (includes pagination)
+        const newTable = doc.querySelector('.subscriptions-table');
+        if (newTable) {
+          const currentTable = document.querySelector('.subscriptions-table');
+          if (currentTable) {
+            currentTable.innerHTML = newTable.innerHTML;
+          }
+        }
+        
+        // Update URL without reload
+        window.history.pushState({}, '', url);
+        
+        // Re-attach pagination listeners after content update
+        attachPaginationListeners();
+        
+        // Restore UI state
+        if (contentArea) {
+          contentArea.style.opacity = '1';
+          contentArea.style.pointerEvents = 'auto';
+        }
+      })
+      .catch(error => {
+        console.error('Error loading filtered content:', error);
+        // Restore UI state
+        if (contentArea) {
+          contentArea.style.opacity = '1';
+          contentArea.style.pointerEvents = 'auto';
+        }
+        // Fallback to page reload
+        window.location.href = url;
+      });
+    }
+
+    // Prevent form submission and use AJAX instead
+    const filterForm = document.getElementById('filter-form');
+    if (filterForm) {
+      filterForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        applyFilters();
+      });
+    }
+
+    // Pagination button handlers
+    function attachPaginationListeners() {
+      document.querySelectorAll('#pagination-container .page-link').forEach(btn => {
+        // Remove existing listeners
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        
+        newBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          const page = this.getAttribute('data-page');
+          if (page) {
+            // Build URL with current filters
+            const planFilter = document.querySelector('.filter-btn.active')?.getAttribute('data-plan') || 
+                              document.getElementById('plan-filter-input')?.value || 'all';
+            const searchQuery = document.getElementById('search-input')?.value.trim() || '';
+            
+            const params = new URLSearchParams();
+            params.set('page', page);
+            if (planFilter && planFilter !== 'all') {
+              params.set('plan', planFilter);
+            }
+            if (searchQuery) {
+              params.set('search', searchQuery);
+            }
+            
+            const url = `${window.location.pathname}?${params.toString()}`;
+            window.location.href = url;
+          }
+        });
+      });
+    }
+
+    // Initialize pagination listeners on page load
+    attachPaginationListeners();
+
+    // Mobile menu toggle
+    document.getElementById('mobile-menu-btn')?.addEventListener('click', function() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      sidebar.classList.toggle('active');
+      overlay.classList.toggle('active');
+    });
+
+    document.getElementById('sidebarOverlay')?.addEventListener('click', function() {
+      const sidebar = document.getElementById('sidebar');
+      this.classList.remove('active');
+      sidebar.classList.remove('active');
+    });
+  </script>
+</body>
+</html>
+

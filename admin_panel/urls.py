@@ -31,4 +31,5 @@ urlpatterns = [
     path('resources/edit/<int:resource_id>/', views.edit_resource, name='edit_resource'),
     path('resources/group-count/<str:base_title>/', views.get_group_count, name='get_group_count'),
     path('resources/download/<int:resource_id>/', views.download_resource, name='download_resource'),
+    path('income/', views.admin_income, name='admin_income'),
 ]
