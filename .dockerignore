@@ -9,7 +9,7 @@ __pycache__/
 .vscode/
 *.log
 node_modules/
-staticfiles/
+# staticfiles/ - DO NOT IGNORE - needed for production static files
 media/
 *.sqlite3
 __snapshots__/

@@ -4,45 +4,24 @@ services:
     env: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: free  # Change to 'standard' or 'pro' for production
+    plan: free  # Free plan - upgrade to 'starter', 'standard', or 'pro' for better performance
     healthCheckPath: /
     envVars:
       - key: DJANGO_SECRET_KEY
-        sync: false  # Set this manually in Render dashboard
+        sync: false  # Set this manually in Render dashboard (generate a strong secret key)
       - key: DJANGO_DEBUG
         value: false
       - key: USE_POSTGRES
         value: true
-      # Option 1: Use Render PostgreSQL (uncomment the fromDatabase lines below and comment out Option 2)
-      # - key: POSTGRES_DB
-      #   fromDatabase:
-      #     name: vigilink-db
-      #     property: database
-      # - key: POSTGRES_USER
-      #   fromDatabase:
-      #     name: vigilink-db
-      #     property: user
-      # - key: POSTGRES_PASSWORD
-      #   fromDatabase:
-      #     name: vigilink-db
-      #     property: password
-      # - key: POSTGRES_HOST
-      #   fromDatabase:
-      #     name: vigilink-db
-      #     property: host
-      # - key: POSTGRES_PORT
-      #   fromDatabase:
-      #     name: vigilink-db
-      #     property: port
-      # Option 2: Use external Neon database (set these manually in Render dashboard)
+      # Neon PostgreSQL Database Connection (set these manually in Render dashboard)
       - key: POSTGRES_DB
-        sync: false  # Set manually: your Neon database name
+        sync: false  # Your Neon database name
       - key: POSTGRES_USER
-        sync: false  # Set manually: your Neon user
+        sync: false  # Your Neon database user
       - key: POSTGRES_PASSWORD
-        sync: false  # Set manually: your Neon password
+        sync: false  # Your Neon database password
       - key: POSTGRES_HOST
-        sync: false  # Set manually: your Neon host (e.g., ep-xxx-pooler.region.aws.neon.tech)
+        sync: false  # Your Neon host (e.g., ep-xxx-pooler.region.aws.neon.tech)
       - key: POSTGRES_PORT
         value: "5432"
       - key: POSTGRES_SSLMODE
@@ -51,7 +30,7 @@ services:
         value: your-app-name.onrender.com  # Update with your actual Render URL after first deploy
       - key: CSRF_TRUSTED_ORIGINS
         value: https://your-app-name.onrender.com  # Update with your actual Render URL after first deploy
-      # Add other environment variables as needed (set manually in Render dashboard):
+      # Optional: Add other environment variables as needed (set manually in Render dashboard):
       # - key: EMAIL_HOST_USER
       #   sync: false
       # - key: EMAIL_HOST_PASSWORD
@@ -65,9 +44,4 @@ services:
       # - key: DROPBOX_APP_SECRET
       #   sync: false
 
-# Uncomment below if using Render PostgreSQL instead of Neon
-# databases:
-#   - name: vigilink-db
-#     databaseName: vigilink
-#     user: vigilink_user
-#     plan: starter  # Change to 'standard' or 'pro' for production
+# No database section needed - using external Neon PostgreSQL

@@ -18,16 +18,12 @@ git commit -m "Prepare for Render deployment"
 git push origin main
 ```
 
-## Step 2: Create a PostgreSQL Database on Render (Optional)
+## Step 2: Prepare Your Neon Database
 
-If you want to use Render's PostgreSQL instead of Neon:
-
-1. Go to Render Dashboard → New → PostgreSQL
-2. Name it `vigilink-db`
-3. Choose a plan (Starter is fine for testing)
-4. Note the connection details
-
-**OR** continue using your Neon database (recommended if you already have data there).
+You're using Neon PostgreSQL (external database). Make sure you have:
+- Your Neon database connection details ready
+- Database name, user, password, and host
+- You can find these in your Neon dashboard at https://console.neon.tech
 
 ## Step 3: Deploy Your Web Service
 
@@ -35,14 +31,22 @@ If you want to use Render's PostgreSQL instead of Neon:
 
 1. **Update `render.yaml`**:
    - Replace `your-app-name.onrender.com` with your desired app name
-   - Update database connection if using Render's PostgreSQL
-   - Adjust plan sizes as needed
+   - The file is already configured for Neon database (free plan)
+   - All database variables need to be set manually in Render dashboard
 
 2. **In Render Dashboard**:
    - Go to Dashboard → New → Blueprint
    - Connect your repository
    - Render will detect `render.yaml` automatically
    - Click "Apply"
+   
+3. **Set Neon Database Environment Variables**:
+   After creating the service, go to Environment and set:
+   - `POSTGRES_DB` = Your Neon database name
+   - `POSTGRES_USER` = Your Neon database user
+   - `POSTGRES_PASSWORD` = Your Neon database password
+   - `POSTGRES_HOST` = Your Neon host (e.g., `ep-xxx-pooler.region.aws.neon.tech`)
+   - `DJANGO_SECRET_KEY` = Generate a strong secret key
 
 ### Option B: Manual Setup
 
@@ -53,7 +57,7 @@ If you want to use Render's PostgreSQL instead of Neon:
    - **Environment**: `Docker`
    - **Dockerfile Path**: `./Dockerfile`
    - **Docker Context**: `.` (root directory)
-   - **Plan**: Choose Starter, Standard, or Pro
+   - **Plan**: Free (or upgrade to Starter/Standard/Pro for better performance)
    - **Branch**: `main` (or your default branch)
 
 4. **Set Environment Variables**:
@@ -66,7 +70,7 @@ If you want to use Render's PostgreSQL instead of Neon:
    USE_POSTGRES=true
    ```
 
-   **Database (if using Neon):**
+   **Database (Neon PostgreSQL - Required):**
    ```
    POSTGRES_DB=your_neon_db_name
    POSTGRES_USER=your_neon_user
@@ -75,10 +79,8 @@ If you want to use Render's PostgreSQL instead of Neon:
    POSTGRES_PORT=5432
    POSTGRES_SSLMODE=require
    ```
-
-   **Database (if using Render PostgreSQL):**
-   - Render automatically provides these if you link the database
-   - Or manually set them from your Render database connection string
+   
+   Get these values from your Neon dashboard at https://console.neon.tech
 
    **Application:**
    ```
@@ -98,12 +100,11 @@ If you want to use Render's PostgreSQL instead of Neon:
 
 5. **Click "Create Web Service"**
 
-## Step 4: Link Database (if using Render PostgreSQL)
+## Step 4: Verify Neon Database Connection
 
-1. In your web service settings
-2. Go to "Connections" tab
-3. Click "Link" next to your PostgreSQL database
-4. Render will automatically set the database environment variables
+1. Make sure all `POSTGRES_*` environment variables are set correctly
+2. The connection will be tested automatically when the service starts
+3. Check logs to ensure database connection is successful
 
 ## Step 5: Verify Deployment
 
@@ -210,11 +211,18 @@ When you make changes:
 
 ## Cost Considerations
 
-- **Starter Plan**: Free tier available (with limitations)
-- **Standard Plan**: ~$7/month (better performance)
-- **Pro Plan**: ~$25/month (production-ready)
+- **Free Plan**: Free forever (with some limitations like slower cold starts)
+  - Perfect for testing and small projects
+  - Services may spin down after inactivity
+  - Upgrade to paid plans for better performance and reliability
+  
+- **Upgrade Options** (if needed):
+  - **Starter Plan**: ~$7/month (better performance, no cold starts)
+  - **Standard Plan**: ~$25/month (production-ready)
+  - **Pro Plan**: Higher tier for high traffic
 
-PostgreSQL database is separate pricing.
+- **Neon Database**: Free tier available (separate from Render)
+  - Check Neon pricing at https://neon.tech/pricing
 
 ## Security Checklist
 

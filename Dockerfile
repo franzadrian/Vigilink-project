@@ -14,7 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Collect static files (served by WhiteNoise in production)
-RUN python manage.py collectstatic --noinput
+# Set DEBUG=False and a dummy SECRET_KEY during build to ensure proper static file collection
+# These env vars are only for the collectstatic command
+RUN DJANGO_DEBUG=false SECRET_KEY=dummy-key-for-static-collection-only python manage.py collectstatic --noinput
 
 # Copy entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
