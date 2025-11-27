@@ -227,6 +227,12 @@ class VisitorLog(models.Model):
         ('returned', 'Returned'),
     ]
     
+    VISIT_TYPE_CHOICES = [
+        ('visiting', 'Visiting'),
+        ('package_delivery', 'Package Delivery'),
+        ('food_delivery', 'Food Delivery'),
+    ]
+    
     # Visitor information
     visitor_name = models.CharField(max_length=200, help_text="Name of the visitor")
     id_image = models.ImageField(
@@ -243,6 +249,14 @@ class VisitorLog(models.Model):
         on_delete=models.CASCADE, 
         related_name='visitor_logs',
         help_text="Resident that the visitor is visiting"
+    )
+    
+    # Visit type
+    visit_type = models.CharField(
+        max_length=20, 
+        choices=VISIT_TYPE_CHOICES, 
+        default='visiting',
+        help_text="Type of visit - visiting person or delivery"
     )
     
     # Status tracking

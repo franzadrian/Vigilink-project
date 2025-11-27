@@ -176,11 +176,38 @@
 
 {% block extra_js %}
 {{ block.super }}
+<!-- Security Dashboard Data -->
+<script type="application/json" id="security-dashboard-data">
+{
+  "userRole": "{{ request.user.role }}",
+  "initialMaxReportId": {{ initial_max_report_id }},
+  "notificationSoundEnabled": {% if request.user.notification_sound_enabled %}true{% else %}false{% endif %}
+}
+</script>
 <script>
     // Pass user role and notification settings to JavaScript
-    window.userRole = '{{ request.user.role }}';
-    window.initialMaxReportId = {{ initial_max_report_id }};
-    window.notificationSoundEnabled = {% if request.user.notification_sound_enabled %}true{% else %}false{% endif %};
+    (function() {
+        const dataEl = document.getElementById('security-dashboard-data');
+        if (dataEl) {
+            try {
+                const data = JSON.parse(dataEl.textContent);
+                window.userRole = data.userRole;
+                window.initialMaxReportId = data.initialMaxReportId;
+                window.notificationSoundEnabled = data.notificationSoundEnabled;
+            } catch (e) {
+                console.error('Error parsing security dashboard data:', e);
+                // Fallback values
+                window.userRole = '';
+                window.initialMaxReportId = 0;
+                window.notificationSoundEnabled = false;
+            }
+        } else {
+            // Fallback if element doesn't exist
+            window.userRole = '';
+            window.initialMaxReportId = 0;
+            window.notificationSoundEnabled = false;
+        }
+    })();
 </script>
 <script src="{% static 'security_panel/js/security.js' %}"></script>
 {% endblock %}

@@ -296,6 +296,32 @@
     color: #374151;
   }
 
+  .file-upload-label.error {
+    border-color: #ef4444;
+    background: #fef2f2;
+  }
+
+  .field-error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .form-errors {
+    animation: slideDown 0.3s ease;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   .file-upload-label:hover {
     border-color: #3b82f6;
     background: #eff6ff;
@@ -415,6 +441,21 @@
   .status-returned {
     background: #d1fae5;
     color: #065f46;
+  }
+
+  .visit-type-package_delivery {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .visit-type-food_delivery {
+    background: #fce7f3;
+    color: #9f1239;
+  }
+
+  .visit-type-visiting {
+    background: #dbeafe;
+    color: #1e40af;
   }
 
   .btn-return {
@@ -748,7 +789,7 @@
     <div class="header-actions">
       <button type="button" class="btn-add-visitor" id="add-visitor-btn" onclick="showAddVisitorForm()">
         <i class="fa-solid fa-plus"></i>
-        Add Visitor
+        Add New Visitor Log
       </button>
     </div>
   </div>
@@ -828,18 +869,35 @@
           </select>
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="visit_type">Visit Type *</label>
+          <select id="visit_type" name="visit_type" required>
+            <option value="visiting">Visiting</option>
+            <option value="package_delivery">Package Delivery</option>
+            <option value="food_delivery">Food Delivery</option>
+          </select>
+        </div>
+      </div>
       <div class="form-group full-width">
-        <label>ID Photo</label>
+        <label>ID Photo *</label>
         <div style="position: relative;">
-          <label for="id_image" class="file-upload-label">
+          <label for="id_image" class="file-upload-label" id="id-image-label">
             <i class="fa-solid fa-camera"></i>
             Click here to take or upload ID photo
-            <input type="file" id="id_image" name="id_image" accept="image/*" class="file-upload-input">
+            <input type="file" id="id_image" name="id_image" accept="image/*" class="file-upload-input" required>
           </label>
           <div class="file-preview" id="file-preview">
             <img id="preview-image" src="" alt="ID Preview">
           </div>
+          <div id="id-image-error" class="field-error" style="display: none; color: #ef4444; font-size: 14px; margin-top: 8px;">
+            <i class="fas fa-exclamation-circle"></i> ID photo is required
+          </div>
         </div>
+      </div>
+      <div id="form-errors" class="form-errors" style="display: none; background: #fee2e2; border: 1px solid #ef4444; border-radius: 8px; padding: 12px; margin-bottom: 20px; color: #991b1b;">
+        <strong><i class="fas fa-exclamation-triangle"></i> Please fix the following errors:</strong>
+        <ul id="error-list" style="margin: 8px 0 0 0; padding-left: 20px;"></ul>
       </div>
       <button type="submit" class="btn-submit">Add Visitor</button>
     </form>
@@ -855,6 +913,7 @@
         <tr>
           <th>Visitor Name</th>
           <th>ID Photo</th>
+          <th>Visit Type</th>
           <th>Visiting</th>
           <th>Entered</th>
           <th>Exited</th>
@@ -872,6 +931,11 @@
             {% else %}
               <span style="color: #9ca3af;">No photo</span>
             {% endif %}
+          </td>
+          <td>
+            <span class="status-badge visit-type-{{ log.visit_type }}">
+              {{ log.get_visit_type_display }}
+            </span>
           </td>
           <td>{{ log.visiting_resident.full_name|default:log.visiting_resident.username }}</td>
           <td>{{ log.entry_time|date:"M d, Y" }}<br>{{ log.entry_time|date:"g:i A" }}</td>
@@ -954,13 +1018,33 @@
 
 <!-- Toast Container -->
 <div id="toast-container" class="toast-container"></div>
+
+<!-- Django Messages Data -->
+<script type="application/json" id="django-messages-data">
+{% if messages %}
+[
+  {% for message in messages %}
+  {
+    "text": "{{ message|escapejs }}",
+    "type": "{{ message.tags|default:"success" }}"
+  }{% if not forloop.last %},{% endif %}
+  {% endfor %}
+]
+{% else %}
+[]
+{% endif %}
+</script>
 {% endblock %}
 
 {% block extra_js %}
 {{ block.super }}
 <script>
-  // File preview
-  document.getElementById('id_image').addEventListener('change', function(e) {
+  // File preview and validation
+  const idImageInput = document.getElementById('id_image');
+  const idImageLabel = document.getElementById('id-image-label');
+  const idImageError = document.getElementById('id-image-error');
+  
+  idImageInput.addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
@@ -969,10 +1053,83 @@
         document.getElementById('file-preview').style.display = 'block';
       };
       reader.readAsDataURL(file);
+      // Clear error when file is selected
+      idImageError.style.display = 'none';
+      idImageLabel.style.borderColor = '#d1d5db';
     } else {
       document.getElementById('file-preview').style.display = 'none';
     }
   });
+
+  // Form validation
+  const visitorForm = document.querySelector('.visitor-form');
+  if (visitorForm) {
+    visitorForm.addEventListener('submit', function(e) {
+      const visitorName = document.getElementById('visitor_name').value.trim();
+      const visitingResident = document.getElementById('visiting_resident').value;
+      const idImage = document.getElementById('id_image').files.length;
+      const visitType = document.getElementById('visit_type').value;
+      
+      const errors = [];
+      const formErrors = document.getElementById('form-errors');
+      const errorList = document.getElementById('error-list');
+      
+      // Clear previous errors
+      errorList.innerHTML = '';
+      formErrors.style.display = 'none';
+      idImageError.style.display = 'none';
+      idImageLabel.style.borderColor = '#d1d5db';
+      
+      // Validate visitor name
+      if (!visitorName) {
+        errors.push('Visitor name is required');
+        document.getElementById('visitor_name').style.borderColor = '#ef4444';
+      } else {
+        document.getElementById('visitor_name').style.borderColor = '#d1d5db';
+      }
+      
+      // Validate resident selection
+      if (!visitingResident) {
+        errors.push('Please select a resident being visited');
+        document.getElementById('visiting_resident').style.borderColor = '#ef4444';
+      } else {
+        document.getElementById('visiting_resident').style.borderColor = '#d1d5db';
+      }
+      
+      // Validate ID photo
+      if (!idImage) {
+        errors.push('ID photo is required');
+        idImageError.style.display = 'block';
+        idImageLabel.style.borderColor = '#ef4444';
+      } else {
+        idImageError.style.display = 'none';
+        idImageLabel.style.borderColor = '#d1d5db';
+      }
+      
+      // Validate visit type
+      if (!visitType) {
+        errors.push('Please select a visit type');
+        document.getElementById('visit_type').style.borderColor = '#ef4444';
+      } else {
+        document.getElementById('visit_type').style.borderColor = '#d1d5db';
+      }
+      
+      // If there are errors, prevent submission and show them
+      if (errors.length > 0) {
+        e.preventDefault();
+        errors.forEach(function(error) {
+          const li = document.createElement('li');
+          li.textContent = error;
+          errorList.appendChild(li);
+        });
+        formErrors.style.display = 'block';
+        
+        // Scroll to errors
+        formErrors.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return false;
+      }
+    });
+  }
 
   // Image modal
   function openImageModal(imageUrl, visitorName) {
@@ -1056,11 +1213,19 @@
 
   // Show toasts from Django messages on page load
   document.addEventListener('DOMContentLoaded', function() {
-    {% if messages %}
-      {% for message in messages %}
-        showToast('{{ message|escapejs }}', '{{ message.tags|default:"success" }}');
-      {% endfor %}
-    {% endif %}
+    const messagesDataEl = document.getElementById('django-messages-data');
+    if (messagesDataEl) {
+      try {
+        const djangoMessages = JSON.parse(messagesDataEl.textContent);
+        djangoMessages.forEach(function(msg) {
+          if (msg && msg.text) {
+            showToast(msg.text, msg.type);
+          }
+        });
+      } catch (e) {
+        console.error('Error parsing Django messages:', e);
+      }
+    }
   });
 
   // Toggle between list view and form view
@@ -1079,7 +1244,22 @@
     document.getElementById('summary-card').classList.remove('hide');
     document.getElementById('add-visitor-btn').style.display = 'inline-flex';
     // Reset form
-    document.querySelector('.visitor-form').reset();
+    const form = document.querySelector('.visitor-form');
+    if (form) {
+      form.reset();
+      // Clear error states
+      const formErrors = document.getElementById('form-errors');
+      const idImageError = document.getElementById('id-image-error');
+      const idImageLabel = document.getElementById('id-image-label');
+      if (formErrors) formErrors.style.display = 'none';
+      if (idImageError) idImageError.style.display = 'none';
+      if (idImageLabel) idImageLabel.style.borderColor = '#d1d5db';
+      // Reset input borders
+      const inputs = form.querySelectorAll('input, select');
+      inputs.forEach(function(input) {
+        input.style.borderColor = '';
+      });
+    }
     document.getElementById('file-preview').style.display = 'none';
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });

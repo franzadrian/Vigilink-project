@@ -295,6 +295,7 @@ def create_visitor_log(request):
     try:
         visitor_name = request.POST.get('visitor_name', '').strip()
         resident_id = request.POST.get('visiting_resident', '')
+        visit_type = request.POST.get('visit_type', 'visiting')  # Default to 'visiting' if not provided
         id_image = request.FILES.get('id_image')
         
         if not visitor_name:
@@ -304,6 +305,14 @@ def create_visitor_log(request):
         if not resident_id:
             messages.error(request, 'Please select a resident being visited.')
             return redirect('security_panel:visitor_logs')
+        
+        if not id_image:
+            messages.error(request, 'ID photo is required.')
+            return redirect('security_panel:visitor_logs')
+        
+        # Validate visit_type
+        if visit_type not in ['visiting', 'package_delivery', 'food_delivery']:
+            visit_type = 'visiting'  # Default to visiting if invalid
         
         try:
             resident = User.objects.get(id=resident_id, community_membership__community=community)
@@ -315,15 +324,22 @@ def create_visitor_log(request):
         visitor_log = VisitorLog.objects.create(
             visitor_name=visitor_name,
             visiting_resident=resident,
+            visit_type=visit_type,
             id_image=id_image,
             community=community,
             logged_by=request.user,
             status='visiting'
         )
         
-        # Send automatic message to the resident about the visitor
+        # Send automatic message to the resident based on visit type
         try:
-            message_text = f"You have a visitor: {visitor_name}"
+            if visit_type == 'package_delivery':
+                message_text = f"You have a package delivery from: {visitor_name}"
+            elif visit_type == 'food_delivery':
+                message_text = f"You have a food delivery from: {visitor_name}"
+            else:
+                message_text = f"You have a visitor: {visitor_name}"
+            
             Message.objects.create(
                 sender=request.user,
                 receiver=resident,
