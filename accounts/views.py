@@ -415,48 +415,47 @@ def resend_verification_code(request):
     request.session['verification_code_created'] = timezone.now().isoformat()
     
     # Send verification email (handle errors gracefully)
-    try:
-        send_verification_email(email, verification_code)
-        messages.success(request, 'A new verification code has been sent to your email.')
-    except Exception as email_error:
-        error_msg = str(email_error)
-        print(f"Error resending verification email: {error_msg}")
-        if "Email configuration is missing" in error_msg:
-            messages.error(request, 'Email service is not configured. Please contact support for assistance.')
-        else:
-            messages.error(request, f'Failed to send verification email: {error_msg}. Please try again later.')
+    email_configured = bool(settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD)
+    email_sent = False
+    
+    if email_configured:
+        try:
+            # Use the same non-blocking approach as registration
+            from django.core.mail import send_mail
+            result = send_mail(
+                'VigiLink - Email Verification Code',
+                f'Thank you for registering with VigiLink!\n\nTo complete your registration, please use the following verification code:\n\n{verification_code}\n\nThis code will expire in 10 minutes.\n\nIf you did not request this code, please ignore this email.\n\nBest regards,\nThe VigiLink Team',
+                settings.EMAIL_HOST_USER,
+                [email],
+                fail_silently=True
+            )
+            if result:
+                email_sent = True
+                messages.success(request, 'A new verification code has been sent to your email.')
+                # Clear the email failure flags
+                if 'email_send_failed' in request.session:
+                    del request.session['email_send_failed']
+                if 'email_error' in request.session:
+                    del request.session['email_error']
+            else:
+                # Email sending failed
+                request.session['email_send_failed'] = True
+                request.session['email_error'] = "Email service temporarily unavailable"
+                messages.warning(request, f'Email sending failed. Your verification code is: {verification_code}')
+        except Exception as email_error:
+            error_msg = str(email_error)
+            logger.warning(f"Error resending verification email: {error_msg}")
+            request.session['email_send_failed'] = True
+            request.session['email_error'] = error_msg
+            messages.warning(request, f'Email sending failed. Your verification code is: {verification_code}')
+    else:
+        # Email not configured
+        request.session['email_send_failed'] = True
+        request.session['email_error'] = "Email service not configured"
+        messages.warning(request, f'Email service is not configured. Your verification code is: {verification_code}')
     
     return redirect('verify_email')
 
-
-def verify_email(request):
-    """Handle email verification"""
-    # Check if verification data exists in session
-    if 'verification_code' not in request.session or 'registration_data' not in request.session:
-        messages.error(request, 'Verification session expired or invalid. Please register again.')
-        return redirect('register')
-    
-    if request.method == 'POST':
-        # Get entered verification code
-        entered_code = ''
-        for i in range(1, 7):
-            digit = request.POST.get(f'digit{i}', '')
-            entered_code += digit
-        
-        stored_code = request.session.get('verification_code')
-        verification_time = request.session.get('verification_code_created')
-        
-        # Check if verification code is expired (10 minutes)
-        if verification_time:
-            verification_time = timezone.datetime.fromisoformat(verification_time)
-            if timezone.now() > verification_time + datetime.timedelta(minutes=10):
-                messages.error(request, 'Verification code has expired. Please register again.')
-                return redirect('register')
-        
-        # Check if verification code is correct
-        if entered_code != stored_code:
-            messages.error(request, 'Invalid verification code. Please try again.')
-            return render(request, 'accounts/verification.html')
 
 def forgot_password(request):
     """Handle forgot password requests"""
@@ -551,6 +550,18 @@ def verify_email(request):
         messages.error(request, 'Verification session expired or invalid. Please register again.')
         return redirect('register')
     
+    # Get verification code and check if email failed
+    verification_code = request.session.get('verification_code')
+    email_send_failed = request.session.get('email_send_failed', False)
+    email_error = request.session.get('email_error', '')
+    
+    # Prepare context for template
+    context = {
+        'verification_code': verification_code if email_send_failed else None,  # Show code if email failed
+        'email_send_failed': email_send_failed,
+        'email_error': email_error,
+    }
+    
     if request.method == 'POST':
         # Get entered verification code
         entered_code = ''
@@ -571,7 +582,7 @@ def verify_email(request):
         # Check if verification code is correct
         if entered_code != stored_code:
             messages.error(request, 'Invalid verification code. Please try again.')
-            return render(request, 'accounts/verification.html')
+            return render(request, 'accounts/verification.html', context)
         
         # Get registration data from session
         registration_data = request.session.get('registration_data')
@@ -616,11 +627,11 @@ def verify_email(request):
         except Exception as e:
             logger.error(f"Error in verify_email POST: {str(e)}\n{traceback.format_exc()}")
             messages.error(request, f'An error occurred during verification: {str(e)}. Please try again or contact support.')
-            return render(request, 'accounts/verification.html')
+            return render(request, 'accounts/verification.html', context)
     
     # GET request - show verification form
     try:
-        return render(request, 'accounts/verification.html')
+        return render(request, 'accounts/verification.html', context)
     except Exception as e:
         logger.error(f"Error rendering verification form: {str(e)}\n{traceback.format_exc()}")
         messages.error(request, 'Unable to load verification page. Please try again.')
