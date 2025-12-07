@@ -30,13 +30,34 @@
         .header-left {
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 0;
+        }
+
+        .mobile-menu-btn {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.5rem;
+            margin-right: 0;
+            flex-shrink: 0;
+            order: -1;
         }
 
         .logo {
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            margin-left: 0;
+        }
+
+        .logo-img {
+            height: 40px;
+            width: auto;
+            display: block;
+            object-fit: contain;
         }
 
         .logo-icon {
@@ -48,16 +69,12 @@
         .logo-text {
             font-size: 1.125rem;
             font-weight: 600;
-            color: #1f2937;
+            color: #2563EB;
+            display: inline-block;
+            vertical-align: middle;
         }
 
-        .mobile-menu-btn {
-            display: none;
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 0.5rem;
-        }
+        /* Mobile menu button styling moved above */
 
         .sidebar-toggle-icon {
             width: 20px;
@@ -285,6 +302,17 @@
             height: 20px;
             stroke-width: 2;
             flex-shrink: 0;
+            display: block;
+            stroke: currentColor;
+            fill: none;
+        }
+        
+        .sidebar-link.active .sidebar-icon {
+            stroke: #3b82f6;
+        }
+        
+        .sidebar-link:hover .sidebar-icon {
+            stroke: #1f2937;
         }
 
         /* Reply author link styling */
@@ -678,8 +706,12 @@
 
         @media (max-width: 768px) {
             .mobile-menu-btn {
-                display: block !important;
+                display: flex !important;
                 visibility: visible !important;
+            }
+            
+            .logo {
+                margin-left: 0;
             }
 
             .nav-links {

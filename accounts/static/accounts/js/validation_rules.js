@@ -259,7 +259,7 @@ function validateFullNameLength(fullName) {
                 } else if (email.includes('@')) {
                     // For login form, just validate the email format
                     removeError(this);
-                    emailInput.classList.add('input-success-field');
+                    // Don't add success class for login form - keep it neutral
                 } else {
                     removeError(this);
                 }
@@ -274,10 +274,8 @@ function validateFullNameLength(fullName) {
                     showSuccess(this, 'Valid email');
                 }
                 
-                // For login form, just show success message if email format is valid
-                if (isLoginForm && email !== '' && email.includes('@')) {
-                    this.classList.add('input-success-field');
-                }
+                // For login form, don't add success styling - keep it neutral
+                // Removed: this.classList.add('input-success-field');
             });
         }
         

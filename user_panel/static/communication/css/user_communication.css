@@ -492,6 +492,19 @@
     justify-content: flex-end;
 }
 
+.message-item.received {
+    justify-content: flex-start;
+    flex-direction: row;
+}
+
+/* For group chat received messages, use column layout to stack sender name above bubble */
+.message-item.received .message-content-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: 70%;
+}
+
 .message-content {
     max-width: 70%;
     padding: 0.75rem 1rem;
@@ -552,6 +565,29 @@
     color: hsl(var(--message-received-foreground));
     border-bottom-left-radius: 0;
      border: 1px solid hsla(var(--primary), 0.45);
+}
+
+/* Group chat sender name styling */
+.message-content-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: 70%;
+}
+
+.group-message-sender-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 4px;
+    padding-left: 4px;
+    display: block;
+    width: 100%;
+    line-height: 1.2;
+}
+
+.message-item.received .group-message-sender-name {
+    text-align: left;
 }
 
 .message-content p {

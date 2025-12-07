@@ -2500,7 +2500,13 @@ function saveMessageEdit(messageItem, messageId, newText, originalText) {
         cancelMessageEdit(messageItem, originalText);
         return;
     }
-    fetch('/user/communication/edit-message/', {
+    
+    // Use group chat endpoint if in a group chat, otherwise use regular endpoint
+    const editUrl = (isGroupChat && selectedGroupId) 
+        ? `/user/communication/group-chat/${selectedGroupId}/edit-message/`
+        : '/user/communication/edit-message/';
+    
+    fetch(editUrl, {
         method: 'POST',
         headers: {
             'X-CSRFToken': csrfToken,
@@ -2529,7 +2535,7 @@ function saveMessageEdit(messageItem, messageId, newText, originalText) {
             // Clear stored original markup
             try { messageItem.__origContentHTML = null; } catch (e) {}
             // Update in memory list if present
-            const msg = messages.find(m => m.id === messageId);
+            const msg = messages.find(m => (m.id || m.message_id) == messageId);
             if (msg) {
                 msg.message = newText;
                 msg.is_edited = true;
@@ -2540,6 +2546,13 @@ function saveMessageEdit(messageItem, messageId, newText, originalText) {
             messageItem.classList.remove('editing');
             const actionsBar = messageItem.querySelector('.message-actions');
             if (actionsBar) actionsBar.style.display = '';
+            
+            // Refresh messages to ensure server state is synced
+            if (isGroupChat && selectedGroupId) {
+                setTimeout(() => loadGroupChatMessages(selectedGroupId), 500);
+            } else if (selectedUser) {
+                setTimeout(() => fetchMessages(selectedUser, { silent: true }), 500);
+            }
         } else {
             console.error('Edit failed:', data && data.error);
             cancelMessageEdit(messageItem, originalText);
@@ -2665,9 +2678,19 @@ function deleteMessage(messageItem, messageId) {
             try { applyMessagesDiff(messages); } catch (e) {}
         } catch (e) {}
         // Proactively sync with server immediately (in addition to poll)
-        try { if (selectedUser) fetchMessages(selectedUser, { silent: true }); } catch (e) {}
+        if (isGroupChat && selectedGroupId) {
+            try { loadGroupChatMessages(selectedGroupId); } catch (e) {}
+        } else {
+            try { if (selectedUser) fetchMessages(selectedUser, { silent: true }); } catch (e) {}
+        }
+        
+        // Use group chat endpoint if in a group chat, otherwise use regular endpoint
+        const deleteUrl = (isGroupChat && selectedGroupId)
+            ? `/user/communication/group-chat/${selectedGroupId}/delete-message/`
+            : '/user/communication/delete-message/';
+        
         // Send delete request to server
-        fetch('/user/communication/delete-message/', {
+        fetch(deleteUrl, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': csrfToken,
@@ -2686,7 +2709,11 @@ function deleteMessage(messageItem, messageId) {
                 }
                 // Refresh list/messages silently to sync with server
                 try { refreshUserList(true); } catch (e) {}
-                try { if (selectedUser) fetchMessages(selectedUser, { silent: true }); } catch (e) {}
+                if (isGroupChat && selectedGroupId) {
+                    try { loadGroupChatMessages(selectedGroupId); } catch (e) {}
+                } else {
+                    try { if (selectedUser) fetchMessages(selectedUser, { silent: true }); } catch (e) {}
+                }
             } else {
                 console.error('Failed to delete message:', data && data.error);
                 // Revert optimistic change
@@ -2821,6 +2848,50 @@ function buildMessageItem(message) {
     const imgUrl = message.image_url || null;
     const editedChip = message.is_edited ? '<div class="edited-indicator">edited</div>' : '';
     const imgUrls = Array.isArray(message.image_urls) ? message.image_urls : null;
+    
+    // Extract first name for group chat messages (only for received messages)
+    let senderNameHtml = '';
+    
+    if (isGroupChat && !message.is_own && message.sender_name) {
+        const senderName = (message.sender_name || '').toString().trim();
+        const bad = ['none', 'null', 'undefined', 'n/a', 'na', 'none none'];
+        const senderNameLower = senderName.toLowerCase();
+        const senderNameNoSpaces = senderNameLower.replace(/\s+/g, '');
+        
+        // Check if it's a valid name (not in bad list and not "none none" variations)
+        if (senderName && 
+            !bad.includes(senderNameLower) && 
+            senderNameNoSpaces !== 'nonenone' &&
+            senderNameLower !== 'none none') {
+            // Extract first name (first token)
+            let firstName = '';
+            const tokens = senderName.split(/\s+/).filter(Boolean);
+            
+            if (tokens.length > 0) {
+                firstName = tokens[0];
+            } else {
+                // If no spaces, might be a username like "john.smith" - take part before dot
+                const dotIndex = senderName.indexOf('.');
+                if (dotIndex > 0) {
+                    firstName = senderName.substring(0, dotIndex);
+                } else {
+                    firstName = senderName;
+                }
+            }
+            
+            // Capitalize first letter
+            if (firstName) {
+                const firstNameLower = firstName.toLowerCase();
+                if (!bad.includes(firstNameLower) && 
+                    firstNameLower !== 'none' &&
+                    firstName !== 'None') {
+                    // Capitalize first letter
+                    const capitalizedFirstName = firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+                    senderNameHtml = `<div class="group-message-sender-name">${capitalizedFirstName}</div>`;
+                }
+            }
+        }
+    }
     if (message.is_own) {
         const hasImages = !!(imgUrl || (imgUrls && imgUrls.length));
         if (hasImages) {
@@ -2843,6 +2914,9 @@ function buildMessageItem(message) {
           </div>`;
         }
     }
+    // For group chat received messages, wrap sender name and message content together
+    const isGroupReceived = isGroupChat && !message.is_own && senderNameHtml;
+    
     if (imgUrls && imgUrls.length) {
         const shown = imgUrls.slice(0, 3);
         const extra = imgUrls.length - shown.length;
@@ -2855,32 +2929,38 @@ function buildMessageItem(message) {
                     ${overlay}
                 </div>`;
         });
-        item.innerHTML = `
+        const messageContent = `
             ${actionsHtml}
             <div class="message-content vl-bubble">
                 ${editedChip}
                 <div class="message-gallery">${tiles}</div>
-            </div>
-        `;
+            </div>`;
+        item.innerHTML = isGroupReceived 
+            ? `<div class="message-content-wrapper">${senderNameHtml}${messageContent}</div>`
+            : messageContent;
         try { item.dataset.imageUrls = JSON.stringify(imgUrls); } catch (e) {}
     } else if (imgUrl) {
-        item.innerHTML = `
+        const messageContent = `
             ${actionsHtml}
             <div class="message-content vl-bubble">
                 ${editedChip}
                 <a href="${imgUrl}" class="message-image-link">
                     <img src="${imgUrl}" alt="Image" class="message-image"/>
                 </a>
-            </div>
-        `;
+            </div>`;
+        item.innerHTML = isGroupReceived 
+            ? `<div class="message-content-wrapper">${senderNameHtml}${messageContent}</div>`
+            : messageContent;
     } else {
-        item.innerHTML = `
+        const messageContent = `
             ${actionsHtml}
             <div class="message-content vl-bubble">
                 ${editedChip}
                 <p>${text}</p>
-            </div>
-        `;
+            </div>`;
+        item.innerHTML = isGroupReceived 
+            ? `<div class="message-content-wrapper">${senderNameHtml}${messageContent}</div>`
+            : messageContent;
     }
 
     if (message.is_edited) item.classList.add('has-edited');

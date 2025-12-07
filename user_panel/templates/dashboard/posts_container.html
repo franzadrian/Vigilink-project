@@ -11,7 +11,14 @@
                  onerror="this.src='/static/accounts/images/profile.png'">
             <div class="post-info">
                 <div class="post-header-info">
-                    <div class="post-author"><a href="{% url 'user_panel:view_user_profile' post.user.id %}" style="text-decoration: none; color: inherit;" class="author-link">{{ post.user.full_name }}</a></div>
+                    <div class="post-author">
+                        <a href="{% url 'user_panel:view_user_profile' post.user.id %}" style="text-decoration: none; color: inherit;" class="author-link">{{ post.user.full_name }}</a>
+                        {% if post.user.role == 'security' %}
+                            <span class="role-badge role-badge-security">Security</span>
+                        {% elif post.user.role == 'communityowner' %}
+                            <span class="role-badge role-badge-president">Community President</span>
+                        {% endif %}
+                    </div>
                     <div class="post-date">{{ post.uploaded_at|date:"F j, Y, g:i a" }}</div>
                 </div>
                 {% if post.user == request.user %}

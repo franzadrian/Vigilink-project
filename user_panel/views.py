@@ -2354,8 +2354,13 @@ def get_group_chat_messages(request, group_id):
         messages_data = []
         for msg in messages:
             sname = msg.sender.get_full_name()
-            if not sname or str(sname).strip().lower() in ('none', 'null', 'undefined', 'n/a', 'na'):
+            # Check if sname is None, empty, or contains only "None" variations
+            sname_str = str(sname).strip() if sname else ''
+            sname_lower = sname_str.lower()
+            if not sname_str or sname_lower in ('none', 'null', 'undefined', 'n/a', 'na') or sname_lower == 'none none' or sname_lower.replace(' ', '') == 'nonenone':
                 sname = msg.sender.username
+            else:
+                sname = sname_str
             
             # Extract image placeholder if present
             image_url = None
@@ -2430,6 +2435,92 @@ def send_group_message(request, group_id):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
         logger.error(f"Error sending group message: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+@require_POST
+def edit_group_message(request, group_id):
+    """Handle editing a group chat message"""
+    try:
+        data = json.loads(request.body)
+        message_id = data.get('message_id')
+        new_content = data.get('new_content')
+        
+        if not message_id or not new_content:
+            return JsonResponse({'error': 'Message ID and new content are required'}, status=400)
+        
+        try:
+            group_chat = GroupChat.objects.get(group_id=group_id)
+            # Check if user is a member
+            if not GroupChatMember.objects.filter(group_chat=group_chat, user=request.user).exists():
+                return JsonResponse({'error': 'You are not a member of this group'}, status=403)
+            
+            # Get the message and verify ownership
+            message = GroupChatMessage.objects.get(message_id=message_id, group_chat=group_chat)
+            
+            if message.sender != request.user:
+                return JsonResponse({'error': 'You can only edit your own messages'}, status=403)
+            
+            # Update the message
+            message.message = new_content
+            message.is_edited = True
+            message.save()
+            
+            return JsonResponse({
+                'success': True,
+                'id': message.message_id,
+                'message': message.message,
+                'is_edited': message.is_edited
+            })
+        except GroupChat.DoesNotExist:
+            return JsonResponse({'error': 'Group chat not found'}, status=404)
+        except GroupChatMessage.DoesNotExist:
+            return JsonResponse({'error': 'Message not found'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error editing group message: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+@require_POST
+def delete_group_message(request, group_id):
+    """Handle deleting a group chat message"""
+    try:
+        data = json.loads(request.body)
+        message_id = data.get('message_id')
+        
+        if not message_id:
+            return JsonResponse({'error': 'Message ID is required'}, status=400)
+        
+        try:
+            group_chat = GroupChat.objects.get(group_id=group_id)
+            # Check if user is a member
+            if not GroupChatMember.objects.filter(group_chat=group_chat, user=request.user).exists():
+                return JsonResponse({'error': 'You are not a member of this group'}, status=403)
+            
+            # Get the message and verify ownership
+            message = GroupChatMessage.objects.get(message_id=message_id, group_chat=group_chat)
+            
+            if message.sender != request.user:
+                return JsonResponse({'error': 'You can only delete your own messages'}, status=403)
+            
+            # Mark the message as deleted
+            message.is_deleted = True
+            message.save()
+            
+            return JsonResponse({
+                'success': True,
+                'id': message.message_id
+            })
+        except GroupChat.DoesNotExist:
+            return JsonResponse({'error': 'Group chat not found'}, status=404)
+        except GroupChatMessage.DoesNotExist:
+            return JsonResponse({'error': 'Message not found'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        logger.error(f"Error deleting group message: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 @login_required

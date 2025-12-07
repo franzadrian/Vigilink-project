@@ -225,9 +225,22 @@
     -webkit-text-fill-color: transparent;
 }
 .event-row-status { grid-column: 2; justify-self: end; margin-left: 0; position: static; }
-.event-row-sub { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.event-row-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.event-row-sub { grid-column: 1 / -1; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.event-row-meta { 
+    display: flex; 
+    gap: 8px; 
+    align-items: flex-start; 
+    flex-wrap: wrap; 
+    width: 100%; 
+    min-width: 0;
+    flex: 1 1 100%;
+}
 .event-row-header .event-row-sub { padding-right: 0; }
+.event-row .event-row-meta { 
+    flex: 1 1 100%; 
+    min-width: 0;
+    max-width: 100%;
+}
 
 .event-row-body { 
     padding: 14px 16px; 
@@ -236,6 +249,10 @@
     overflow: hidden;
     flex: 1 1 auto;
     min-height: 0;
+    min-width: 0;
+    max-width: 100%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 .event-row-body::before {
     content: "";
@@ -298,7 +315,33 @@
 }
 
 /* Ensure text stays readable over images */
-.event-row .event-row-content { position: relative; z-index: 1; }
+.event-row .event-row-content { 
+    position: relative; 
+    z-index: 1;
+    word-wrap: break-word;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    min-width: 0;
+    max-width: 100%;
+}
+.event-row .event-description { 
+    margin-bottom: 6px;
+    word-wrap: break-word;
+    word-break: break-word;
+    white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.5;
+    max-width: 100%;
+    overflow: hidden;
+}
+.event-row .event-description p {
+    word-wrap: break-word;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
+    margin: 0;
+    max-width: 100%;
+}
 
 /* Theming for rows (reuse accent system) */
 .event-row.theme-halloween { --accent: #fb923c; --bg-tint: #fff7ed; --text: #111827; --row-header-bg: #fff7ed; }
@@ -311,9 +354,31 @@
 .event-row.theme-generic { --accent: #60a5fa; --bg-tint: #f0f9ff; --text: #0f172a; --row-header-bg: #e0f2fe; }
 
 /* Meta chips inside rows use theme tints */
-.event-row .meta-chip { background: #ffffff; color: #111827; border: 1px solid color-mix(in srgb, var(--accent, #3b82f6) 20%, #e5e7eb); }
-.event-row .meta-chip strong { color: var(--text, #111827); font-weight: 600; }
+.event-row .meta-chip { 
+    background: #ffffff; 
+    color: #111827; 
+    border: 1px solid color-mix(in srgb, var(--accent, #3b82f6) 20%, #e5e7eb);
+    display: inline-flex;
+    flex-wrap: wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
+    min-width: 0;
+    max-width: 100%;
+    flex: 0 1 auto;
+}
+.event-row .meta-chip strong { 
+    color: var(--text, #111827); 
+    font-weight: 600;
+    white-space: normal;
+    word-break: break-word;
+}
 .event-row .meta-chip i { color: var(--accent, #3b82f6); }
+.event-row .meta-chip span { 
+    word-break: break-word; 
+    overflow-wrap: break-word; 
+    min-width: 0;
+}
 .event-row .meta-datetime { background: #111827; color: #f97316; border-color: #1f2937; }
 .event-row .meta-datetime i { color: #f59e0b; }
 .event-row .meta-datetime strong { color: #f97316; }
@@ -1737,8 +1802,20 @@
     font-size: 0.8rem;
     background: #f8fafc;
     color: #475569;
+    flex-wrap: wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
+    max-width: 100%;
+    min-width: 0;
+    flex: 0 1 auto;
 }
-.meta-chip i { width: 14px; text-align: center; }
+.meta-chip i { width: 14px; text-align: center; flex-shrink: 0; }
+.meta-chip strong { white-space: normal; }
+.meta-chip span { word-break: break-word; overflow-wrap: break-word; min-width: 0; }
+.event-row .meta-chip { flex: 0 1 auto; min-width: 0; max-width: calc(100% - 4px); }
+.event-row .meta-chip strong { white-space: normal; word-break: break-word; }
+.event-row .meta-chip span { display: inline; word-break: break-word; overflow-wrap: break-word; }
 
 .event-card-compact .event-body { margin: 0; }
 .event-card-compact .event-description { margin: 0; color: inherit; }

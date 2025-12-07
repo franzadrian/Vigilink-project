@@ -421,6 +421,34 @@
     word-wrap: break-word;
     overflow-wrap: break-word;
     max-width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.role-badge-security {
+    background-color: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #93c5fd;
+}
+
+.role-badge-president {
+    background-color: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
 }
 
 .post-date {
@@ -1264,6 +1292,13 @@
         word-wrap: break-word; /* Allow word breaking */
         overflow-wrap: break-word; /* Modern version of word-wrap */
         white-space: normal; /* Allow text to wrap */
+        flex-wrap: wrap; /* Allow badges to wrap on mobile */
+        gap: 6px; /* Smaller gap on mobile */
+    }
+    
+    .role-badge {
+        font-size: 0.7rem; /* Slightly smaller on mobile */
+        padding: 2px 6px; /* Smaller padding on mobile */
     }
     
     .post-date {
