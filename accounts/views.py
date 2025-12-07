@@ -13,6 +13,11 @@ from django.views.decorators.http import require_POST, require_GET
 from django.views.decorators.csrf import csrf_exempt
 from django.core.mail import send_mail
 from django.conf import settings
+import logging
+import traceback
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 def send_password_reset_email(email, reset_url):
     """Send password reset link to user's email"""
@@ -58,8 +63,17 @@ def index(request):
     return render(request, 'accounts/index.html')
 
 def register_view(request):
-    # Get all cities for the dropdown
-    cities = City.objects.all().order_by('name')
+    try:
+        # Get all cities for the dropdown
+        cities = City.objects.all().order_by('name')
+        if not cities.exists():
+            logger.warning("No cities found in database. Registration may fail.")
+            messages.warning(request, 'No cities available. Please contact support.')
+    except Exception as e:
+        logger.error(f"Error loading cities: {str(e)}\n{traceback.format_exc()}")
+        messages.error(request, 'Unable to load registration form. Please try again later.')
+        # Return empty cities list to prevent further errors
+        cities = []
     
     if request.method == 'POST':
         # Get form data
@@ -118,9 +132,17 @@ def register_view(request):
             return render(request, 'accounts/register.html', {'cities': cities})
         
         try:
+            # Convert city_id and district_id to integers
+            try:
+                city_id_int = int(city_id)
+                district_id_int = int(district_id)
+            except (ValueError, TypeError):
+                messages.error(request, 'Invalid city or district selected. Please try again.')
+                return render(request, 'accounts/register.html', {'cities': cities})
+            
             # Get city and district objects
-            city = City.objects.get(id=city_id)
-            district = District.objects.get(id=district_id)
+            city = City.objects.get(id=city_id_int)
+            district = District.objects.get(id=district_id_int)
             
             # Validate that district belongs to selected city
             if district.city.id != city.id:
@@ -133,20 +155,25 @@ def register_view(request):
                 return render(request, 'accounts/register.html', {'cities': cities})
                 
             # Store registration data in session for verification
-            request.session['registration_data'] = {
-                'username': username,
-                'email': email,
-                'password': password,
-                'full_name': full_name,
-                'city_id': city_id,
-                'district_id': district_id,
-                'contact': contact
-            }
-            
-            # Generate verification code
-            verification_code = ''.join(random.choices(string.digits, k=6))
-            request.session['verification_code'] = verification_code
-            request.session['verification_code_created'] = timezone.now().isoformat()
+            try:
+                request.session['registration_data'] = {
+                    'username': username,
+                    'email': email,
+                    'password': password,
+                    'full_name': full_name,
+                    'city_id': str(city_id_int),  # Store as string for consistency
+                    'district_id': str(district_id_int),  # Store as string for consistency
+                    'contact': contact
+                }
+                
+                # Generate verification code
+                verification_code = ''.join(random.choices(string.digits, k=6))
+                request.session['verification_code'] = verification_code
+                request.session['verification_code_created'] = timezone.now().isoformat()
+            except Exception as session_error:
+                logger.error(f"Error storing session data: {str(session_error)}\n{traceback.format_exc()}")
+                messages.error(request, 'Unable to save registration data. Please try again.')
+                return render(request, 'accounts/register.html', {'cities': cities})
             
             # Send verification email (handle errors gracefully)
             email_sent = False
@@ -164,21 +191,41 @@ def register_view(request):
                 # For now, we'll continue - the user can still verify via resend
             
             # Redirect to verification page
-            if email_sent:
-                messages.success(request, 'A verification code has been sent to your email. Please check your inbox.')
-            return redirect('verify_email')
+            try:
+                if email_sent:
+                    messages.success(request, 'A verification code has been sent to your email. Please check your inbox.')
+                return redirect('verify_email')
+            except Exception as redirect_error:
+                logger.error(f"Error redirecting to verify_email: {str(redirect_error)}\n{traceback.format_exc()}")
+                messages.error(request, 'Registration successful but unable to redirect. Please try logging in.')
+                return redirect('login')
             
         except City.DoesNotExist:
+            logger.warning(f"City.DoesNotExist: city_id={city_id}")
             messages.error(request, 'Selected city does not exist')
             return render(request, 'accounts/register.html', {'cities': cities})
         except District.DoesNotExist:
+            logger.warning(f"District.DoesNotExist: district_id={district_id}")
             messages.error(request, 'Selected district does not exist')
             return render(request, 'accounts/register.html', {'cities': cities})
+        except ValueError as ve:
+            # Handle invalid city_id or district_id (not integers)
+            logger.error(f"ValueError in registration: {str(ve)}\n{traceback.format_exc()}")
+            messages.error(request, 'Invalid city or district selected. Please try again.')
+            return render(request, 'accounts/register.html', {'cities': cities})
         except Exception as e:
-            messages.error(request, f'An error occurred: {str(e)}')
+            # Log the full error for debugging
+            logger.error(f"Unexpected error in registration: {str(e)}\n{traceback.format_exc()}")
+            messages.error(request, f'An error occurred during registration. Please try again or contact support if the problem persists.')
             return render(request, 'accounts/register.html', {'cities': cities})
     
-    return render(request, 'accounts/register.html', {'cities': cities})
+    # GET request - show registration form
+    try:
+        return render(request, 'accounts/register.html', {'cities': cities})
+    except Exception as e:
+        logger.error(f"Error rendering registration form: {str(e)}\n{traceback.format_exc()}")
+        messages.error(request, 'Unable to load registration form. Please try again later.')
+        return render(request, 'accounts/register.html', {'cities': []})
 
 
 def send_verification_email(email, verification_code):
@@ -504,9 +551,17 @@ def verify_email(request):
         
         try:
             with transaction.atomic():
-                # Get city and district objects
-                city = City.objects.get(id=registration_data.get('city_id'))
-                district = District.objects.get(id=registration_data.get('district_id'))
+                # Get city and district objects (convert to int since they're stored as strings)
+                try:
+                    city_id = int(registration_data.get('city_id'))
+                    district_id = int(registration_data.get('district_id'))
+                except (ValueError, TypeError) as ve:
+                    logger.error(f"Invalid city_id or district_id in session: {str(ve)}")
+                    messages.error(request, 'Invalid registration data. Please register again.')
+                    return redirect('register')
+                
+                city = City.objects.get(id=city_id)
+                district = District.objects.get(id=district_id)
                 
                 # Create user
                 user = User.objects.create_user(
@@ -532,7 +587,14 @@ def verify_email(request):
                 messages.success(request, 'Email verified successfully. Your account has been created. Please log in.')
                 return redirect('login')
         except Exception as e:
-            messages.error(request, f'An error occurred: {str(e)}')
+            logger.error(f"Error in verify_email POST: {str(e)}\n{traceback.format_exc()}")
+            messages.error(request, f'An error occurred during verification: {str(e)}. Please try again or contact support.')
             return render(request, 'accounts/verification.html')
     
-    return render(request, 'accounts/verification.html')
+    # GET request - show verification form
+    try:
+        return render(request, 'accounts/verification.html')
+    except Exception as e:
+        logger.error(f"Error rendering verification form: {str(e)}\n{traceback.format_exc()}")
+        messages.error(request, 'Unable to load verification page. Please try again.')
+        return redirect('register')
