@@ -176,19 +176,40 @@ def register_view(request):
                 return render(request, 'accounts/register.html', {'cities': cities})
             
             # Send verification email (handle errors gracefully)
+            # Check if email is configured before attempting to send
             email_sent = False
-            try:
-                send_verification_email(email, verification_code)
-                email_sent = True
-            except Exception as email_error:
-                # Log the error but don't fail registration
-                error_msg = str(email_error)
-                print(f"Warning: Could not send verification email: {error_msg}")
-                # Store a flag in session to show warning on verification page
+            email_configured = bool(settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD)
+            
+            if email_configured:
+                try:
+                    # Send email with fail_silently=True to prevent blocking on timeout
+                    # The custom TimeoutEmailBackend will timeout after 5 seconds
+                    from django.core.mail import send_mail
+                    result = send_mail(
+                        'VigiLink - Email Verification Code',
+                        f'Thank you for registering with VigiLink!\n\nTo complete your registration, please use the following verification code:\n\n{verification_code}\n\nThis code will expire in 10 minutes.\n\nIf you did not request this code, please ignore this email.\n\nBest regards,\nThe VigiLink Team',
+                        settings.EMAIL_HOST_USER,
+                        [email],
+                        fail_silently=True
+                    )
+                    if result:
+                        email_sent = True
+                        logger.info(f"Verification email sent successfully to {email}")
+                    else:
+                        logger.warning(f"Email sending returned False (likely timeout or connection error)")
+                        request.session['email_send_failed'] = True
+                        request.session['email_error'] = "Email service temporarily unavailable"
+                except Exception as email_error:
+                    # Log the error but don't fail registration
+                    error_msg = str(email_error)
+                    logger.warning(f"Could not send verification email to {email}: {error_msg}")
+                    request.session['email_send_failed'] = True
+                    request.session['email_error'] = error_msg
+            else:
+                # Email not configured - log warning but continue
+                logger.warning("Email not configured - skipping verification email send")
                 request.session['email_send_failed'] = True
-                request.session['email_error'] = error_msg
-                # In production, you might want to log this to a proper logging system
-                # For now, we'll continue - the user can still verify via resend
+                request.session['email_error'] = "Email service not configured"
             
             # Redirect to verification page
             try:
@@ -231,7 +252,7 @@ def register_view(request):
 def send_verification_email(email, verification_code):
     """Send verification code to user's email"""
     
-    # Check if email is properly configured
+    # Check if email is properly configured - if not, skip sending
     if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD:
         raise ValueError("Email configuration is missing. Please set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD environment variables.")
     
@@ -255,11 +276,17 @@ The VigiLink Team
     recipient_list = [email]
     
     try:
-        send_mail(subject, message, from_email, recipient_list, fail_silently=False)
-        print(f"Verification email sent to {email}")
+        # Use fail_silently=True to prevent blocking on timeout/connection errors
+        # The timeout is set in settings.EMAIL_TIMEOUT (default 5 seconds)
+        result = send_mail(subject, message, from_email, recipient_list, fail_silently=True)
+        if result:
+            logger.info(f"Verification email sent to {email}")
+        else:
+            # If fail_silently=True returns False, it means sending failed
+            raise Exception("Email sending failed silently - check email configuration")
     except Exception as e:
-        # Re-raise the exception so the caller can handle it
-        print(f"Error sending email: {str(e)}")
+        # Log the error and re-raise so caller knows email failed
+        logger.error(f"Error sending verification email to {email}: {str(e)}")
         raise
 
 def login_view(request):

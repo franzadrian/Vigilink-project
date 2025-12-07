@@ -252,14 +252,16 @@ LOGIN_URL = '/accounts/login/'
 
 # Email Configuration
 # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For development - prints emails to console
-# For production, use SMTP backend:
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# For production, use SMTP backend with timeout support:
+EMAIL_BACKEND = 'accounts.email_backend.TimeoutEmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 # Read SMTP creds from environment (no hardcoded secrets)
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+# Add timeout to prevent hanging (5 seconds)
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '5'))
 
 # Verification settings
 VERIFICATION_CODE_EXPIRY_MINUTES = 10
