@@ -252,18 +252,25 @@ LOGIN_URL = '/accounts/login/'
 
 # Email Configuration
 # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For development - prints emails to console
-# For production, use SMTP backend with timeout support:
-EMAIL_BACKEND = 'accounts.email_backend.TimeoutEmailBackend'
 
-# SendGrid SMTP Configuration (works on both localhost and Render free tier)
-# SendGrid allows SMTP connections that Render free tier doesn't block
-EMAIL_HOST = 'smtp.sendgrid.net'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-# SendGrid requires 'apikey' as the username and your API key as the password
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'apikey').strip()
-# Read SendGrid API key from environment
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '').strip()
+# Use SendGrid HTTP API (works on Render free tier - no SMTP blocking)
+# Falls back to SMTP if HTTP API is not available
+USE_SENDGRID_API = os.environ.get('USE_SENDGRID_API', 'true').lower() in ('1', 'true', 'yes')
+
+if USE_SENDGRID_API:
+    # SendGrid HTTP API backend (recommended for Render free tier)
+    EMAIL_BACKEND = 'accounts.sendgrid_backend.SendGridEmailBackend'
+    # SendGrid API key (same as EMAIL_HOST_PASSWORD for backward compatibility)
+    SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', os.environ.get('EMAIL_HOST_PASSWORD', '')).strip()
+else:
+    # SendGrid SMTP backend (for localhost or if API doesn't work)
+    EMAIL_BACKEND = 'accounts.email_backend.TimeoutEmailBackend'
+    EMAIL_HOST = 'smtp.sendgrid.net'
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'apikey').strip()
+    EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '').strip()
+
 # Default "from" email address - must be a verified sender in SendGrid
 # This is the email address that will appear as the sender
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@vigilink.com').strip()
