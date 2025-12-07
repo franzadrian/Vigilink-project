@@ -255,7 +255,7 @@ LOGIN_URL = '/accounts/login/'
 # For production, use SMTP backend with timeout support:
 EMAIL_BACKEND = 'accounts.email_backend.TimeoutEmailBackend'
 
-# SendGrid SMTP Configuration (works on Render free tier)
+# SendGrid SMTP Configuration (works on both localhost and Render free tier)
 # SendGrid allows SMTP connections that Render free tier doesn't block
 EMAIL_HOST = 'smtp.sendgrid.net'
 EMAIL_PORT = 587
@@ -264,8 +264,11 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'apikey').strip()
 # Read SendGrid API key from environment
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '').strip()
+# Default "from" email address - must be a verified sender in SendGrid
+# This is the email address that will appear as the sender
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@vigilink.com').strip()
 
-# Validate email configuration
+# Validate SendGrid configuration
 if EMAIL_HOST_PASSWORD:
     if EMAIL_HOST_USER != 'apikey':
         import warnings
@@ -273,6 +276,7 @@ if EMAIL_HOST_PASSWORD:
     if not EMAIL_HOST_PASSWORD.startswith('SG.'):
         import warnings
         warnings.warn(f"EMAIL_HOST_PASSWORD should start with 'SG.' for SendGrid API key")
+
 # Add timeout to prevent hanging (10 seconds)
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
 

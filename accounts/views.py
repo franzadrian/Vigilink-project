@@ -39,7 +39,7 @@ If you did not request this password reset, please ignore this email.
 Best regards,
 The VigiLink Team
 """
-    from_email = settings.EMAIL_HOST_USER
+    from_email = settings.DEFAULT_FROM_EMAIL  # Use verified sender email
     recipient_list = [email]
     
     try:
@@ -192,7 +192,7 @@ def register_view(request):
                     result = send_mail(
                         'VigiLink - Email Verification Code',
                         f'Thank you for registering with VigiLink!\n\nTo complete your registration, please use the following verification code:\n\n{verification_code}\n\nThis code will expire in 10 minutes.\n\nIf you did not request this code, please ignore this email.\n\nBest regards,\nThe VigiLink Team',
-                        settings.EMAIL_HOST_USER,
+                        settings.DEFAULT_FROM_EMAIL,  # Use verified sender email, not 'apikey'
                         [email],
                         fail_silently=False  # Get actual errors
                     )
@@ -288,7 +288,7 @@ If you did not request this code, please ignore this email.
 Best regards,
 The VigiLink Team
 """
-    from_email = settings.EMAIL_HOST_USER  # Use the configured email host user
+    from_email = settings.DEFAULT_FROM_EMAIL  # Use verified sender email
     
     # Send to the actual email provided during registration
     recipient_list = [email]
@@ -443,7 +443,7 @@ def resend_verification_code(request):
             result = send_mail(
                 'VigiLink - Email Verification Code',
                 f'Thank you for registering with VigiLink!\n\nTo complete your registration, please use the following verification code:\n\n{verification_code}\n\nThis code will expire in 10 minutes.\n\nIf you did not request this code, please ignore this email.\n\nBest regards,\nThe VigiLink Team',
-                settings.EMAIL_HOST_USER,
+                settings.DEFAULT_FROM_EMAIL,  # Use verified sender email
                 [email],
                 fail_silently=False  # Get actual errors
             )
