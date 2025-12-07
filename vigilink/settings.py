@@ -276,13 +276,22 @@ else:
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@vigilink.com').strip()
 
 # Validate SendGrid configuration
-if EMAIL_HOST_PASSWORD:
-    if EMAIL_HOST_USER != 'apikey':
-        import warnings
-        warnings.warn(f"EMAIL_HOST_USER should be 'apikey' for SendGrid, got '{EMAIL_HOST_USER}'")
-    if not EMAIL_HOST_PASSWORD.startswith('SG.'):
-        import warnings
-        warnings.warn(f"EMAIL_HOST_PASSWORD should start with 'SG.' for SendGrid API key")
+if USE_SENDGRID_API:
+    # Validate HTTP API configuration
+    api_key = SENDGRID_API_KEY or os.environ.get('EMAIL_HOST_PASSWORD', '')
+    if api_key:
+        if not api_key.startswith('SG.'):
+            import warnings
+            warnings.warn(f"SENDGRID_API_KEY should start with 'SG.' for SendGrid API key")
+else:
+    # Validate SMTP configuration
+    if EMAIL_HOST_PASSWORD:
+        if EMAIL_HOST_USER != 'apikey':
+            import warnings
+            warnings.warn(f"EMAIL_HOST_USER should be 'apikey' for SendGrid, got '{EMAIL_HOST_USER}'")
+        if not EMAIL_HOST_PASSWORD.startswith('SG.'):
+            import warnings
+            warnings.warn(f"EMAIL_HOST_PASSWORD should start with 'SG.' for SendGrid API key")
 
 # Add timeout to prevent hanging (10 seconds)
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
