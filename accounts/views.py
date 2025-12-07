@@ -15,15 +15,22 @@ from django.core.mail import send_mail
 from django.conf import settings
 import logging
 import traceback
+import os
 
 # Set up logger
 logger = logging.getLogger(__name__)
 
 def send_password_reset_email(email, reset_url):
     """Send password reset link to user's email"""
-    # Check if email is properly configured
-    if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD:
-        raise ValueError("Email configuration is missing. Please set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD environment variables.")
+    # Check if email is properly configured (support both API and SMTP)
+    use_api = getattr(settings, 'USE_SENDGRID_API', True)
+    if use_api:
+        api_key = getattr(settings, 'SENDGRID_API_KEY', None) or os.environ.get('SENDGRID_API_KEY') or os.environ.get('EMAIL_HOST_PASSWORD')
+        if not api_key:
+            raise ValueError("Email configuration is missing. Please set SENDGRID_API_KEY or EMAIL_HOST_PASSWORD environment variable.")
+    else:
+        if not getattr(settings, 'EMAIL_HOST_USER', None) or not getattr(settings, 'EMAIL_HOST_PASSWORD', None):
+            raise ValueError("Email configuration is missing. Please set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD environment variables.")
     
     subject = 'VigiLink - Password Reset Request'
     message = f"""You have requested to reset your password for your VigiLink account.
@@ -177,14 +184,28 @@ def register_view(request):
             
             # Send verification email (handle errors gracefully)
             # Check if email is configured before attempting to send
+            # Support both SendGrid HTTP API and SMTP modes
             email_sent = False
-            email_configured = bool(settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD)
+            use_api = getattr(settings, 'USE_SENDGRID_API', True)
+            if use_api:
+                # Check for SendGrid HTTP API key
+                email_configured = bool(getattr(settings, 'SENDGRID_API_KEY', None) or 
+                                       os.environ.get('SENDGRID_API_KEY') or 
+                                       os.environ.get('EMAIL_HOST_PASSWORD'))
+            else:
+                # Check for SMTP credentials
+                email_configured = bool(getattr(settings, 'EMAIL_HOST_USER', None) and 
+                                       getattr(settings, 'EMAIL_HOST_PASSWORD', None))
             
             if email_configured:
                 try:
                     # Log email configuration (without exposing password)
                     logger.info(f"Attempting to send verification email to {email} from {settings.EMAIL_HOST_USER}")
-                    logger.debug(f"Email configured: USER={'SET' if settings.EMAIL_HOST_USER else 'NOT SET'}, PASSWORD={'SET' if settings.EMAIL_HOST_PASSWORD else 'NOT SET'}")
+                    if use_api:
+                        api_key = getattr(settings, 'SENDGRID_API_KEY', None) or os.environ.get('SENDGRID_API_KEY') or os.environ.get('EMAIL_HOST_PASSWORD')
+                        logger.debug(f"Email configured: API_KEY={'SET' if api_key else 'NOT SET'}")
+                    else:
+                        logger.debug(f"Email configured: USER={'SET' if getattr(settings, 'EMAIL_HOST_USER', None) else 'NOT SET'}, PASSWORD={'SET' if getattr(settings, 'EMAIL_HOST_PASSWORD', None) else 'NOT SET'}")
                     
                     # Send email - use fail_silently=False to get actual errors
                     # The custom TimeoutEmailBackend will timeout after 10 seconds
@@ -225,7 +246,10 @@ def register_view(request):
                     request.session['email_error'] = error_display
             else:
                 # Email not configured - this is a configuration error
-                logger.error("Email not configured - EMAIL_HOST_USER and EMAIL_HOST_PASSWORD must be set")
+                if use_api:
+                    logger.error("Email not configured - SENDGRID_API_KEY or EMAIL_HOST_PASSWORD must be set")
+                else:
+                    logger.error("Email not configured - EMAIL_HOST_USER and EMAIL_HOST_PASSWORD must be set")
                 request.session['email_send_failed'] = True
                 request.session['email_error'] = "Email service not configured. Please contact support."
             
@@ -270,9 +294,15 @@ def register_view(request):
 def send_verification_email(email, verification_code):
     """Send verification code to user's email"""
     
-    # Check if email is properly configured - if not, skip sending
-    if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD:
-        raise ValueError("Email configuration is missing. Please set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD environment variables.")
+    # Check if email is properly configured (support both API and SMTP)
+    use_api = getattr(settings, 'USE_SENDGRID_API', True)
+    if use_api:
+        api_key = getattr(settings, 'SENDGRID_API_KEY', None) or os.environ.get('SENDGRID_API_KEY') or os.environ.get('EMAIL_HOST_PASSWORD')
+        if not api_key:
+            raise ValueError("Email configuration is missing. Please set SENDGRID_API_KEY or EMAIL_HOST_PASSWORD environment variable.")
+    else:
+        if not getattr(settings, 'EMAIL_HOST_USER', None) or not getattr(settings, 'EMAIL_HOST_PASSWORD', None):
+            raise ValueError("Email configuration is missing. Please set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD environment variables.")
     
     subject = 'VigiLink - Email Verification Code'
     message = f"""Thank you for registering with VigiLink!
@@ -433,7 +463,14 @@ def resend_verification_code(request):
     request.session['verification_code_created'] = timezone.now().isoformat()
     
     # Send verification email (handle errors gracefully)
-    email_configured = bool(settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD)
+    # Check if email is configured (support both API and SMTP)
+    use_api = getattr(settings, 'USE_SENDGRID_API', True)
+    if use_api:
+        api_key = getattr(settings, 'SENDGRID_API_KEY', None) or os.environ.get('SENDGRID_API_KEY') or os.environ.get('EMAIL_HOST_PASSWORD')
+        email_configured = bool(api_key)
+    else:
+        email_configured = bool(getattr(settings, 'EMAIL_HOST_USER', None) and getattr(settings, 'EMAIL_HOST_PASSWORD', None))
+    
     email_sent = False
     
     if email_configured:
@@ -465,7 +502,11 @@ def resend_verification_code(request):
             messages.error(request, 'Failed to send verification email. Please try again.')
     else:
         # Email not configured
-        logger.error("Email not configured - EMAIL_HOST_USER and EMAIL_HOST_PASSWORD must be set")
+        use_api = getattr(settings, 'USE_SENDGRID_API', True)
+        if use_api:
+            logger.error("Email not configured - SENDGRID_API_KEY or EMAIL_HOST_PASSWORD must be set")
+        else:
+            logger.error("Email not configured - EMAIL_HOST_USER and EMAIL_HOST_PASSWORD must be set")
         request.session['email_send_failed'] = True
         request.session['email_error'] = "Email service not configured. Please contact support."
         messages.error(request, 'Email service is not configured. Please contact support.')
