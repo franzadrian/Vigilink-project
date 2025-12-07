@@ -16,6 +16,10 @@ from django.conf import settings
 
 def send_password_reset_email(email, reset_url):
     """Send password reset link to user's email"""
+    # Check if email is properly configured
+    if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD:
+        raise ValueError("Email configuration is missing. Please set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD environment variables.")
+    
     subject = 'VigiLink - Password Reset Request'
     message = f"""You have requested to reset your password for your VigiLink account.
 
@@ -37,7 +41,9 @@ The VigiLink Team
         send_mail(subject, message, from_email, recipient_list, fail_silently=False)
         print(f"Password reset email sent to {email}")
     except Exception as e:
+        # Re-raise the exception so the caller can handle it
         print(f"Error sending password reset email: {str(e)}")
+        raise
 
 def get_client_ip(request):
     """Get the client IP address from the request"""
@@ -142,10 +148,24 @@ def register_view(request):
             request.session['verification_code'] = verification_code
             request.session['verification_code_created'] = timezone.now().isoformat()
             
-            # Send verification email
-            send_verification_email(email, verification_code)
+            # Send verification email (handle errors gracefully)
+            email_sent = False
+            try:
+                send_verification_email(email, verification_code)
+                email_sent = True
+            except Exception as email_error:
+                # Log the error but don't fail registration
+                error_msg = str(email_error)
+                print(f"Warning: Could not send verification email: {error_msg}")
+                # Store a flag in session to show warning on verification page
+                request.session['email_send_failed'] = True
+                request.session['email_error'] = error_msg
+                # In production, you might want to log this to a proper logging system
+                # For now, we'll continue - the user can still verify via resend
             
             # Redirect to verification page
+            if email_sent:
+                messages.success(request, 'A verification code has been sent to your email. Please check your inbox.')
             return redirect('verify_email')
             
         except City.DoesNotExist:
@@ -163,6 +183,10 @@ def register_view(request):
 
 def send_verification_email(email, verification_code):
     """Send verification code to user's email"""
+    
+    # Check if email is properly configured
+    if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD:
+        raise ValueError("Email configuration is missing. Please set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD environment variables.")
     
     subject = 'VigiLink - Email Verification Code'
     message = f"""Thank you for registering with VigiLink!
@@ -187,8 +211,9 @@ The VigiLink Team
         send_mail(subject, message, from_email, recipient_list, fail_silently=False)
         print(f"Verification email sent to {email}")
     except Exception as e:
+        # Re-raise the exception so the caller can handle it
         print(f"Error sending email: {str(e)}")
-        # Continue execution even if email fails
+        raise
 
 def login_view(request):
     # Clear any existing messages when loading the login page
@@ -315,10 +340,18 @@ def resend_verification_code(request):
     request.session['verification_code'] = verification_code
     request.session['verification_code_created'] = timezone.now().isoformat()
     
-    # Send verification email
-    send_verification_email(email, verification_code)
+    # Send verification email (handle errors gracefully)
+    try:
+        send_verification_email(email, verification_code)
+        messages.success(request, 'A new verification code has been sent to your email.')
+    except Exception as email_error:
+        error_msg = str(email_error)
+        print(f"Error resending verification email: {error_msg}")
+        if "Email configuration is missing" in error_msg:
+            messages.error(request, 'Email service is not configured. Please contact support for assistance.')
+        else:
+            messages.error(request, f'Failed to send verification email: {error_msg}. Please try again later.')
     
-    messages.success(request, 'A new verification code has been sent to your email.')
     return redirect('verify_email')
 
 
@@ -374,7 +407,12 @@ def forgot_password(request):
             
             # Send password reset email
             reset_url = request.build_absolute_uri(f'/accounts/reset-password/{token}/')
-            send_password_reset_email(email, reset_url)
+            try:
+                send_password_reset_email(email, reset_url)
+            except Exception as email_error:
+                # Log the error but don't reveal it to the user (security best practice)
+                print(f"Error sending password reset email: {str(email_error)}")
+                # Still show success message to prevent user enumeration
         
         # Always show the same message whether the email exists or not
         # This prevents user enumeration attacks
