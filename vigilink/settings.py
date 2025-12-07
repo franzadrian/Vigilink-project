@@ -254,24 +254,26 @@ LOGIN_URL = '/accounts/login/'
 # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For development - prints emails to console
 # For production, use SMTP backend with timeout support:
 EMAIL_BACKEND = 'accounts.email_backend.TimeoutEmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
+
+# SendGrid SMTP Configuration (works on Render free tier)
+# SendGrid allows SMTP connections that Render free tier doesn't block
+EMAIL_HOST = 'smtp.sendgrid.net'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-# Read SMTP creds from environment (no hardcoded secrets)
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '').strip()
-# Gmail App Passwords are 16 characters - strip spaces if user entered with spaces
-# This handles cases where users copy-paste the password with spaces
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '').strip().replace(' ', '')
+# SendGrid requires 'apikey' as the username and your API key as the password
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'apikey').strip()
+# Read SendGrid API key from environment
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '').strip()
 
 # Validate email configuration
-if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
-    if '@' not in EMAIL_HOST_USER:
+if EMAIL_HOST_PASSWORD:
+    if EMAIL_HOST_USER != 'apikey':
         import warnings
-        warnings.warn(f"EMAIL_HOST_USER '{EMAIL_HOST_USER}' does not appear to be a valid email address")
-    if len(EMAIL_HOST_PASSWORD) != 16:
+        warnings.warn(f"EMAIL_HOST_USER should be 'apikey' for SendGrid, got '{EMAIL_HOST_USER}'")
+    if not EMAIL_HOST_PASSWORD.startswith('SG.'):
         import warnings
-        warnings.warn(f"EMAIL_HOST_PASSWORD length is {len(EMAIL_HOST_PASSWORD)} (expected 16 for Gmail App Password)")
-# Add timeout to prevent hanging (10 seconds - enough for Gmail connection)
+        warnings.warn(f"EMAIL_HOST_PASSWORD should start with 'SG.' for SendGrid API key")
+# Add timeout to prevent hanging (10 seconds)
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
 
 # Verification settings

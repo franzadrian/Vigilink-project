@@ -211,10 +211,18 @@ def register_view(request):
                     # Log the actual error for debugging
                     error_msg = str(email_error)
                     logger.error(f"Could not send verification email to {email}: {error_msg}\n{traceback.format_exc()}")
+                    
+                    # Check if it's a network error (common on Render free tier - blocks SMTP)
+                    if 'Network is unreachable' in error_msg or 'Connection refused' in error_msg or 'timeout' in error_msg.lower() or '[Errno 101]' in error_msg:
+                        error_display = "Email service is temporarily unavailable due to network restrictions. Please contact support for assistance."
+                        logger.error("SMTP connection blocked - Render free tier may block outbound SMTP. Consider using an email API service like SendGrid or Mailgun.")
+                    else:
+                        error_display = "Email service unavailable. Please try resending the code or contact support."
+                    
                     # Don't show code on page - just log the error
                     # User will need to use resend or contact support
                     request.session['email_send_failed'] = True
-                    request.session['email_error'] = "Email service unavailable. Please try resending the code."
+                    request.session['email_error'] = error_display
             else:
                 # Email not configured - this is a configuration error
                 logger.error("Email not configured - EMAIL_HOST_USER and EMAIL_HOST_PASSWORD must be set")
@@ -563,12 +571,16 @@ def verify_email(request):
     email_error = request.session.get('email_error', '')
     
     # Prepare context for template
-    # Only show code in DEBUG mode for development - never in production
+    # NEVER show code in production - only in local development with DEBUG=True
+    # Also check if we're on localhost to be extra safe
+    is_local_dev = settings.DEBUG and ('localhost' in request.get_host() or '127.0.0.1' in request.get_host())
+    show_code = email_send_failed and is_local_dev
+    
     context = {
-        'verification_code': request.session.get('verification_code') if (email_send_failed and settings.DEBUG) else None,
+        'verification_code': request.session.get('verification_code') if show_code else None,
         'email_send_failed': email_send_failed,
         'email_error': email_error,
-        'show_code': email_send_failed and settings.DEBUG,  # Only show in development
+        'show_code': show_code,  # Only show in local development
     }
     
     if request.method == 'POST':

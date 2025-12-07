@@ -88,10 +88,16 @@ You're using Neon PostgreSQL (external database). Make sure you have:
    CSRF_TRUSTED_ORIGINS=https://your-app-name.onrender.com
    ```
 
-   **Optional (if using):**
+   **Email (SendGrid - Recommended for Render free tier):**
    ```
-   EMAIL_HOST_USER=your-email@gmail.com
-   EMAIL_HOST_PASSWORD=your-app-password
+   EMAIL_HOST_USER=apikey
+   EMAIL_HOST_PASSWORD=SG.your-sendgrid-api-key-here
+   ```
+   Note: SendGrid is recommended because Render's free tier blocks Gmail SMTP. 
+   Get a free SendGrid account at https://sendgrid.com (100 emails/day free).
+   
+   **Optional:**
+   ```
    DROPBOX_ACCESS_TOKEN=your-dropbox-token
    DROPBOX_REFRESH_TOKEN=your-dropbox-refresh-token
    DROPBOX_APP_KEY=your-dropbox-app-key

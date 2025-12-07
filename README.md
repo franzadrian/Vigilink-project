@@ -75,12 +75,13 @@ POSTGRES_HOST=ep-shy-fire-a1ozash8-pooler.ap-southeast-1.aws.neon.tech
 POSTGRES_PORT=5432
 POSTGRES_SSLMODE=require
 
-# Email (optional for verification flows)
-EMAIL_HOST=smtp.gmail.com
-EMAIL_HOST_USER=your-email@gmail.com
-EMAIL_HOST_PASSWORD=app-password
-EMAIL_PORT=587
-EMAIL_USE_TLS=true
+# Email Configuration (SendGrid recommended for production/Render)
+# For local development, you can use Gmail or SendGrid
+# SendGrid works on Render free tier (Gmail SMTP is blocked)
+EMAIL_HOST_USER=apikey
+EMAIL_HOST_PASSWORD=SG.your-sendgrid-api-key-here
+# Note: EMAIL_HOST, EMAIL_PORT, EMAIL_USE_TLS are set in settings.py
+# For Gmail (local dev only): EMAIL_HOST_USER=your-email@gmail.com, EMAIL_HOST_PASSWORD=app-password
 
 # Dropbox (optional; used for file storage)
 DROPBOX_ACCESS_TOKEN=
