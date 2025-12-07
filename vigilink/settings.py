@@ -258,10 +258,21 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 # Read SMTP creds from environment (no hardcoded secrets)
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-# Add timeout to prevent hanging (5 seconds)
-EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '5'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '').strip()
+# Gmail App Passwords are 16 characters - strip spaces if user entered with spaces
+# This handles cases where users copy-paste the password with spaces
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '').strip().replace(' ', '')
+
+# Validate email configuration
+if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+    if '@' not in EMAIL_HOST_USER:
+        import warnings
+        warnings.warn(f"EMAIL_HOST_USER '{EMAIL_HOST_USER}' does not appear to be a valid email address")
+    if len(EMAIL_HOST_PASSWORD) != 16:
+        import warnings
+        warnings.warn(f"EMAIL_HOST_PASSWORD length is {len(EMAIL_HOST_PASSWORD)} (expected 16 for Gmail App Password)")
+# Add timeout to prevent hanging (10 seconds - enough for Gmail connection)
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
 
 # Verification settings
 VERIFICATION_CODE_EXPIRY_MINUTES = 10

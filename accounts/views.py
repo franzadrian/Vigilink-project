@@ -182,34 +182,44 @@ def register_view(request):
             
             if email_configured:
                 try:
-                    # Send email with fail_silently=True to prevent blocking on timeout
-                    # The custom TimeoutEmailBackend will timeout after 5 seconds
+                    # Log email configuration (without exposing password)
+                    logger.info(f"Attempting to send verification email to {email} from {settings.EMAIL_HOST_USER}")
+                    logger.debug(f"Email configured: USER={'SET' if settings.EMAIL_HOST_USER else 'NOT SET'}, PASSWORD={'SET' if settings.EMAIL_HOST_PASSWORD else 'NOT SET'}")
+                    
+                    # Send email - use fail_silently=False to get actual errors
+                    # The custom TimeoutEmailBackend will timeout after 10 seconds
                     from django.core.mail import send_mail
                     result = send_mail(
                         'VigiLink - Email Verification Code',
                         f'Thank you for registering with VigiLink!\n\nTo complete your registration, please use the following verification code:\n\n{verification_code}\n\nThis code will expire in 10 minutes.\n\nIf you did not request this code, please ignore this email.\n\nBest regards,\nThe VigiLink Team',
                         settings.EMAIL_HOST_USER,
                         [email],
-                        fail_silently=True
+                        fail_silently=False  # Get actual errors
                     )
                     if result:
                         email_sent = True
                         logger.info(f"Verification email sent successfully to {email}")
+                        # Clear any previous email failure flags
+                        if 'email_send_failed' in request.session:
+                            del request.session['email_send_failed']
+                        if 'email_error' in request.session:
+                            del request.session['email_error']
                     else:
-                        logger.warning(f"Email sending returned False (likely timeout or connection error)")
-                        request.session['email_send_failed'] = True
-                        request.session['email_error'] = "Email service temporarily unavailable"
+                        # This shouldn't happen with fail_silently=False, but handle it
+                        raise Exception("Email sending returned False")
                 except Exception as email_error:
-                    # Log the error but don't fail registration
+                    # Log the actual error for debugging
                     error_msg = str(email_error)
-                    logger.warning(f"Could not send verification email to {email}: {error_msg}")
+                    logger.error(f"Could not send verification email to {email}: {error_msg}\n{traceback.format_exc()}")
+                    # Don't show code on page - just log the error
+                    # User will need to use resend or contact support
                     request.session['email_send_failed'] = True
-                    request.session['email_error'] = error_msg
+                    request.session['email_error'] = "Email service unavailable. Please try resending the code."
             else:
-                # Email not configured - log warning but continue
-                logger.warning("Email not configured - skipping verification email send")
+                # Email not configured - this is a configuration error
+                logger.error("Email not configured - EMAIL_HOST_USER and EMAIL_HOST_PASSWORD must be set")
                 request.session['email_send_failed'] = True
-                request.session['email_error'] = "Email service not configured"
+                request.session['email_error'] = "Email service not configured. Please contact support."
             
             # Redirect to verification page
             try:
@@ -420,14 +430,14 @@ def resend_verification_code(request):
     
     if email_configured:
         try:
-            # Use the same non-blocking approach as registration
+            # Send email with proper error handling
             from django.core.mail import send_mail
             result = send_mail(
                 'VigiLink - Email Verification Code',
                 f'Thank you for registering with VigiLink!\n\nTo complete your registration, please use the following verification code:\n\n{verification_code}\n\nThis code will expire in 10 minutes.\n\nIf you did not request this code, please ignore this email.\n\nBest regards,\nThe VigiLink Team',
                 settings.EMAIL_HOST_USER,
                 [email],
-                fail_silently=True
+                fail_silently=False  # Get actual errors
             )
             if result:
                 email_sent = True
@@ -438,21 +448,19 @@ def resend_verification_code(request):
                 if 'email_error' in request.session:
                     del request.session['email_error']
             else:
-                # Email sending failed
-                request.session['email_send_failed'] = True
-                request.session['email_error'] = "Email service temporarily unavailable"
-                messages.warning(request, f'Email sending failed. Your verification code is: {verification_code}')
+                raise Exception("Email sending returned False")
         except Exception as email_error:
             error_msg = str(email_error)
-            logger.warning(f"Error resending verification email: {error_msg}")
+            logger.error(f"Error resending verification email to {email}: {error_msg}\n{traceback.format_exc()}")
             request.session['email_send_failed'] = True
-            request.session['email_error'] = error_msg
-            messages.warning(request, f'Email sending failed. Your verification code is: {verification_code}')
+            request.session['email_error'] = "Email service unavailable. Please try again or contact support."
+            messages.error(request, 'Failed to send verification email. Please try again.')
     else:
         # Email not configured
+        logger.error("Email not configured - EMAIL_HOST_USER and EMAIL_HOST_PASSWORD must be set")
         request.session['email_send_failed'] = True
-        request.session['email_error'] = "Email service not configured"
-        messages.warning(request, f'Email service is not configured. Your verification code is: {verification_code}')
+        request.session['email_error'] = "Email service not configured. Please contact support."
+        messages.error(request, 'Email service is not configured. Please contact support.')
     
     return redirect('verify_email')
 
@@ -551,15 +559,16 @@ def verify_email(request):
         return redirect('register')
     
     # Get verification code and check if email failed
-    verification_code = request.session.get('verification_code')
     email_send_failed = request.session.get('email_send_failed', False)
     email_error = request.session.get('email_error', '')
     
     # Prepare context for template
+    # Only show code in DEBUG mode for development - never in production
     context = {
-        'verification_code': verification_code if email_send_failed else None,  # Show code if email failed
+        'verification_code': request.session.get('verification_code') if (email_send_failed and settings.DEBUG) else None,
         'email_send_failed': email_send_failed,
         'email_error': email_error,
+        'show_code': email_send_failed and settings.DEBUG,  # Only show in development
     }
     
     if request.method == 'POST':
