@@ -131,15 +131,55 @@
                             <div class="plan-features">
                                 <h6 class="features-title">Plan Features:</h6>
                                 <ul class="features-list">
-                                    <li>Up to 50 resident accounts</li>
-                                    <li>Incident reporting</li>
-                                    <li>Community announcements</li>
-                                    <li>Event calendar</li>
-                                    <li>Document repository</li>
-                                    <li>Custom domain for subdivision</li>
-                                    <li>Resident management</li>
-                                    <li>Security role assignment</li>
-                                    <li>Priority email support</li>
+                                    {% if plan_type == 'standard' %}
+                                        <li>Up to 50 resident accounts</li>
+                                        <li>Community dashboard with statistics</li>
+                                        <li>Community details management</li>
+                                        <li>Community code for resident access</li>
+                                        <li>Member management (add, remove, edit roles)</li>
+                                        <li>Create member accounts</li>
+                                        <li>Download members list as PDF</li>
+                                        <li>Emergency contacts management</li>
+                                        <li>Event creation and management</li>
+                                        <li>View event attendees</li>
+                                        <li>Security reports viewing & analytics</li>
+                                        <li>Download security reports as PDF</li>
+                                        <li>Report incidents and residents</li>
+                                        <li>All resident features included</li>
+                                        <li>Priority email support</li>
+                                    {% elif plan_type == 'premium' %}
+                                        <li>Unlimited resident accounts</li>
+                                        <li>Community dashboard with statistics</li>
+                                        <li>Community details management</li>
+                                        <li>Community code for resident access</li>
+                                        <li>Member management (add, remove, edit roles)</li>
+                                        <li>Create member accounts</li>
+                                        <li>Download members list as PDF</li>
+                                        <li>Emergency contacts management</li>
+                                        <li>Event creation and management</li>
+                                        <li>View event attendees</li>
+                                        <li>Security reports viewing & analytics</li>
+                                        <li>Download security reports as PDF</li>
+                                        <li>Report incidents and residents</li>
+                                        <li>All resident features included</li>
+                                        <li>Priority email support</li>
+                                    {% else %}
+                                        <li>Up to 50 resident accounts</li>
+                                        <li>Community dashboard with statistics</li>
+                                        <li>Community details management</li>
+                                        <li>Community code for resident access</li>
+                                        <li>Member management (add, remove, edit roles)</li>
+                                        <li>Create member accounts</li>
+                                        <li>Download members list as PDF</li>
+                                        <li>Emergency contacts management</li>
+                                        <li>Event creation and management</li>
+                                        <li>View event attendees</li>
+                                        <li>Security reports viewing & analytics</li>
+                                        <li>Download security reports as PDF</li>
+                                        <li>Report incidents and residents</li>
+                                        <li>All resident features included</li>
+                                        <li>Priority email support</li>
+                                    {% endif %}
                                 </ul>
                             </div>
                             
