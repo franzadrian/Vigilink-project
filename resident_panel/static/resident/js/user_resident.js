@@ -12,6 +12,7 @@
   const isSecurity = flagsEl && flagsEl.dataset && flagsEl.dataset.isSecurity === '1';
   const removeUrl = flagsEl && flagsEl.dataset && flagsEl.dataset.removeUrl;
   const reportUrl = flagsEl && flagsEl.dataset && flagsEl.dataset.reportUrl;
+  const profileBaseUrl = flagsEl && flagsEl.dataset && flagsEl.dataset.profileBaseUrl;
 
   // Modal helpers
   const overlay = document.getElementById('res-modal-overlay');
@@ -420,8 +421,8 @@
       colBlockLot.textContent = `${r.block||''}/${r.lot||''}`;
       const actions = document.createElement('div');
       actions.className = 'actions';
-      // Show View button for owners and security
-      if (isOwner || isSecurity) {
+      // Show View button only for security (not for owners)
+      if (isSecurity) {
         const viewBtn = document.createElement('button');
         viewBtn.className = 'btn btn-primary';
         viewBtn.type = 'button';
@@ -446,6 +447,20 @@
       }
 
       if (isOwner) {
+        // Show Report button first (left side) for owners when role is 'resident' or 'communityowner'
+        if (r.role === 'resident' || r.role === 'communityowner') {
+          const reportBtn = document.createElement('button');
+          reportBtn.className = 'btn btn-danger';
+          reportBtn.type = 'button';
+          reportBtn.textContent = 'Report';
+          reportBtn.addEventListener('click', () => {
+            const built = buildReportForm({ mode: 'resident', resident: r });
+            openModal('Report Resident', built.body, built.actions);
+          });
+          actions.appendChild(reportBtn);
+        }
+        
+        // Show Remove button second (right side) for owners
         const removeBtn = document.createElement('button');
         removeBtn.className = 'btn btn-danger';
         removeBtn.type = 'button';
@@ -476,7 +491,7 @@
           openModal('Confirm Removal', body, [cancel, confirmBtn]);
         });
         actions.appendChild(removeBtn);
-      } else if (!isSecurity && r.role === 'resident') {
+      } else if (!isSecurity && (r.role === 'resident' || r.role === 'communityowner')) {
         const reportBtn = document.createElement('button');
         reportBtn.className = 'btn btn-danger';
         reportBtn.type = 'button';
@@ -498,7 +513,20 @@
       const nameClickable = colResident.querySelector('.resident-name-clickable');
       
       const navigateToProfile = (userId) => {
-        window.location.href = `/user/profile/${userId}/`;
+        if (profileBaseUrl) {
+          // Replace the placeholder user ID (999999) with the actual user ID
+          // This ensures the URL works correctly in both dev and production
+          const profileUrl = profileBaseUrl.replace(/\/\d+\//, `/${userId}/`);
+          window.location.href = profileUrl;
+        } else {
+          // Fallback: construct URL from current location to ensure it works in deployment
+          const basePath = window.location.origin;
+          const currentPath = window.location.pathname;
+          // Extract base path (everything before /resident/)
+          const pathMatch = currentPath.match(/^(.+?)\/resident/);
+          const baseUrl = pathMatch ? pathMatch[1] : '';
+          window.location.href = `${baseUrl}/user/profile/${userId}/`;
+        }
       };
       
       if (avatarClickable) {

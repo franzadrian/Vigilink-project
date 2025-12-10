@@ -79,6 +79,20 @@ class PlatformAnnouncement(models.Model):
         related_name='created_announcements'
     )
     
+    def get_image_url(self):
+        """Return the image URL, handling Dropbox storage errors gracefully"""
+        if not self.image:
+            return None
+        try:
+            url = self.image.url
+            # If URL is empty (Dropbox token expired or error), return None
+            if not url or url.strip() == '':
+                return None
+            return url
+        except Exception:
+            # If any error occurs (token expired, network issue, etc.), return None
+            return None
+    
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Platform Announcement'

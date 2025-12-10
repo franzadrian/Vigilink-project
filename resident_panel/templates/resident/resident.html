@@ -131,7 +131,7 @@
 {% block extra_js %}
 {{ block.super }}
 {{ residents|json_script:"residents-data" }}
-<div id="residents-flags" data-is-owner="{% if is_owner %}1{% else %}0{% endif %}" data-is-security="{% if is_security %}1{% else %}0{% endif %}" data-remove-url="{% url 'communityowner_panel:member_remove' %}" data-report-url="{% url 'resident_panel:submit_report' %}"></div>
+<div id="residents-flags" data-is-owner="{% if is_owner %}1{% else %}0{% endif %}" data-is-security="{% if is_security %}1{% else %}0{% endif %}" data-remove-url="{% url 'communityowner_panel:member_remove' %}" data-report-url="{% url 'resident_panel:submit_report' %}" data-profile-base-url="{% url 'user_panel:view_user_profile' 999999 %}"></div>
 {% if toast %}
 {{ toast|json_script:"res-toast-json" }}
 {% endif %}

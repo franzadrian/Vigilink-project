@@ -141,6 +141,9 @@ def residents(request):
             return parts[0][:2].upper()
         return (parts[0][:1] + parts[-1][:1]).upper()
 
+    # Get list of user IDs already in members_qs to avoid duplicates
+    member_user_ids = set(m.user.id for m in members_qs)
+    
     residents_data = []
     for m in members_qs:
         u = m.user
@@ -166,6 +169,40 @@ def residents(request):
             'avatar': avatar,
             'role': getattr(u, 'role', ''),
         })
+    
+    # Include the community owner if they're not already in the list
+    # Residents should be able to see and report the Community President
+    if community and community.owner:
+        owner = community.owner
+        # Only add if not already in the list and not viewing themselves (for residents)
+        if owner.id not in member_user_ids:
+            # For residents, don't show themselves
+            if not is_resident or owner.id != request.user.id:
+                display_name = (getattr(owner, 'full_name', '') or owner.username).strip()
+                initials = _initials(display_name) or (owner.username[:2] if owner.username else '').upper()
+                avatar = ''
+                try:
+                    if hasattr(owner, 'get_profile_picture_url'):
+                        avatar = owner.get_profile_picture_url() or ''
+                    elif getattr(owner, 'profile_picture_url', ''):
+                        avatar = owner.profile_picture_url
+                    elif getattr(owner, 'profile_picture', None):
+                        avatar = owner.profile_picture.url
+                except Exception:
+                    avatar = ''
+                residents_data.append({
+                    'id': owner.id,
+                    'name': display_name,
+                    'initials': initials,
+                    'email': getattr(owner, 'email', ''),
+                    'block': getattr(owner, 'block', ''),
+                    'lot': getattr(owner, 'lot', ''),
+                    'avatar': avatar,
+                    'role': getattr(owner, 'role', ''),
+                })
+    
+    # Sort the final list by name
+    residents_data.sort(key=lambda x: (x['name'] or x.get('email', '')).lower())
 
     context = {
         'residents': residents_data,
@@ -659,9 +696,17 @@ def submit_report(request):
 
         # Resolve community for basic validation
         community = None
+        # Check if user is a community member
         mem = CommunityMembership.objects.select_related('community').filter(user=request.user).first()
         if mem and mem.community:
             community = mem.community
+        else:
+            # If not a member, check if user is a community owner
+            user_role = getattr(request.user, 'role', '')
+            if user_role == 'communityowner':
+                owner_community = CommunityProfile.objects.filter(owner=request.user).first()
+                if owner_community:
+                    community = owner_community
         
         # Ensure user is part of a community to submit reports
         if not community:

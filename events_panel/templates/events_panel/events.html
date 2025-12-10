@@ -89,9 +89,9 @@
                             </div>
                         </div>
                         <div class="event-row-body event-row-collapsible-content">
-                            {% if announcement.image %}
-                            <div style="margin-bottom: 16px; width: 100%;">
-                                <img src="{{ announcement.image.url }}" alt="{{ announcement.title }}" class="announcement-image-clickable" data-image-url="{{ announcement.image.url }}" data-image-title="{{ announcement.title }}" style="width: 100%; height: auto; display: block; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s ease;">
+                            {% if announcement.get_image_url %}
+                            <div style="margin-bottom: 16px; width: 100%; display: flex; justify-content: center; align-items: center;">
+                                <img src="{{ announcement.get_image_url }}" alt="{{ announcement.title }}" class="announcement-image-clickable" data-image-url="{{ announcement.get_image_url }}" data-image-title="{{ announcement.title }}" style="max-width: 400px; width: 100%; height: auto; max-height: 300px; object-fit: contain; display: block; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s ease;" onerror="this.style.display='none'; this.parentElement.style.display='none';">
                             </div>
                             {% endif %}
                             <div class="event-row-content">
@@ -496,9 +496,9 @@
                             </div>
                         </div>
                         <div class="event-row-body event-row-collapsible-content">
-                            {% if announcement.image %}
-                            <div style="margin-bottom: 16px; width: 100%;">
-                                <img src="{{ announcement.image.url }}" alt="{{ announcement.title }}" class="announcement-image-clickable" data-image-url="{{ announcement.image.url }}" data-image-title="{{ announcement.title }}" style="width: 100%; height: auto; display: block; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s ease;">
+                            {% if announcement.get_image_url %}
+                            <div style="margin-bottom: 16px; width: 100%; display: flex; justify-content: center; align-items: center;">
+                                <img src="{{ announcement.get_image_url }}" alt="{{ announcement.title }}" class="announcement-image-clickable" data-image-url="{{ announcement.get_image_url }}" data-image-title="{{ announcement.title }}" style="max-width: 400px; width: 100%; height: auto; max-height: 300px; object-fit: contain; display: block; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s ease;" onerror="this.style.display='none'; this.parentElement.style.display='none';">
                             </div>
                             {% endif %}
                             <div class="event-row-content">

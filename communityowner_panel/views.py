@@ -970,38 +970,34 @@ def members_download_pdf(request):
         [
             Paragraph("#", table_header_style),
             Paragraph("Full Name", table_header_style),
-            Paragraph("Email", table_header_style),
-            Paragraph("Role", table_header_style),
-            Paragraph("Block", table_header_style),
-            Paragraph("Lot", table_header_style),
+            Paragraph("Block/Lot", table_header_style),
+            Paragraph("Signature", table_header_style),
         ]
     ]
 
     for idx, membership in enumerate(members_qs, start=1):
         user = membership.user
         full_name = (getattr(user, 'full_name', '') or user.username or '').strip()
-        email = getattr(user, 'email', '') or '—'
-        role_display = dict(getattr(user._meta.model, 'ROLE_CHOICES', ())).get(user.role, user.role or '—')
         block = getattr(user, 'block', '') or '—'
         lot = getattr(user, 'lot', '') or '—'
+        # Combine block and lot
+        block_lot = f"{block}/{lot}" if (block != '—' and lot != '—') else (block if block != '—' else lot) if (block != '—' or lot != '—') else '—'
 
         table_data.append([
             Paragraph(str(idx), table_cell_style),
             Paragraph(full_name or '—', table_cell_style),
-            Paragraph(email, table_cell_style),
-            Paragraph(role_display.title() if role_display else '—', table_cell_style),
-            Paragraph(block, table_cell_style),
-            Paragraph(lot, table_cell_style),
+            Paragraph(block_lot, table_cell_style),
+            Paragraph('', table_cell_style),  # Empty signature column
         ])
 
-    column_widths = [25, 150, 150, 80, 55, 55]
+    column_widths = [30, 250, 100, 180]
     members_table = Table(table_data, colWidths=column_widths, repeatRows=1)
     members_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#0f172a')),
         ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        ('ALIGN', (2, 1), (2, -1), 'CENTER'),
         ('ALIGN', (3, 1), (3, -1), 'CENTER'),
-        ('ALIGN', (4, 1), (5, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, 0), 10),
@@ -1015,18 +1011,6 @@ def members_download_pdf(request):
 
     story.append(members_table)
     story.append(Spacer(1, 36))
-
-    story.append(Spacer(1, 40))
-    signature_line = Paragraph(
-        "<para alignment='center'>______________________________</para>",
-        ParagraphStyle('CenteredLine', parent=info_style, alignment=TA_CENTER)
-    )
-    centered_signature = Paragraph(
-        "<para alignment='center'>Authorized Signature</para>",
-        ParagraphStyle('CenteredInfo', parent=info_style, alignment=TA_CENTER)
-    )
-    story.append(signature_line)
-    story.append(centered_signature)
 
     doc.build(story)
     pdf = buffer.getvalue()

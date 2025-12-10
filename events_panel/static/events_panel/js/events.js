@@ -16,7 +16,70 @@ function initEventFilters() {
     const platformSection = document.getElementById('platform-announcements-section');
     const communitySection = document.getElementById('community-events-section');
     
-    if (!filterButtons.length) return; // No filter buttons, exit early
+    // Function to update section visibility based on filter
+    function updateSectionVisibility(filter) {
+        if (filter === 'all') {
+            // Show all sections
+            if (platformSection) {
+                platformSection.classList.remove('hidden');
+                platformSection.style.display = 'block';
+            }
+            if (communitySection) {
+                communitySection.classList.remove('hidden');
+                communitySection.style.display = 'block';
+            }
+        } else if (filter === 'platform') {
+            // Show only platform announcements
+            if (platformSection) {
+                platformSection.classList.remove('hidden');
+                platformSection.style.display = 'block';
+            }
+            if (communitySection) {
+                communitySection.classList.add('hidden');
+                communitySection.style.display = 'none';
+            }
+        } else if (filter === 'community') {
+            // Show only community events
+            if (platformSection) {
+                platformSection.classList.add('hidden');
+                platformSection.style.display = 'none';
+            }
+            if (communitySection) {
+                communitySection.classList.remove('hidden');
+                communitySection.style.display = 'block';
+            }
+        }
+    }
+    
+    // Initialize visibility based on active button
+    const activeButton = document.querySelector('.events-filter-buttons .filter-btn.active');
+    if (activeButton) {
+        const initialFilter = activeButton.getAttribute('data-filter');
+        updateSectionVisibility(initialFilter);
+    } else {
+        // If no active button, show all sections by default
+        if (platformSection) {
+            platformSection.classList.remove('hidden');
+            platformSection.style.display = 'block';
+        }
+        if (communitySection) {
+            communitySection.classList.remove('hidden');
+            communitySection.style.display = 'block';
+        }
+    }
+    
+    // If no filter buttons, ensure sections are visible
+    if (!filterButtons.length) {
+        if (platformSection) {
+            platformSection.classList.remove('hidden');
+            platformSection.style.display = 'block';
+        }
+        if (communitySection) {
+            communitySection.classList.remove('hidden');
+            communitySection.style.display = 'block';
+        }
+        return;
+    }
     
     filterButtons.forEach(btn => {
         btn.addEventListener('click', function() {
@@ -27,20 +90,8 @@ function initEventFilters() {
             // Add active class to clicked button
             this.classList.add('active');
             
-            // Show/hide sections based on filter
-            if (filter === 'all') {
-                // Show all sections
-                if (platformSection) platformSection.classList.remove('hidden');
-                if (communitySection) communitySection.classList.remove('hidden');
-            } else if (filter === 'platform') {
-                // Show only platform announcements
-                if (platformSection) platformSection.classList.remove('hidden');
-                if (communitySection) communitySection.classList.add('hidden');
-            } else if (filter === 'community') {
-                // Show only community events
-                if (platformSection) platformSection.classList.add('hidden');
-                if (communitySection) communitySection.classList.remove('hidden');
-            }
+            // Update section visibility
+            updateSectionVisibility(filter);
         });
     });
 }

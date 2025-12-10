@@ -235,6 +235,22 @@
     min-width: 0;
     flex: 1 1 100%;
 }
+/* Ensure Platform Announcement meta chips stay side by side */
+.theme-announcement .event-row-meta {
+    flex-wrap: nowrap;
+    align-items: center;
+}
+.theme-announcement .event-row-meta .meta-chip {
+    flex: 0 1 auto;
+    min-width: fit-content;
+    white-space: nowrap;
+}
+/* Allow wrapping on very small screens */
+@media (max-width: 480px) {
+    .theme-announcement .event-row-meta {
+        flex-wrap: wrap;
+    }
+}
 .event-row-header .event-row-sub { padding-right: 0; }
 .event-row .event-row-meta { 
     flex: 1 1 100%; 
@@ -512,8 +528,7 @@
 .event-row.theme-halloween::after { box-shadow: 0 0 0 2px rgba(251,146,60,.2) inset; }
 
 .event-row.theme-christmas::before {
-    background:
-        url('../svg/christmas-tree.svg') no-repeat left 8px top 8px / 100px 100px;
+    background: none;
     opacity: .12;
 }
 .event-row.theme-christmas::after { box-shadow: 0 0 0 2px rgba(220,38,38,.16) inset; }
@@ -631,6 +646,11 @@
 
 .filterable-section.hidden {
     display: none;
+}
+
+/* Ensure platform announcements section is visible by default */
+#platform-announcements-section.filterable-section {
+    display: block;
 }
 
 @media (max-width: 768px) {
